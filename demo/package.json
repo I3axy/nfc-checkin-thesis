@@ -1,0 +1,15 @@
+{
+  "name": "innohub",
+  "private": true,
+  "workspaces": [
+    "apps/scanner",
+    "apps/worker",
+    "apps/dashboard"
+  ],
+  "scripts": {
+    "dev:scanner":   "npm run dev   --workspace=apps/scanner",
+    "dev:worker":    "npm run dev   --workspace=apps/worker",
+    "dev:dashboard": "npm run dev   --workspace=apps/dashboard",
+    "build:all":     "npm run build --workspace=apps/scanner && npm run build --workspace=apps/worker && npm run build --workspace=apps/dashboard"
+  }
+}
