@@ -6,15 +6,15 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js?v=3'))
 }
 
-const url = import.meta.env.VITE_SUPABASE_URL
-const key = import.meta.env.VITE_SUPABASE_SERVICE_KEY
+const fnUrl = import.meta.env.VITE_WORKER_FUNCTION_URL
+const slug  = import.meta.env.VITE_COMPANY_SLUG
 
-if (!url || !key) {
+if (!fnUrl || !slug) {
   document.getElementById('root').innerHTML = `
-    <div style="height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#1d4ed8;color:#fff;font-family:monospace;gap:1rem;padding:2rem;text-align:center">
+    <div style="height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#1b2838;color:#c6d4df;font-family:monospace;gap:1rem;padding:2rem;text-align:center">
       <div style="font-size:3rem">⚠️</div>
       <div style="font-size:1.2rem;font-weight:bold">Missing environment variables</div>
-      <div style="font-size:0.85rem;opacity:0.8">VITE_SUPABASE_URL and VITE_SUPABASE_SERVICE_KEY must be set in Vercel</div>
+      <div style="font-size:0.85rem;color:#8f98a0">VITE_WORKER_FUNCTION_URL and VITE_COMPANY_SLUG must be set</div>
     </div>`
 } else {
   ReactDOM.createRoot(document.getElementById('root')).render(<App />)
