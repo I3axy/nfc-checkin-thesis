@@ -1,5 +1,17 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import * as XLSX from 'xlsx'
 import { supabase } from './lib/supabase'
+
+// ─── Settings ─────────────────────────────────────────────────────────────────
+
+const DEFAULT_SETTINGS = { startHour: 8, startMinute: 0, lateThresholdMinutes: 15, autoCheckoutHour: 23, theme: 'blue' }
+
+function loadSettings() {
+  try { return { ...DEFAULT_SETTINGS, ...JSON.parse(localStorage.getItem('nfc_settings') ?? '{}') } }
+  catch { return { ...DEFAULT_SETTINGS } }
+}
+
+function saveSettings(s) { localStorage.setItem('nfc_settings', JSON.stringify(s)) }
 
 // ─── Root ─────────────────────────────────────────────────────────────────────
 
@@ -86,6 +98,7 @@ function Dashboard() {
   const [events, setEvents] = useState([])
   const [lastUpdate, setLastUpdate] = useState(null)
   const [tab, setTab] = useState('status')
+  const [settings, setSettings] = useState(loadSettings)
 
   const loadData = useCallback(async () => {
     const [{ data: profiles }, { data: allEvents }] = await Promise.all([
@@ -124,6 +137,7 @@ function Dashboard() {
     { key: 'insights',  label: 'Statisztika' },
     { key: 'absences',  label: 'Hiányzások' },
     { key: 'register',  label: 'Regisztráció' },
+    { key: 'settings',  label: 'Beállítások' },
   ]
 
   return (
@@ -195,11 +209,12 @@ function Dashboard() {
         </div>
 
         <div style={{ flex: 1, padding: '1.25rem 1.5rem', overflowY: 'auto' }}>
-          {tab === 'status'   && <StatusTab employees={employees} onSaved={loadData} />}
+          {tab === 'status'   && <StatusTab employees={employees} onSaved={loadData} settings={settings} />}
           {tab === 'log'      && <LogTab events={events} onSaved={loadData} />}
           {tab === 'insights' && <InsightsTab employees={employees} />}
           {tab === 'absences' && <AbsencesTab employees={employees} />}
           {tab === 'register' && <RegisterTab onSaved={loadData} />}
+          {tab === 'settings' && <SettingsTab settings={settings} onSave={s => { saveSettings(s); setSettings(s) }} />}
         </div>
       </main>
     </div>
@@ -208,7 +223,7 @@ function Dashboard() {
 
 // ─── Status Tab ───────────────────────────────────────────────────────────────
 
-function StatusTab({ employees, onSaved }) {
+function StatusTab({ employees, onSaved, settings }) {
   const [editing, setEditing] = useState(null)
   const [deptFilter, setDeptFilter] = useState('all')
 
@@ -235,7 +250,7 @@ function StatusTab({ employees, onSaved }) {
       <Table>
         {inside.length === 0
           ? <TableEmpty>Senki nincs bent</TableEmpty>
-          : inside.map(emp => <EmpRow key={emp.id} emp={emp} onEdit={() => setEditing(emp)} />)
+          : inside.map(emp => <EmpRow key={emp.id} emp={emp} onEdit={() => setEditing(emp)} settings={settings} />)
         }
       </Table>
 
@@ -245,7 +260,7 @@ function StatusTab({ employees, onSaved }) {
       <Table>
         {outside.length === 0
           ? <TableEmpty>Mindenki bent van</TableEmpty>
-          : outside.map(emp => <EmpRow key={emp.id} emp={emp} onEdit={() => setEditing(emp)} />)
+          : outside.map(emp => <EmpRow key={emp.id} emp={emp} onEdit={() => setEditing(emp)} settings={settings} />)
         }
       </Table>
 
@@ -254,14 +269,18 @@ function StatusTab({ employees, onSaved }) {
   )
 }
 
-function EmpRow({ emp, onEdit }) {
+function EmpRow({ emp, onEdit, settings }) {
   const isIn = emp.lastEvent?.type === 'checkin'
+  const isLate = emp.firstInToday ? isWorkerLate(emp.firstInToday, settings) : false
   return (
     <tr style={{ borderBottom: `1px solid ${C.border}` }}>
       <td style={{ ...S.td, width: 10, paddingRight: 0 }}>
         <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: isIn ? C.green : C.border }} />
       </td>
-      <td style={{ ...S.td, fontWeight: 700, color: C.text }}>{emp.name}</td>
+      <td style={{ ...S.td, fontWeight: 700, color: C.text }}>
+        {emp.name}
+        {isLate && <span style={{ marginLeft: '0.5rem', fontSize: '0.65rem', color: '#e8a838', border: '1px solid #e8a83840', padding: '0.1rem 0.35rem', fontWeight: 700 }}>Késő</span>}
+      </td>
       <td style={{ ...S.td, color: C.muted, fontSize: '0.78rem' }}>{emp.department ?? '—'}</td>
       <td style={S.td}>
         {emp.lastEvent
@@ -388,6 +407,14 @@ function LogTab({ events, onSaved }) {
     a.click()
   }
 
+  function exportExcel() {
+    const rows = [['Név', 'Típus', 'Időpont', 'Kézi', 'Megjegyzés'], ...sorted.map(e => [e.name, e.type === 'checkin' ? 'Belépés' : 'Kilépés', new Date(e.timestamp).toLocaleString(), e.is_manual ? 'Igen' : '', e.note ?? ''])]
+    const ws = XLSX.utils.aoa_to_sheet(rows)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Napló')
+    XLSX.writeFile(wb, `checkin-${new Date().toISOString().slice(0, 10)}.xlsx`)
+  }
+
   return (
     <>
       <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.85rem', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -396,7 +423,8 @@ function LogTab({ events, onSaved }) {
         </select>
         <span style={{ fontSize: '0.72rem', color: C.muted }}>{sorted.length} esemény</span>
         <div style={{ flex: 1 }} />
-        <button onClick={exportCSV} style={S.btnSecondary}>↓ CSV export</button>
+        <button onClick={exportCSV} style={S.btnSecondary}>↓ CSV</button>
+        <button onClick={exportExcel} style={S.btnSecondary}>↓ Excel</button>
       </div>
       <Table>
         <thead>
@@ -642,6 +670,109 @@ function RegisterTab({ onSaved }) {
   )
 }
 
+// ─── Settings Tab ─────────────────────────────────────────────────────────────
+
+const THEMES = [
+  { key: 'blue',  label: 'Kék (Steam)',  desc: 'Alapértelmezett, sötétkék' },
+  { key: 'dark',  label: 'Sötét',        desc: 'Fekete alapú, kontrasztos' },
+  { key: 'light', label: 'Világos',      desc: 'Fehér alapú, nappali' },
+]
+
+function SettingsTab({ settings, onSave }) {
+  const [startHour,      setStartHour]      = useState(settings.startHour)
+  const [startMinute,    setStartMinute]    = useState(settings.startMinute)
+  const [lateThreshold,  setLateThreshold]  = useState(settings.lateThresholdMinutes)
+  const [autoCheckout,   setAutoCheckout]   = useState(settings.autoCheckoutHour)
+  const [theme,          setTheme]          = useState(settings.theme ?? 'blue')
+  const [saved,          setSaved]          = useState(false)
+  const [pwSent,         setPwSent]         = useState(false)
+
+  function handleSave(e) {
+    e.preventDefault()
+    onSave({ startHour: Number(startHour), startMinute: Number(startMinute), lateThresholdMinutes: Number(lateThreshold), autoCheckoutHour: Number(autoCheckout), theme })
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
+  }
+
+  async function handlePasswordReset() {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user?.email) return
+    await supabase.auth.resetPasswordForEmail(user.email)
+    setPwSent(true)
+    setTimeout(() => setPwSent(false), 5000)
+  }
+
+  const padded = (n) => String(n).padStart(2, '0')
+
+  return (
+    <div style={{ maxWidth: 480, display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+
+      {/* Munkaidő */}
+      <div>
+        <SectionLabel color={C.accent}>Munkaidő szabályok</SectionLabel>
+        <div style={{ background: C.bg1, border: `1px solid ${C.border}`, padding: '1.25rem' }}>
+          <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+              <Field label="Munkaidő kezdete — óra">
+                <input type="number" min="0" max="23" value={startHour} onChange={e => setStartHour(e.target.value)} style={S.input} />
+              </Field>
+              <Field label="Munkaidő kezdete — perc">
+                <input type="number" min="0" max="59" step="5" value={startMinute} onChange={e => setStartMinute(e.target.value)} style={S.input} />
+              </Field>
+            </div>
+            <Field label="Késés küszöb (perc)">
+              <input type="number" min="0" max="120" value={lateThreshold} onChange={e => setLateThreshold(e.target.value)} style={S.input} />
+            </Field>
+            <Field label="Auto checkout (óra)">
+              <input type="number" min="18" max="23" value={autoCheckout} onChange={e => setAutoCheckout(e.target.value)} style={S.input} />
+            </Field>
+
+            <Divider label="Megjelenés" />
+
+            <Field label="Téma">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                {THEMES.map(t => (
+                  <label key={t.key} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.55rem 0.8rem', background: theme === t.key ? C.bg2 : C.bg0, border: `1px solid ${theme === t.key ? C.accent : C.border}`, cursor: 'pointer' }}>
+                    <input type="radio" name="theme" value={t.key} checked={theme === t.key} onChange={() => setTheme(t.key)} style={{ accentColor: C.accent }} />
+                    <div>
+                      <div style={{ fontSize: '0.85rem', fontWeight: theme === t.key ? 700 : 400, color: theme === t.key ? C.text : C.muted }}>{t.label}</div>
+                      <div style={{ fontSize: '0.7rem', color: C.muted }}>{t.desc}</div>
+                    </div>
+                    {theme === t.key && <span style={{ marginLeft: 'auto', fontSize: '0.7rem', color: C.accent }}>aktív</span>}
+                  </label>
+                ))}
+              </div>
+            </Field>
+
+            <button type="submit" style={{ ...S.btnPrimary, background: saved ? C.green : C.accent }}>
+              {saved ? '✓ Mentve' : 'Beállítások mentése'}
+            </button>
+          </form>
+        </div>
+      </div>
+
+      {/* Jelszó */}
+      <div>
+        <SectionLabel color={C.muted}>Fiók</SectionLabel>
+        <div style={{ background: C.bg1, border: `1px solid ${C.border}`, padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          <div style={{ fontSize: '0.82rem', color: C.muted }}>
+            Jelszó módosításához küldünk egy linket a fiókhoz tartozó email-re.
+          </div>
+          {pwSent && (
+            <div style={{ background: C.green + '15', border: `1px solid ${C.green}40`, padding: '0.5rem 0.75rem', fontSize: '0.82rem', color: C.green }}>
+              ✓ Email elküldve — nézd meg a postaládádat
+            </div>
+          )}
+          <button onClick={handlePasswordReset} style={{ ...S.btnSecondary, width: 'auto', alignSelf: 'flex-start' }}>
+            Jelszó megváltoztatása →
+          </button>
+        </div>
+      </div>
+
+    </div>
+  )
+}
+
 // ─── Shared UI components ─────────────────────────────────────────────────────
 
 function Table({ children }) {
@@ -754,6 +885,13 @@ function calcRangeMinutes(userEvents, days) {
 
 function countRangeEvents(userEvents, days) {
   return userEvents.filter(e => new Date(e.timestamp).getTime() >= Date.now() - days * 86400000).length
+}
+
+function isWorkerLate(timestamp, settings) {
+  const d = new Date(timestamp)
+  const threshold = new Date(d)
+  threshold.setHours(settings.startHour, settings.startMinute + settings.lateThresholdMinutes, 0, 0)
+  return d > threshold
 }
 
 function fmtMins(m) {
