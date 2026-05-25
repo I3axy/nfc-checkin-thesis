@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import * as XLSX from 'xlsx'
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ReferenceLine, ResponsiveContainer, Cell } from 'recharts'
 import { supabase } from './lib/supabase'
 
 // ─── Settings ─────────────────────────────────────────────────────────────────
@@ -211,7 +212,7 @@ function Dashboard() {
         <div style={{ flex: 1, padding: '1.25rem 1.5rem', overflowY: 'auto' }}>
           {tab === 'status'   && <StatusTab employees={employees} onSaved={loadData} settings={settings} />}
           {tab === 'log'      && <LogTab events={events} onSaved={loadData} />}
-          {tab === 'insights' && <InsightsTab employees={employees} />}
+          {tab === 'insights' && <InsightsTab employees={employees} events={events} />}
           {tab === 'absences' && <AbsencesTab employees={employees} />}
           {tab === 'register' && <RegisterTab onSaved={loadData} />}
           {tab === 'settings' && <SettingsTab settings={settings} onSave={s => { saveSettings(s); setSettings(s) }} />}
@@ -468,50 +469,128 @@ function LogTab({ events, onSaved }) {
 
 // ─── Insights Tab ─────────────────────────────────────────────────────────────
 
-function InsightsTab({ employees }) {
+const HU_DAYS = ['V', 'H', 'K', 'Sze', 'Cs', 'P', 'Szo']
+const HU_MONTHS = ['jan.', 'feb.', 'már.', 'ápr.', 'máj.', 'jún.', 'júl.', 'aug.', 'szep.', 'okt.', 'nov.', 'dec.']
+
+function InsightsTab({ employees, events }) {
   const [selectedId, setSelectedId] = useState('')
   useEffect(() => { if (employees.length > 0 && !selectedId) setSelectedId(employees[0].id) }, [employees, selectedId])
   if (employees.length === 0) return <EmptyState>Nincs dolgozó</EmptyState>
+
   const sel = employees.find(e => e.id === selectedId) ?? employees[0]
-  const avgShift = sel.todayCheckins > 0 ? Math.floor(sel.todayMinutes / sel.todayCheckins) : 0
   const isIn = sel.lastEvent?.type === 'checkin'
+  const workerEvents = events.filter(e => e.user_id === sel.id)
+
+  const last7 = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(); d.setDate(d.getDate() - (6 - i)); d.setHours(0, 0, 0, 0)
+    const dateStr = d.toDateString()
+    const dayEvts = workerEvents.filter(e => new Date(e.timestamp).toDateString() === dateStr)
+    const firstIn  = dayEvts.find(e => e.type === 'checkin')?.timestamp ?? null
+    const lastOut  = [...dayEvts].reverse().find(e => e.type === 'checkout')?.timestamp ?? null
+    const mins = calcDayMinutes(dayEvts)
+    return { date: d, mins, firstIn, lastOut, count: dayEvts.length }
+  })
+
+  const weekTotal = last7.reduce((s, d) => s + d.mins, 0)
+  const workDays  = last7.filter(d => d.mins > 0).length
 
   return (
     <>
-      <div style={{ marginBottom: '1.25rem', maxWidth: 360 }}>
-        <Field label="Dolgozó">
-          <select value={selectedId} onChange={e => setSelectedId(e.target.value)} style={S.input}>
-            {employees.map(emp => <option key={emp.id} value={emp.id}>{emp.name} ({emp.role})</option>)}
-          </select>
-        </Field>
+      {/* Worker selector */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.25rem' }}>
+        <span style={{ fontSize: '0.78rem', color: C.muted, whiteSpace: 'nowrap' }}>Dolgozó:</span>
+        <select value={selectedId} onChange={e => setSelectedId(e.target.value)} style={{ ...S.input, width: 'auto', minWidth: 200 }}>
+          {employees.map(emp => <option key={emp.id} value={emp.id}>{emp.name}</option>)}
+        </select>
+        <Badge color={isIn ? C.green : C.muted}>{isIn ? 'Bent' : 'Kint'}</Badge>
+        {sel.department && <span style={{ fontSize: '0.78rem', color: C.muted }}>{sel.department}</span>}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '1px', background: C.border, border: `1px solid ${C.border}`, marginBottom: '1.25rem' }}>
-        {[
-          { label: 'Ma összesen',       value: fmtMins(sel.todayMinutes), color: C.green },
-          { label: 'Mai munkamenetek',  value: String(sel.todayCheckins ?? 0), color: C.accent },
-          { label: '7 napos összesen',  value: fmtMins(sel.weekMinutes ?? 0), color: C.text },
-          { label: 'Átlag műszak',      value: fmtMins(avgShift),          color: C.text },
-        ].map(s => (
-          <div key={s.label} style={{ background: C.bg1, padding: '1rem' }}>
-            <div style={{ fontSize: '1.8rem', fontWeight: 800, color: s.color, lineHeight: 1 }}>{s.value}</div>
-            <div style={{ fontSize: '0.68rem', color: C.muted, marginTop: '0.3rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{s.label}</div>
-          </div>
-        ))}
+      {/* Mai adatok */}
+      <SectionLabel color={C.accent}>Mai adatok</SectionLabel>
+      <Table>
+        <tbody>
+          {[
+            ['Első belépés',     sel.firstInToday ? fmtClock(sel.firstInToday) : '—',  C.text],
+            ['Utolsó kilépés',   sel.lastOutToday ? fmtClock(sel.lastOutToday) : '—',  C.text],
+            ['Ledolgozott idő',  fmtMins(sel.todayMinutes),                             C.green],
+            ['Munkamenetek',     String(sel.todayCheckins ?? 0),                        C.text],
+          ].map(([label, value, color], i, arr) => (
+            <tr key={label} style={{ borderBottom: i < arr.length - 1 ? `1px solid ${C.border}` : 'none' }}>
+              <td style={{ ...S.td, color: C.muted, width: '55%' }}>{label}</td>
+              <td style={{ ...S.td, fontWeight: 700, color, fontFamily: 'monospace' }}>{value}</td>
+            </tr>
+          ))}
+        </tbody>
+      </Table>
+
+      <div style={{ height: '1.5rem' }} />
+
+      {/* 7 napos bontás */}
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: '1rem', marginBottom: '0.75rem' }}>
+        <SectionLabel color={C.accent}>Utolsó 7 nap</SectionLabel>
+        <span style={{ fontSize: '0.72rem', color: C.muted }}>összesen: <strong style={{ color: C.text }}>{fmtMins(weekTotal)}</strong> — {workDays} munkanap</span>
+      </div>
+
+      {/* Bar chart */}
+      <div style={{ background: C.bg1, border: `1px solid ${C.border}`, padding: '1rem 0.5rem 0.5rem', marginBottom: '1rem' }}>
+        <ResponsiveContainer width="100%" height={160}>
+          <BarChart data={last7.map(({ date, mins }) => ({ name: HU_DAYS[date.getDay()], hours: parseFloat((mins / 60).toFixed(1)), full: `${HU_MONTHS[date.getMonth()]} ${date.getDate()}.` }))} barSize={32} margin={{ top: 0, right: 16, left: 0, bottom: 0 }}>
+            <XAxis dataKey="name" tick={{ fill: C.muted, fontSize: 11 }} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fill: C.muted, fontSize: 11 }} axisLine={false} tickLine={false} unit="h" width={28} />
+            <Tooltip
+              contentStyle={{ background: C.bg2, border: `1px solid ${C.border}`, color: C.text, fontSize: '0.8rem', borderRadius: 0 }}
+              labelFormatter={(_, payload) => payload?.[0]?.payload?.full ?? ''}
+              formatter={(v) => [`${v} óra`, 'Ledolgozott']}
+              cursor={{ fill: C.bg2 }}
+            />
+            <ReferenceLine y={8} stroke={C.border} strokeDasharray="4 3" label={{ value: '8h', fill: C.muted, fontSize: 10, position: 'insideTopRight' }} />
+            <Bar dataKey="hours" radius={0}>
+              {last7.map(({ mins }, i) => (
+                <Cell key={i} fill={mins === 0 ? C.bg2 : mins >= 480 ? C.accent : mins >= 360 ? C.green : '#e8a838'} />
+              ))}
+            </Bar>
+          </BarChart>
+        </ResponsiveContainer>
+        <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', paddingTop: '0.25rem' }}>
+          {[[C.green, '6–8h'], [C.accent, '8h+'], ['#e8a838', '<6h'], [C.bg2, 'Nem volt']].map(([color, label]) => (
+            <div key={label} style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+              <div style={{ width: 10, height: 10, background: color, border: `1px solid ${C.border}` }} />
+              <span style={{ fontSize: '0.65rem', color: C.muted }}>{label}</span>
+            </div>
+          ))}
+        </div>
       </div>
 
       <Table>
-        {[
-          { label: 'Jelenlegi státusz', value: isIn ? 'Bent' : 'Kint', color: isIn ? C.green : C.red },
-          { label: 'Első belépés ma',   value: sel.firstInToday ? fmtClock(sel.firstInToday) : '—', color: C.text },
-          { label: 'Utolsó kilépés ma', value: sel.lastOutToday ? fmtClock(sel.lastOutToday) : '—', color: C.text },
-          { label: 'Események 7 nap',   value: String(sel.weekEvents ?? 0), color: C.text },
-        ].map((r, i) => (
-          <tr key={r.label} style={{ borderBottom: i < 3 ? `1px solid ${C.border}` : 'none' }}>
-            <td style={{ ...S.td, color: C.muted }}>{r.label}</td>
-            <td style={{ ...S.td, textAlign: 'right', fontWeight: 700, color: r.color }}>{r.value}</td>
+        <thead>
+          <tr style={{ background: C.bg2 }}>
+            <Th>Nap</Th>
+            <Th>Belépés</Th>
+            <Th>Kilépés</Th>
+            <Th>Ledolgozott</Th>
           </tr>
-        ))}
+        </thead>
+        <tbody>
+          {last7.map(({ date, mins, firstIn, lastOut }) => {
+            const isToday = date.toDateString() === new Date().toDateString()
+            const isWeekend = date.getDay() === 0 || date.getDay() === 6
+            return (
+              <tr key={date.toISOString()} style={{ borderBottom: `1px solid ${C.border}`, opacity: isWeekend ? 0.45 : 1 }}>
+                <td style={{ ...S.td, fontFamily: 'monospace', fontSize: '0.82rem' }}>
+                  <span style={{ color: C.muted }}>{HU_DAYS[date.getDay()]} </span>
+                  <span style={{ color: isToday ? C.accent : C.text }}>{HU_MONTHS[date.getMonth()]} {date.getDate()}.</span>
+                  {isToday && <span style={{ marginLeft: '0.4rem', fontSize: '0.65rem', color: C.accent }}>ma</span>}
+                </td>
+                <td style={{ ...S.td, fontFamily: 'monospace', color: firstIn ? C.text : C.border }}>{firstIn ? fmtClock(firstIn) : '—'}</td>
+                <td style={{ ...S.td, fontFamily: 'monospace', color: lastOut ? C.text : C.border }}>{lastOut ? fmtClock(lastOut) : '—'}</td>
+                <td style={{ ...S.td, fontWeight: mins > 0 ? 700 : 400, color: mins > 480 ? C.accent : mins > 0 ? C.green : C.border }}>
+                  {fmtMins(mins)}
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
       </Table>
     </>
   )
@@ -705,71 +784,74 @@ function SettingsTab({ settings, onSave }) {
   const padded = (n) => String(n).padStart(2, '0')
 
   return (
-    <div style={{ maxWidth: 480, display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-
-      {/* Munkaidő */}
-      <div>
-        <SectionLabel color={C.accent}>Munkaidő szabályok</SectionLabel>
-        <div style={{ background: C.bg1, border: `1px solid ${C.border}`, padding: '1.25rem' }}>
-          <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-              <Field label="Munkaidő kezdete — óra">
-                <input type="number" min="0" max="23" value={startHour} onChange={e => setStartHour(e.target.value)} style={S.input} />
-              </Field>
-              <Field label="Munkaidő kezdete — perc">
-                <input type="number" min="0" max="59" step="5" value={startMinute} onChange={e => setStartMinute(e.target.value)} style={S.input} />
-              </Field>
+    <form onSubmit={handleSave} style={{ maxWidth: 560 }}>
+      <SectionLabel color={C.accent}>Munkaidő szabályok</SectionLabel>
+      <Table>
+        <tbody>
+          <SettingsRow label="Munkaidő kezdete">
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              <input type="number" min="0" max="23" value={startHour} onChange={e => setStartHour(e.target.value)} style={{ ...S.input, width: 70 }} />
+              <span style={{ color: C.muted }}>:</span>
+              <input type="number" min="0" max="59" step="5" value={startMinute} onChange={e => setStartMinute(e.target.value)} style={{ ...S.input, width: 70 }} />
             </div>
-            <Field label="Késés küszöb (perc)">
-              <input type="number" min="0" max="120" value={lateThreshold} onChange={e => setLateThreshold(e.target.value)} style={S.input} />
-            </Field>
-            <Field label="Auto checkout (óra)">
-              <input type="number" min="18" max="23" value={autoCheckout} onChange={e => setAutoCheckout(e.target.value)} style={S.input} />
-            </Field>
-
-            <Divider label="Megjelenés" />
-
-            <Field label="Téma">
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                {THEMES.map(t => (
-                  <label key={t.key} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.55rem 0.8rem', background: theme === t.key ? C.bg2 : C.bg0, border: `1px solid ${theme === t.key ? C.accent : C.border}`, cursor: 'pointer' }}>
-                    <input type="radio" name="theme" value={t.key} checked={theme === t.key} onChange={() => setTheme(t.key)} style={{ accentColor: C.accent }} />
-                    <div>
-                      <div style={{ fontSize: '0.85rem', fontWeight: theme === t.key ? 700 : 400, color: theme === t.key ? C.text : C.muted }}>{t.label}</div>
-                      <div style={{ fontSize: '0.7rem', color: C.muted }}>{t.desc}</div>
-                    </div>
-                    {theme === t.key && <span style={{ marginLeft: 'auto', fontSize: '0.7rem', color: C.accent }}>aktív</span>}
-                  </label>
-                ))}
-              </div>
-            </Field>
-
-            <button type="submit" style={{ ...S.btnPrimary, background: saved ? C.green : C.accent }}>
-              {saved ? '✓ Mentve' : 'Beállítások mentése'}
-            </button>
-          </form>
-        </div>
-      </div>
-
-      {/* Jelszó */}
-      <div>
-        <SectionLabel color={C.muted}>Fiók</SectionLabel>
-        <div style={{ background: C.bg1, border: `1px solid ${C.border}`, padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-          <div style={{ fontSize: '0.82rem', color: C.muted }}>
-            Jelszó módosításához küldünk egy linket a fiókhoz tartozó email-re.
-          </div>
-          {pwSent && (
-            <div style={{ background: C.green + '15', border: `1px solid ${C.green}40`, padding: '0.5rem 0.75rem', fontSize: '0.82rem', color: C.green }}>
-              ✓ Email elküldve — nézd meg a postaládádat
+          </SettingsRow>
+          <SettingsRow label="Késés küszöb" hint="ennyi perccel a kezdés után számít késésnek">
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              <input type="number" min="0" max="120" value={lateThreshold} onChange={e => setLateThreshold(e.target.value)} style={{ ...S.input, width: 70 }} />
+              <span style={{ fontSize: '0.8rem', color: C.muted }}>perc</span>
             </div>
-          )}
-          <button onClick={handlePasswordReset} style={{ ...S.btnSecondary, width: 'auto', alignSelf: 'flex-start' }}>
-            Jelszó megváltoztatása →
-          </button>
-        </div>
-      </div>
+          </SettingsRow>
+          <SettingsRow label="Auto checkout" hint="ennél később senki sem maradhat bent">
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+              <input type="number" min="18" max="23" value={autoCheckout} onChange={e => setAutoCheckout(e.target.value)} style={{ ...S.input, width: 70 }} />
+              <span style={{ fontSize: '0.8rem', color: C.muted }}>:00</span>
+            </div>
+          </SettingsRow>
+        </tbody>
+      </Table>
 
-    </div>
+      <div style={{ height: '1.5rem' }} />
+      <SectionLabel color={C.accent}>Megjelenés</SectionLabel>
+      <Table>
+        <tbody>
+          {THEMES.map(t => (
+            <tr key={t.key} onClick={() => setTheme(t.key)} style={{ borderBottom: `1px solid ${C.border}`, cursor: 'pointer', background: theme === t.key ? C.bg2 : C.bg1 }}>
+              <td style={{ ...S.td, width: 24 }}>
+                <input type="radio" name="theme" value={t.key} checked={theme === t.key} onChange={() => setTheme(t.key)} style={{ accentColor: C.accent }} />
+              </td>
+              <td style={{ ...S.td, fontWeight: theme === t.key ? 700 : 400, color: theme === t.key ? C.text : C.muted }}>{t.label}</td>
+              <td style={{ ...S.td, fontSize: '0.75rem', color: C.muted }}>{t.desc}</td>
+              <td style={{ ...S.td, textAlign: 'right' }}>
+                {theme === t.key && <Badge color={C.accent}>aktív</Badge>}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </Table>
+
+      <div style={{ height: '1.5rem' }} />
+      <SectionLabel color={C.accent}>Fiók</SectionLabel>
+      <Table>
+        <tbody>
+          <tr style={{ borderBottom: `1px solid ${C.border}` }}>
+            <td style={{ ...S.td, color: C.muted }}>Jelszó</td>
+            <td style={{ ...S.td, fontSize: '0.78rem', color: C.muted }}>Küldünk egy linket a fiókhoz tartozó email-re</td>
+            <td style={{ ...S.td, textAlign: 'right' }}>
+              {pwSent
+                ? <span style={{ fontSize: '0.78rem', color: C.green }}>✓ Email elküldve</span>
+                : <button type="button" onClick={handlePasswordReset} style={S.btnSecondary}>Változtatás →</button>
+              }
+            </td>
+          </tr>
+        </tbody>
+      </Table>
+
+      <div style={{ marginTop: '1.25rem' }}>
+        <button type="submit" style={{ ...S.btnPrimary, background: saved ? C.green : C.accent }}>
+          {saved ? '✓ Mentve' : 'Beállítások mentése'}
+        </button>
+      </div>
+    </form>
   )
 }
 
@@ -853,6 +935,18 @@ function Modal({ title, onClose, children }) {
   )
 }
 
+function SettingsRow({ label, hint, children }) {
+  return (
+    <tr style={{ borderBottom: `1px solid ${C.border}` }}>
+      <td style={{ ...S.td, width: '40%' }}>
+        <div style={{ fontWeight: 600, color: C.text }}>{label}</div>
+        {hint && <div style={{ fontSize: '0.72rem', color: C.muted, marginTop: '0.15rem' }}>{hint}</div>}
+      </td>
+      <td style={{ ...S.td }}>{children}</td>
+    </tr>
+  )
+}
+
 function EmptyState({ children }) {
   return <div style={{ color: C.muted, padding: '3rem', textAlign: 'center', fontSize: '0.9rem', border: `1px solid ${C.border}` }}>{children}</div>
 }
@@ -885,6 +979,17 @@ function calcRangeMinutes(userEvents, days) {
 
 function countRangeEvents(userEvents, days) {
   return userEvents.filter(e => new Date(e.timestamp).getTime() >= Date.now() - days * 86400000).length
+}
+
+function calcDayMinutes(dayEvents) {
+  const sorted = [...dayEvents].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+  let total = 0, lastIn = null
+  for (const e of sorted) {
+    if (e.type === 'checkin') lastIn = new Date(e.timestamp)
+    else if (e.type === 'checkout' && lastIn) { total += (new Date(e.timestamp) - lastIn) / 60000; lastIn = null }
+  }
+  if (lastIn && new Date().toDateString() === new Date(lastIn).toDateString()) total += (Date.now() - lastIn) / 60000
+  return Math.floor(total)
 }
 
 function isWorkerLate(timestamp, settings) {
