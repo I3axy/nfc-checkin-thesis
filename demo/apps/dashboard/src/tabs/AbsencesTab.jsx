@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
-import { C, S } from '../lib/theme'
+import { C, S, CAL } from '../lib/theme'
 import { Table, TableEmpty, SectionLabel, Badge, Field } from '../components/ui'
 
 export const ABSENCE_LABELS = { vacation: 'Szabadság', sick: 'Betegszabadság', unjustified: 'Igazolatlan', other: 'Egyéb' }
@@ -71,7 +71,7 @@ export function AbsencesTab({ employees }) {
               : absences.map(a => (
                 <tr key={a.id} style={{ borderBottom: `1px solid ${C.border}` }}>
                   <td style={{ ...S.td, fontWeight: 600, color: C.text }}>{profileMap[a.user_id]?.name ?? '?'}</td>
-                  <td style={S.td}><Badge color={a.type === 'unjustified' ? C.red : C.muted}>{ABSENCE_LABELS[a.type]}</Badge></td>
+                  <td style={S.td}><Badge color={a.type === 'unjustified' ? CAL.unjustified.bar : CAL.justified.bar}>{ABSENCE_LABELS[a.type]}</Badge></td>
                   <td style={{ ...S.td, fontFamily: 'monospace', fontSize: '0.8rem', color: C.muted }}>{a.date}</td>
                   <td style={{ ...S.td, color: C.muted, fontSize: '0.78rem' }}>{a.note ?? ''}</td>
                   <td style={{ ...S.td, textAlign: 'right' }}>

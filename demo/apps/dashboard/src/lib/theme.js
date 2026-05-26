@@ -10,6 +10,15 @@ export const C = {
   red:    '#c94f4f',
 }
 
+// Semantic status colors — consistent across all tabs and calendar
+export const CAL = {
+  normal:      { bar: '#4ade80', text: '#4ade80' },
+  late:        { bar: '#f97316', text: '#f97316' },
+  overtime:    { bar: '#38bdf8', text: '#7dd3fc' },
+  justified:   { bar: '#a78bfa', text: '#c4b5fd' },
+  unjustified: { bar: '#f87171', text: '#fca5a5' },
+}
+
 export const S = {
   input:        { width: '100%', padding: '0.55rem 0.8rem', fontSize: '0.86rem', background: C.bg0, border: `1px solid ${C.border}`, color: C.text, outline: 'none', boxSizing: 'border-box', borderRadius: 0 },
   btnPrimary:   { padding: '0.6rem 1.25rem', fontSize: '0.86rem', fontWeight: 700, background: C.accent, color: C.bg0, border: 'none', cursor: 'pointer', borderRadius: 0 },

@@ -60,13 +60,13 @@ export function Divider({ label }) {
   )
 }
 
-export function Modal({ title, onClose, children, wide }) {
+export function Modal({ title, onClose, children, wide, maxWidth }) {
   return (
     <div
       style={{ position: 'fixed', inset: 0, zIndex: 200, background: '#000000bb', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}
       onClick={e => e.target === e.currentTarget && onClose()}
     >
-      <div style={{ background: C.bg1, border: `1px solid ${C.border}`, width: '100%', maxWidth: wide ? 640 : 460, maxHeight: '90dvh', overflowY: 'auto' }}>
+      <div style={{ background: C.bg1, border: `1px solid ${C.border}`, width: '100%', maxWidth: maxWidth ?? (wide ? 760 : 460), maxHeight: '90dvh', overflowY: 'auto' }}>
         <div style={{ background: C.bg2, borderBottom: `1px solid ${C.border}`, padding: '0.75rem 1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <div style={{ width: 3, height: 16, background: C.accent }} />

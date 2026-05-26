@@ -2,12 +2,12 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from './lib/supabase'
 import { C, S } from './lib/theme'
 import { loadSettings, saveSettings } from './lib/settings'
-import { getDaySummary, calcRangeMinutes, countRangeEvents, fmtMins } from './lib/utils'
+import { getDaySummary, calcRangeMinutes, countRangeEvents } from './lib/utils'
 import { Field } from './components/ui'
+import { WorkersTab }  from './tabs/WorkersTab'
 import { StatusTab }   from './tabs/StatusTab'
 import { LogTab }      from './tabs/LogTab'
 import { InsightsTab } from './tabs/InsightsTab'
-import { AbsencesTab } from './tabs/AbsencesTab'
 import { RegisterTab } from './tabs/RegisterTab'
 import { SettingsTab } from './tabs/SettingsTab'
 
@@ -80,12 +80,12 @@ function Login() {
 }
 
 const NAV_ITEMS = [
-  { key: 'status',   label: 'Státusz' },
-  { key: 'log',      label: 'Napló' },
-  { key: 'insights', label: 'Statisztika' },
-  { key: 'absences', label: 'Hiányzások' },
-  { key: 'register', label: 'Regisztráció' },
-  { key: 'settings', label: 'Beállítások' },
+  { key: 'status',   label: 'Státusz',      short: 'S'  },
+  { key: 'workers',  label: 'Munkások',     short: 'M'  },
+  { key: 'log',      label: 'Napló',        short: 'N'  },
+  { key: 'insights', label: 'Statisztika',  short: 'St' },
+  { key: 'register', label: 'Regisztráció', short: 'R'  },
+  { key: 'settings', label: 'Beállítások',  short: 'B'  },
 ]
 
 function Dashboard() {
@@ -94,6 +94,21 @@ function Dashboard() {
   const [lastUpdate, setLastUpdate] = useState(null)
   const [tab, setTab]               = useState('status')
   const [settings, setSettings]     = useState(loadSettings)
+  const [collapsed, setCollapsed]   = useState(() => localStorage.getItem('nfc_nav_collapsed') === '1')
+
+  function toggleCollapsed() {
+    setCollapsed(prev => {
+      localStorage.setItem('nfc_nav_collapsed', prev ? '0' : '1')
+      return !prev
+    })
+  }
+
+  useEffect(() => {
+    if (tab === 'workers') {
+      setCollapsed(true)
+      localStorage.setItem('nfc_nav_collapsed', '1')
+    }
+  }, [tab])
 
   const loadData = useCallback(async () => {
     const [{ data: profiles }, { data: allEvents }] = await Promise.all([
@@ -124,69 +139,109 @@ function Dashboard() {
     return () => supabase.removeChannel(ch)
   }, [loadData])
 
-  const checkedIn = employees.filter(e => e.lastEvent?.type === 'checkin').length
-  const todayCI   = events.filter(e => new Date(e.timestamp).toDateString() === new Date().toDateString() && e.type === 'checkin').length
-  const totalMins = employees.reduce((s, e) => s + e.todayMinutes, 0)
-
   return (
-    <div style={{ minHeight: '100dvh', display: 'flex', background: C.bg0, color: C.text, fontFamily: 'system-ui, -apple-system, sans-serif' }}>
-      <aside style={{ width: 220, flexShrink: 0, background: C.bg1, borderRight: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column' }}>
-        <div style={{ padding: '1.1rem 1rem', borderBottom: `1px solid ${C.border}` }}>
-          <div style={{ fontSize: '1.05rem', fontWeight: 800, color: C.text }}>NFC <span style={{ color: C.accent }}>Check-in</span></div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.3rem' }}>
-            <span style={{ width: 6, height: 6, borderRadius: '50%', background: C.green, display: 'inline-block' }} />
-            <span style={{ fontSize: '0.65rem', color: C.green, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Live</span>
-            {lastUpdate && <span style={{ fontSize: '0.6rem', color: C.muted }}>{lastUpdate.toLocaleTimeString()}</span>}
-          </div>
-        </div>
+    <div style={{ height: '100dvh', display: 'flex', background: C.bg0, color: C.text, fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+      <aside style={{
+        width: collapsed ? 48 : 220,
+        flexShrink: 0,
+        background: C.bg1,
+        borderRight: `1px solid ${C.border}`,
+        display: 'flex',
+        flexDirection: 'column',
+        transition: 'width 0.18s ease',
+        overflow: 'hidden',
+      }}>
 
-        <div style={{ padding: '0.75rem 1rem', borderBottom: `1px solid ${C.border}` }}>
-          {[
-            ['Bent most',      String(checkedIn),        C.green],
-            ['Összes dolgozó', String(employees.length), C.text],
-            ['Mai belépések',  String(todayCI),          C.accent],
-            ['Mai összes idő', fmtMins(totalMins),       C.text],
-          ].map(([label, value, color]) => (
-            <div key={label} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
-              <span style={{ fontSize: '0.7rem', color: C.muted }}>{label}</span>
-              <span style={{ fontSize: '0.7rem', fontWeight: 700, color }}>{value}</span>
-            </div>
-          ))}
-        </div>
-
-        <nav style={{ flex: 1, padding: '0.5rem 0' }}>
-          {NAV_ITEMS.map(n => (
-            <button key={n.key} onClick={() => setTab(n.key)} style={{
-              display: 'block', width: '100%', textAlign: 'left',
-              padding: '0.55rem 1rem', border: 'none', cursor: 'pointer',
-              background: tab === n.key ? C.bg2 : 'transparent',
-              color: tab === n.key ? C.text : C.muted,
-              fontSize: '0.85rem', fontWeight: tab === n.key ? 700 : 400,
-              borderLeft: tab === n.key ? `3px solid ${C.accent}` : '3px solid transparent',
-            }}>
-              {n.label}
+        {/* Header */}
+        <div style={{ borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
+          {collapsed ? (
+            <button onClick={toggleCollapsed} style={{ width: 48, height: 48, background: 'transparent', border: 'none', cursor: 'pointer', color: C.muted, fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              »
             </button>
-          ))}
+          ) : (
+            <div style={{ padding: '1.1rem 1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div>
+                <div style={{ fontSize: '1.05rem', fontWeight: 800, color: C.text, whiteSpace: 'nowrap' }}>NFC <span style={{ color: C.accent }}>Check-in</span></div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.3rem' }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: C.green, display: 'inline-block' }} />
+                  <span style={{ fontSize: '0.65rem', color: C.green, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Live</span>
+                  {lastUpdate && <span style={{ fontSize: '0.6rem', color: C.muted }}>{lastUpdate.toLocaleTimeString()}</span>}
+                </div>
+              </div>
+              <button onClick={toggleCollapsed} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: C.muted, fontSize: '0.9rem', padding: '0.1rem 0.2rem', marginTop: '0.1rem', flexShrink: 0 }}>
+                «
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Nav */}
+        <nav style={{ flex: 1, padding: '0.4rem 0', overflowY: 'hidden' }}>
+          {NAV_ITEMS.map(n => {
+            const active = tab === n.key
+            return collapsed ? (
+              <button
+                key={n.key}
+                onClick={() => setTab(n.key)}
+                title={n.label}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  width: 48, height: 36,
+                  border: 'none', cursor: 'pointer',
+                  background: 'transparent',
+                  color: active ? C.accent : C.muted,
+                  fontSize: '0.72rem', fontWeight: active ? 800 : 500,
+                  boxSizing: 'border-box',
+                }}
+              >
+                {n.short}
+              </button>
+            ) : (
+              <button
+                key={n.key}
+                onClick={() => setTab(n.key)}
+                style={{
+                  display: 'block', width: '100%', textAlign: 'left',
+                  padding: '0.55rem 1rem', border: 'none', cursor: 'pointer',
+                  background: active ? C.bg2 : 'transparent',
+                  color: active ? C.text : C.muted,
+                  fontSize: '0.85rem', fontWeight: active ? 700 : 400,
+                  borderLeft: active ? `3px solid ${C.accent}` : '3px solid transparent',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {n.label}
+              </button>
+            )
+          })}
         </nav>
 
-        <div style={{ padding: '0.75rem 1rem', borderTop: `1px solid ${C.border}` }}>
-          <button onClick={() => supabase.auth.signOut()} style={{ ...S.btnSecondary, width: '100%', fontSize: '0.78rem' }}>
-            Kilépés
-          </button>
+        {/* Kilépés */}
+        <div style={{ borderTop: `1px solid ${C.border}`, flexShrink: 0 }}>
+          {collapsed ? (
+            <button
+              onClick={() => supabase.auth.signOut()}
+              title="Kilépés"
+              style={{ width: 48, height: 40, background: 'transparent', border: 'none', cursor: 'pointer', color: C.muted, fontSize: '0.7rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            >
+              ↪
+            </button>
+          ) : (
+            <div style={{ padding: '0.75rem 1rem' }}>
+              <button onClick={() => supabase.auth.signOut()} style={{ ...S.btnSecondary, width: '100%', fontSize: '0.78rem' }}>
+                Kilépés
+              </button>
+            </div>
+          )}
         </div>
       </aside>
 
       <main style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-        <div style={{ background: C.bg1, borderBottom: `1px solid ${C.border}`, padding: '0.7rem 1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <div style={{ width: 3, height: 16, background: C.accent }} />
-          <span style={{ fontWeight: 700, fontSize: '0.95rem' }}>{NAV_ITEMS.find(n => n.key === tab)?.label}</span>
-        </div>
-
         <div style={{ flex: 1, padding: '1.25rem 1.5rem', overflowY: 'auto' }}>
           {tab === 'status'   && <StatusTab   employees={employees} onSaved={loadData} settings={settings} />}
+          {tab === 'workers'  && <WorkersTab  employees={employees} onSaved={loadData} />}
           {tab === 'log'      && <LogTab      events={events} onSaved={loadData} />}
           {tab === 'insights' && <InsightsTab employees={employees} events={events} />}
-          {tab === 'absences' && <AbsencesTab employees={employees} />}
           {tab === 'register' && <RegisterTab onSaved={loadData} />}
           {tab === 'settings' && <SettingsTab settings={settings} onSave={s => { saveSettings(s); setSettings(s) }} />}
         </div>

@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { C, S } from '../lib/theme'
+import { C, S, CAL } from '../lib/theme'
 import { fmtMins, fmtClock, isWorkerLate } from '../lib/utils'
 import { Table, TableEmpty, SectionLabel, Badge } from '../components/ui'
 import { EditModal } from '../components/EditModal'
@@ -69,7 +69,7 @@ function EmpRow({ emp, onEdit, settings }) {
       </td>
       <td style={{ ...S.td, fontWeight: 700, color: C.text }}>
         {emp.name}
-        {isLate && <span style={{ marginLeft: '0.5rem', fontSize: '0.65rem', color: '#e8a838', border: '1px solid #e8a83840', padding: '0.1rem 0.35rem', fontWeight: 700 }}>Késő</span>}
+        {isLate && <span style={{ marginLeft: '0.5rem', fontSize: '0.65rem', color: CAL.late.bar, border: `1px solid ${CAL.late.bar}40`, padding: '0.1rem 0.35rem', fontWeight: 700 }}>Késő</span>}
       </td>
       <td style={{ ...S.td, color: C.muted, fontSize: '0.78rem' }}>{emp.department ?? '—'}</td>
       <td style={S.td}>

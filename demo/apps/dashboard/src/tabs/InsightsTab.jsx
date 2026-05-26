@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ReferenceLine, ResponsiveContainer, Cell } from 'recharts'
-import { C, S } from '../lib/theme'
+import { C, S, CAL } from '../lib/theme'
 import { calcDayMinutes, fmtMins, fmtClock, HU_DAYS, HU_MONTHS } from '../lib/utils'
 import { Table, Th, SectionLabel, Badge, EmptyState } from '../components/ui'
 
@@ -79,13 +79,13 @@ export function InsightsTab({ employees, events }) {
             <ReferenceLine y={8} stroke={C.border} strokeDasharray="4 3" label={{ value: '8h', fill: C.muted, fontSize: 10, position: 'insideTopRight' }} />
             <Bar dataKey="hours" radius={0}>
               {last7.map(({ mins }, i) => (
-                <Cell key={i} fill={mins === 0 ? C.bg2 : mins >= 480 ? C.accent : mins >= 360 ? C.green : '#e8a838'} />
+                <Cell key={i} fill={mins === 0 ? C.bg2 : mins >= 480 ? C.accent : mins >= 360 ? C.green : CAL.late.border} />
               ))}
             </Bar>
           </BarChart>
         </ResponsiveContainer>
         <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', paddingTop: '0.25rem' }}>
-          {[[C.green, '6–8h'], [C.accent, '8h+'], ['#e8a838', '<6h'], [C.bg2, 'Nem volt']].map(([color, label]) => (
+          {[[C.green, '6–8h'], [C.accent, '8h+'], [CAL.late.border, '<6h'], [C.bg2, 'Nem volt']].map(([color, label]) => (
             <div key={label} style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
               <div style={{ width: 10, height: 10, background: color, border: `1px solid ${C.border}` }} />
               <span style={{ fontSize: '0.65rem', color: C.muted }}>{label}</span>
