@@ -61,16 +61,18 @@ Deno.serve(async (req) => {
     // Get manager emails
     const { data: managers } = await supabase
       .from('profiles')
-      .select('id')
+      .select('auth_user_id')
       .eq('company_id', company.id)
       .in('role', ['manager', 'admin'])
 
     if (!managers?.length) continue
 
-    const managerIds = managers.map((m) => m.id)
+    const managerAuthIds = managers.map((m) => m.auth_user_id).filter(Boolean)
+    if (!managerAuthIds.length) continue
+
     const { data: authUsers } = await supabase.auth.admin.listUsers()
     const managerEmails = authUsers?.users
-      .filter((u) => managerIds.includes(u.id))
+      .filter((u) => managerAuthIds.includes(u.id))
       .map((u) => u.email)
       .filter(Boolean) ?? []
 

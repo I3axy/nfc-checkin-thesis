@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import { C, S } from '../lib/theme'
 import { Field } from '../components/ui'
 
-export function RegisterTab({ onSaved }) {
+export function RegisterTab({ companyId, onSaved }) {
   const [uid, setUid]       = useState('')
   const [name, setName]     = useState('')
   const [role, setRole]     = useState('worker')
@@ -25,8 +25,9 @@ export function RegisterTab({ onSaved }) {
   async function handleSubmit(e) {
     e.preventDefault()
     if (!uid) { setErrorMsg('Először olvass be egy kártyát'); setStatus('error'); return }
+    if (!companyId) { setErrorMsg('A cég azonosító még töltődik, próbáld újra egy pillanat múlva'); setStatus('error'); return }
     setStatus('saving'); setErrorMsg('')
-    const { error } = await supabase.from('profiles').insert({ id: crypto.randomUUID(), nfc_uid: uid, name: name.trim(), role, department: dept.trim() || null })
+    const { error } = await supabase.from('profiles').insert({ company_id: companyId, nfc_uid: uid, name: name.trim(), role, department: dept.trim() || null })
     if (error) { setErrorMsg(error.message); setStatus('error') }
     else { setStatus('ok'); setUid(''); setName(''); setRole('worker'); setDept(''); onSaved() }
   }

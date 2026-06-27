@@ -254,7 +254,7 @@ function NaptarSubTab({ worker }) {
   }
 
   async function handleAddEvent(type, timestamp) {
-    const { error } = await supabase.from('events').insert({ user_id: worker.id, type, timestamp, is_manual: true })
+    const { error } = await supabase.from('events').insert({ company_id: worker.company_id, user_id: worker.id, type, timestamp, is_manual: true })
     if (!error) reloadMonth()
   }
 
@@ -347,7 +347,7 @@ function HianyokSubTab({ worker }) {
 
   async function handleAdd(e) {
     e.preventDefault(); setSaving(true); setError('')
-    const { error } = await supabase.from('absences').insert({ user_id: worker.id, date, type, note: note.trim() || null })
+    const { error } = await supabase.from('absences').insert({ company_id: worker.company_id, user_id: worker.id, date, type, note: note.trim() || null })
     if (error) setError(error.message)
     else setNote('')
     setSaving(false)

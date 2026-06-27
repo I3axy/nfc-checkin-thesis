@@ -94,7 +94,16 @@ function Dashboard() {
   const [lastUpdate, setLastUpdate] = useState(null)
   const [tab, setTab]               = useState('status')
   const [settings, setSettings]     = useState(loadSettings)
+  const [me, setMe]                 = useState(null)
   const [collapsed, setCollapsed]   = useState(() => localStorage.getItem('nfc_nav_collapsed') === '1')
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return
+      supabase.from('profiles').select('id, company_id, role, name').eq('auth_user_id', user.id).maybeSingle()
+        .then(({ data }) => setMe(data))
+    })
+  }, [])
 
   function toggleCollapsed() {
     setCollapsed(prev => {
@@ -112,7 +121,7 @@ function Dashboard() {
 
   const loadData = useCallback(async () => {
     const [{ data: profiles }, { data: allEvents }] = await Promise.all([
-      supabase.from('profiles').select('id, name, role, department, nfc_uid').order('name'),
+      supabase.from('profiles').select('id, company_id, name, role, department, nfc_uid').order('name'),
       supabase.from('events').select('id, user_id, type, timestamp, is_manual, note').order('timestamp', { ascending: false }).limit(500),
     ])
     const latestEvent  = {}
@@ -242,7 +251,7 @@ function Dashboard() {
           {tab === 'workers'  && <WorkersTab  employees={employees} onSaved={loadData} />}
           {tab === 'log'      && <LogTab      events={events} onSaved={loadData} />}
           {tab === 'insights' && <InsightsTab employees={employees} events={events} />}
-          {tab === 'register' && <RegisterTab onSaved={loadData} />}
+          {tab === 'register' && <RegisterTab companyId={me?.company_id} onSaved={loadData} />}
           {tab === 'settings' && <SettingsTab settings={settings} onSave={s => { saveSettings(s); setSettings(s) }} />}
         </div>
       </main>

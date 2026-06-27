@@ -34,7 +34,7 @@ export function EditModal({ employee, onClose, onSaved }) {
 
   async function handleAddEvent() {
     setAddingEvent(true); setError('')
-    const { error } = await supabase.from('events').insert({ user_id: employee.id, type: addType, timestamp: new Date(addTs).toISOString(), is_manual: true, note: addNote.trim() || null })
+    const { error } = await supabase.from('events').insert({ company_id: employee.company_id, user_id: employee.id, type: addType, timestamp: new Date(addTs).toISOString(), is_manual: true, note: addNote.trim() || null })
     if (error) setError(error.message)
     else { setAddNote(''); onSaved() }
     setAddingEvent(false)

@@ -23,14 +23,15 @@ create table companies (
 -- PROFILES
 -- ---------------------------------------------------------------------------
 create table profiles (
-  id          uuid primary key references auth.users on delete cascade,
-  company_id  uuid not null references companies(id) on delete cascade,
-  nfc_uid     text,
-  name        text not null,
-  role        text not null check (role in ('worker', 'manager', 'admin')),
-  department  text,                          -- optional group/shift (e.g. "A műszak")
-  pin         text,                          -- hashed PIN fallback (bcrypt)
-  created_at  timestamptz not null default now(),
+  id            uuid primary key default gen_random_uuid(),
+  auth_user_id  uuid unique references auth.users on delete set null,  -- only login users (manager/admin); workers have none (NFC = identity)
+  company_id    uuid not null references companies(id) on delete cascade,
+  nfc_uid       text,
+  name          text not null,
+  role          text not null check (role in ('worker', 'manager', 'admin')),
+  department    text,                        -- optional group/shift (e.g. "A műszak")
+  pin           text,                        -- hashed PIN fallback (bcrypt)
+  created_at    timestamptz not null default now(),
   unique (company_id, nfc_uid)               -- UID only unique within a company
 );
 
@@ -72,12 +73,20 @@ alter table profiles   enable row level security;
 alter table events     enable row level security;
 alter table absences   enable row level security;
 
+-- Helper function: returns the profile id of the currently logged-in user
+create or replace function auth_profile_id()
+returns uuid
+language sql stable security definer
+as $$
+  select id from profiles where auth_user_id = auth.uid()
+$$;
+
 -- Helper function: returns the company_id of the currently logged-in user
 create or replace function auth_company_id()
 returns uuid
 language sql stable security definer
 as $$
-  select company_id from profiles where id = auth.uid()
+  select company_id from profiles where auth_user_id = auth.uid()
 $$;
 
 -- Helper function: returns the role of the currently logged-in user
@@ -85,7 +94,7 @@ create or replace function auth_role()
 returns text
 language sql stable security definer
 as $$
-  select role from profiles where id = auth.uid()
+  select role from profiles where auth_user_id = auth.uid()
 $$;
 
 -- COMPANIES: authenticated users can only see their own company
@@ -98,11 +107,11 @@ create policy "profiles: read own company"
   on profiles for select to authenticated
   using (company_id = auth_company_id());
 
--- PROFILES: workers can update their own row (PIN change etc.)
+-- PROFILES: login users can update their own row (PIN change etc.)
 create policy "profiles: worker self update"
   on profiles for update to authenticated
-  using (id = auth.uid() and company_id = auth_company_id())
-  with check (id = auth.uid() and company_id = auth_company_id());
+  using (auth_user_id = auth.uid() and company_id = auth_company_id())
+  with check (auth_user_id = auth.uid() and company_id = auth_company_id());
 
 -- PROFILES: managers/admins can insert new profiles in their company
 create policy "profiles: manager insert"
@@ -136,7 +145,7 @@ create policy "events: worker read own"
     company_id = auth_company_id()
     and (
       auth_role() in ('manager', 'admin')
-      or user_id = auth.uid()
+      or user_id = auth_profile_id()
     )
   );
 
@@ -170,7 +179,7 @@ create policy "absences: read own company"
     company_id = auth_company_id()
     and (
       auth_role() in ('manager', 'admin')
-      or user_id = auth.uid()
+      or user_id = auth_profile_id()
     )
   );
 
@@ -198,6 +207,7 @@ create policy "absences: manager delete"
 -- ---------------------------------------------------------------------------
 -- INDEXES
 -- ---------------------------------------------------------------------------
+create index on profiles   (auth_user_id);
 create index on profiles   (company_id);
 create index on profiles   (company_id, nfc_uid);
 create index on events     (company_id, user_id, timestamp desc);
