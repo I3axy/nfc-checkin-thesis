@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { C, S } from '../lib/theme'
-import { Table, SectionLabel, Badge, SettingsRow, Divider } from '../components/ui'
+import { saveTheme, settingsToCompany } from '../lib/settings'
+import { Table, SectionLabel, Badge, SettingsRow } from '../components/ui'
 
 const THEMES = [
   { key: 'blue',  label: 'Kék (Steam)', desc: 'Alapértelmezett, sötétkék' },
@@ -9,18 +10,48 @@ const THEMES = [
   { key: 'light', label: 'Világos',     desc: 'Fehér alapú, nappali' },
 ]
 
-export function SettingsTab({ settings, onSave }) {
+function Toggle({ on, onClick }) {
+  return (
+    <button type="button" onClick={onClick} style={{
+      width: 44, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer', padding: 0,
+      background: on ? C.green : C.border, position: 'relative', transition: 'background 0.15s', flexShrink: 0,
+    }}>
+      <span style={{ position: 'absolute', top: 2, left: on ? 22 : 2, width: 20, height: 20, borderRadius: '50%', background: '#fff', transition: 'left 0.15s' }} />
+    </button>
+  )
+}
+
+export function SettingsTab({ settings, companyId, onChange }) {
   const [startHour,     setStartHour]     = useState(settings.startHour)
   const [startMinute,   setStartMinute]   = useState(settings.startMinute)
   const [lateThreshold, setLateThreshold] = useState(settings.lateThresholdMinutes)
   const [autoCheckout,  setAutoCheckout]  = useState(settings.autoCheckoutHour)
+  const [photoRequired, setPhotoRequired] = useState(settings.photoRequired ?? false)
   const [theme,         setTheme]         = useState(settings.theme ?? 'blue')
+  const [saving,        setSaving]        = useState(false)
   const [saved,         setSaved]         = useState(false)
+  const [error,         setError]         = useState('')
   const [pwSent,        setPwSent]        = useState(false)
 
-  function handleSave(e) {
+  async function handleSave(e) {
     e.preventDefault()
-    onSave({ startHour: Number(startHour), startMinute: Number(startMinute), lateThresholdMinutes: Number(lateThreshold), autoCheckoutHour: Number(autoCheckout), theme })
+    if (!companyId) { setError('A cég azonosító még töltődik, próbáld újra egy pillanat múlva'); return }
+    setSaving(true); setError('')
+
+    const next = {
+      startHour, startMinute, lateThresholdMinutes: lateThreshold,
+      autoCheckoutHour: autoCheckout, photoRequired, theme,
+    }
+    const { error } = await supabase.from('companies').update(settingsToCompany(next)).eq('id', companyId)
+    setSaving(false)
+    if (error) { setError(error.message); return }
+
+    saveTheme(theme)
+    onChange({
+      startHour: Number(startHour), startMinute: Number(startMinute),
+      lateThresholdMinutes: Number(lateThreshold), autoCheckoutHour: Number(autoCheckout),
+      photoRequired, theme,
+    })
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }
@@ -55,6 +86,19 @@ export function SettingsTab({ settings, onSave }) {
             <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
               <input type="number" min="18" max="23" value={autoCheckout} onChange={e => setAutoCheckout(e.target.value)} style={{ ...S.input, width: 70 }} />
               <span style={{ fontSize: '0.8rem', color: C.muted }}>:00</span>
+            </div>
+          </SettingsRow>
+        </tbody>
+      </Table>
+
+      <div style={{ height: '1.5rem' }} />
+      <SectionLabel color={C.accent}>Fotó check-in</SectionLabel>
+      <Table>
+        <tbody>
+          <SettingsRow label="Fotó kötelező" hint="a scanner check-in előtt szelfit kér (anti-fraud)">
+            <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', justifyContent: 'flex-end' }}>
+              <span style={{ fontSize: '0.78rem', color: photoRequired ? C.green : C.muted, minWidth: 24 }}>{photoRequired ? 'Be' : 'Ki'}</span>
+              <Toggle on={photoRequired} onClick={() => setPhotoRequired(v => !v)} />
             </div>
           </SettingsRow>
         </tbody>
@@ -96,9 +140,11 @@ export function SettingsTab({ settings, onSave }) {
         </tbody>
       </Table>
 
+      {error && <div style={{ ...S.errorBox, marginTop: '1rem' }}>{error}</div>}
+
       <div style={{ marginTop: '1.25rem' }}>
-        <button type="submit" style={{ ...S.btnPrimary, background: saved ? C.green : C.accent }}>
-          {saved ? '✓ Mentve' : 'Beállítások mentése'}
+        <button type="submit" disabled={saving} style={{ ...S.btnPrimary, opacity: saving ? 0.6 : 1, background: saved ? C.green : C.accent }}>
+          {saving ? 'Mentés…' : saved ? '✓ Mentve' : 'Beállítások mentése'}
         </button>
       </div>
     </form>

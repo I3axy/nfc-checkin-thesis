@@ -16,6 +16,10 @@ create table companies (
   name        text not null,
   slug        text not null unique,          -- URL-friendly identifier (e.g. "acme-corp")
   photo_required bool not null default false, -- foto check-in on/off per company
+  work_start_hour        int not null default 8,   -- work rules (per company)
+  work_start_minute      int not null default 0,
+  late_threshold_minutes int not null default 15,  -- late if checkin > start + threshold
+  auto_checkout_hour     int not null default 23,  -- pg_cron auto-checkout time
   created_at  timestamptz not null default now()
 );
 

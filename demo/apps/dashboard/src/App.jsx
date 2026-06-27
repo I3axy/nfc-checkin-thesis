@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from './lib/supabase'
 import { C, S } from './lib/theme'
-import { loadSettings, saveSettings } from './lib/settings'
+import { DEFAULT_SETTINGS, loadTheme, companyToSettings } from './lib/settings'
 import { getDaySummary, calcRangeMinutes, countRangeEvents } from './lib/utils'
 import { Field } from './components/ui'
 import { WorkersTab }  from './tabs/WorkersTab'
@@ -93,7 +93,7 @@ function Dashboard() {
   const [events, setEvents]         = useState([])
   const [lastUpdate, setLastUpdate] = useState(null)
   const [tab, setTab]               = useState('status')
-  const [settings, setSettings]     = useState(loadSettings)
+  const [settings, setSettings]     = useState(() => ({ ...DEFAULT_SETTINGS, theme: loadTheme() }))
   const [me, setMe]                 = useState(null)
   const [collapsed, setCollapsed]   = useState(() => localStorage.getItem('nfc_nav_collapsed') === '1')
 
@@ -101,7 +101,12 @@ function Dashboard() {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return
       supabase.from('profiles').select('id, company_id, role, name').eq('auth_user_id', user.id).maybeSingle()
-        .then(({ data }) => setMe(data))
+        .then(({ data: profile }) => {
+          setMe(profile)
+          if (!profile?.company_id) return
+          supabase.from('companies').select('*').eq('id', profile.company_id).maybeSingle()
+            .then(({ data: company }) => { if (company) setSettings(s => ({ ...s, ...companyToSettings(company) })) })
+        })
     })
   }, [])
 
@@ -248,11 +253,11 @@ function Dashboard() {
       <main style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
         <div style={{ flex: 1, padding: '1.25rem 1.5rem', overflowY: 'auto' }}>
           {tab === 'status'   && <StatusTab   employees={employees} onSaved={loadData} settings={settings} />}
-          {tab === 'workers'  && <WorkersTab  employees={employees} onSaved={loadData} />}
+          {tab === 'workers'  && <WorkersTab  employees={employees} settings={settings} onSaved={loadData} />}
           {tab === 'log'      && <LogTab      events={events} onSaved={loadData} />}
           {tab === 'insights' && <InsightsTab employees={employees} events={events} />}
           {tab === 'register' && <RegisterTab companyId={me?.company_id} onSaved={loadData} />}
-          {tab === 'settings' && <SettingsTab settings={settings} onSave={s => { saveSettings(s); setSettings(s) }} />}
+          {tab === 'settings' && <SettingsTab settings={settings} companyId={me?.company_id} onChange={setSettings} />}
         </div>
       </main>
     </div>

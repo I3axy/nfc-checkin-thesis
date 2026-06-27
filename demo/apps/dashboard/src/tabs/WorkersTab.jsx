@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { C, S, CAL } from '../lib/theme'
-import { loadSettings } from '../lib/settings'
 import { calcDayMinutes, isWorkerLate, fmtMins, fmtClock } from '../lib/utils'
 import { Table, Th, TableEmpty, SectionLabel, Badge, Field } from '../components/ui'
 
@@ -15,7 +14,7 @@ const SUBTABS = [
 
 // ─── Master list ──────────────────────────────────────────────────────────────
 
-export function WorkersTab({ employees, onSaved }) {
+export function WorkersTab({ employees, settings, onSaved }) {
   const [search,   setSearch]   = useState('')
   const [filter,   setFilter]   = useState('all')
   const [selected, setSelected] = useState(null)
@@ -117,7 +116,7 @@ export function WorkersTab({ employees, onSaved }) {
       {/* ── Right: detail or placeholder ── */}
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
         {selected
-          ? <WorkerDetail key={selected.id} worker={selected} employees={employees} onClose={() => setSelected(null)} onSaved={onSaved} />
+          ? <WorkerDetail key={selected.id} worker={selected} employees={employees} settings={settings} onClose={() => setSelected(null)} onSaved={onSaved} />
           : <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.muted, fontSize: '0.85rem', border: `1px solid ${C.border}`, background: C.bg1 }}>
               Válassz ki egy dolgozót a listából
             </div>
@@ -129,7 +128,7 @@ export function WorkersTab({ employees, onSaved }) {
 
 // ─── Detail panel with sub-tabs ───────────────────────────────────────────────
 
-function WorkerDetail({ worker, employees, onClose, onSaved }) {
+function WorkerDetail({ worker, employees, settings, onClose, onSaved }) {
   const [subTab, setSubTab] = useState('profil')
 
   return (
@@ -162,7 +161,7 @@ function WorkerDetail({ worker, employees, onClose, onSaved }) {
       {/* Sub-tab content */}
       <div style={{ flex: 1, overflowY: 'auto', background: C.bg0, border: `1px solid ${C.border}`, borderTop: 'none', padding: '1.25rem', minHeight: 0 }}>
         {subTab === 'profil'  && <ProfilSubTab  worker={worker} onSaved={onSaved} />}
-        {subTab === 'naptar'  && <NaptarSubTab  worker={worker} />}
+        {subTab === 'naptar'  && <NaptarSubTab  worker={worker} settings={settings} />}
         {subTab === 'hianyok' && <HianyokSubTab worker={worker} />}
       </div>
     </div>
@@ -222,8 +221,7 @@ function ProfilSubTab({ worker, onSaved }) {
 
 // ─── Naptár sub-tab ───────────────────────────────────────────────────────────
 
-function NaptarSubTab({ worker }) {
-  const settings = loadSettings()
+function NaptarSubTab({ worker, settings }) {
   const [calMonth,      setCalMonth]      = useState(() => { const n = new Date(); return new Date(n.getFullYear(), n.getMonth(), 1) })
   const [monthEvents,   setMonthEvents]   = useState([])
   const [monthAbsences, setMonthAbsences] = useState([])
