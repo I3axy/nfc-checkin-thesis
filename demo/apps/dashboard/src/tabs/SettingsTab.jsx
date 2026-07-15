@@ -42,9 +42,10 @@ export function SettingsTab({ settings, companyId, onChange }) {
       startHour, startMinute, lateThresholdMinutes: lateThreshold,
       autoCheckoutHour: autoCheckout, photoRequired, theme,
     }
-    const { error } = await supabase.from('companies').update(settingsToCompany(next)).eq('id', companyId)
+    const { data, error } = await supabase.from('companies').update(settingsToCompany(next)).eq('id', companyId).select()
     setSaving(false)
     if (error) { setError(error.message); return }
+    if (!data || data.length === 0) { setError('A mentés nem sikerült (jogosultság hiánya). Ellenőrizd, hogy manager/admin szerepkörrel vagy bejelentkezve.'); return }
 
     saveTheme(theme)
     onChange({

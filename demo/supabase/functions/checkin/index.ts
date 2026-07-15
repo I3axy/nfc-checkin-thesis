@@ -11,7 +11,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { nfc_uid, company_slug, photo_url } = await req.json()
+    const { nfc_uid, company_slug, photo_base64 } = await req.json()
 
     if (!nfc_uid || !company_slug) {
       return new Response(
@@ -69,6 +69,19 @@ Deno.serve(async (req) => {
 
     const eventType = lastEvent?.type === 'checkin' ? 'checkout' : 'checkin'
 
+    // Two-step flow: if the company requires a photo and none was sent yet,
+    // tell the client to capture one — don't insert the event or run
+    // deduplication until the follow-up request arrives with the photo.
+    if (company.photo_required && !photo_base64) {
+      return new Response(
+        JSON.stringify({
+          needs_photo: true,
+          user: { id: profile.id, name: profile.name, role: profile.role },
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
     // Deduplication: block if same type within 30 seconds
     const { data: recent } = await supabase
       .from('events')
@@ -85,6 +98,23 @@ Deno.serve(async (req) => {
       )
     }
 
+    // Upload photo (if provided) before inserting the event
+    let photoPath: string | null = null
+    if (photo_base64) {
+      const raw = String(photo_base64).replace(/^data:image\/\w+;base64,/, '')
+      const bytes = Uint8Array.from(atob(raw), (c) => c.charCodeAt(0))
+      photoPath = `${company.id}/${profile.id}/${Date.now()}.jpg`
+      const { error: uploadErr } = await supabase.storage
+        .from('checkin-photos')
+        .upload(photoPath, bytes, { contentType: 'image/jpeg' })
+      if (uploadErr) {
+        return new Response(
+          JSON.stringify({ error: 'Photo upload failed', code: 'PHOTO_UPLOAD_FAILED' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+    }
+
     // Insert event
     const { data: event, error: insertErr } = await supabase
       .from('events')
@@ -92,7 +122,7 @@ Deno.serve(async (req) => {
         company_id: company.id,
         user_id: profile.id,
         type: eventType,
-        photo_url: photo_url ?? null,
+        photo_url: photoPath,
       })
       .select('id, type, timestamp')
       .single()
@@ -103,7 +133,6 @@ Deno.serve(async (req) => {
       JSON.stringify({
         user: { id: profile.id, name: profile.name, role: profile.role },
         event: { id: event.id, type: event.type, timestamp: event.timestamp },
-        photo_required: company.photo_required,
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )

@@ -106,6 +106,12 @@ create policy "company: own company only"
   on companies for select to authenticated
   using (id = auth_company_id());
 
+-- COMPANIES: managers/admins can update their own company's settings
+create policy "company: manager update"
+  on companies for update to authenticated
+  using (id = auth_company_id() and auth_role() in ('manager', 'admin'))
+  with check (id = auth_company_id() and auth_role() in ('manager', 'admin'));
+
 -- PROFILES: read own company's profiles
 create policy "profiles: read own company"
   on profiles for select to authenticated

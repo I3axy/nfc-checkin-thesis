@@ -1,14 +1,15 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import * as XLSX from 'xlsx'
 import { supabase } from '../lib/supabase'
 import { C, S } from '../lib/theme'
 import { fmtClock } from '../lib/utils'
-import { Table, Th, TableEmpty, Badge } from '../components/ui'
+import { Table, Th, TableEmpty, Badge, Modal } from '../components/ui'
 
 export function LogTab({ events, onSaved }) {
   const [nameFilter, setNameFilter] = useState('all')
   const [sortDir, setSortDir]       = useState('desc')
   const [deleting, setDeleting]     = useState(null)
+  const [photoView, setPhotoView]   = useState(null)
 
   const names  = ['all', ...Array.from(new Set(events.map(e => e.name))).sort()]
   const sorted = [...events]
@@ -66,6 +67,9 @@ export function LogTab({ events, onSaved }) {
               </td>
               <td style={S.td}>
                 <Badge color={e.type === 'checkin' ? C.green : C.red}>{e.type === 'checkin' ? '↑ Be' : '↓ Ki'}</Badge>
+                {e.photo_url && (
+                  <button onClick={() => setPhotoView(e)} title="Fénykép megtekintése" style={{ ...S.btnIcon, marginLeft: '0.4rem', padding: '0.1rem 0.4rem' }}>📷</button>
+                )}
               </td>
               <td style={{ ...S.td, fontFamily: 'monospace', fontSize: '0.82rem' }}>
                 <span style={{ color: C.text }}>{fmtClock(e.timestamp)}</span>
@@ -83,6 +87,29 @@ export function LogTab({ events, onSaved }) {
           {sorted.length === 0 && <TableEmpty colSpan={4}>Nincs esemény</TableEmpty>}
         </tbody>
       </Table>
+
+      {photoView && <PhotoLightbox event={photoView} onClose={() => setPhotoView(null)} />}
     </>
+  )
+}
+
+function PhotoLightbox({ event, onClose }) {
+  const [url, setUrl]     = useState(null)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    supabase.storage.from('checkin-photos').createSignedUrl(event.photo_url, 60)
+      .then(({ data, error }) => {
+        if (error) setError(error.message)
+        else setUrl(data.signedUrl)
+      })
+  }, [event.photo_url])
+
+  return (
+    <Modal title={`Fénykép — ${event.name}`} onClose={onClose}>
+      {error && <div style={S.errorBox}>{error}</div>}
+      {!error && !url && <div style={{ color: C.muted, fontSize: '0.85rem', textAlign: 'center', padding: '2rem' }}>Betöltés…</div>}
+      {url && <img src={url} alt="Check-in fénykép" style={{ width: '100%', display: 'block' }} />}
+    </Modal>
   )
 }

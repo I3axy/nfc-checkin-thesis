@@ -127,7 +127,7 @@ function Dashboard() {
   const loadData = useCallback(async () => {
     const [{ data: profiles }, { data: allEvents }] = await Promise.all([
       supabase.from('profiles').select('id, company_id, name, role, department, nfc_uid').order('name'),
-      supabase.from('events').select('id, user_id, type, timestamp, is_manual, note').order('timestamp', { ascending: false }).limit(500),
+      supabase.from('events').select('id, user_id, type, timestamp, is_manual, note, photo_url').order('timestamp', { ascending: false }).limit(500),
     ])
     const latestEvent  = {}
     const eventsByUser = {}
