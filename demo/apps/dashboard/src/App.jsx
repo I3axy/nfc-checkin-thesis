@@ -255,7 +255,7 @@ function Dashboard() {
           {tab === 'status'   && <StatusTab   employees={employees} onSaved={loadData} settings={settings} />}
           {tab === 'workers'  && <WorkersTab  employees={employees} settings={settings} onSaved={loadData} />}
           {tab === 'log'      && <LogTab      events={events} onSaved={loadData} />}
-          {tab === 'insights' && <InsightsTab employees={employees} events={events} />}
+          {tab === 'insights' && <InsightsTab employees={employees} events={events} settings={settings} />}
           {tab === 'register' && <RegisterTab companyId={me?.company_id} onSaved={loadData} />}
           {tab === 'settings' && <SettingsTab settings={settings} companyId={me?.company_id} onChange={setSettings} />}
         </div>

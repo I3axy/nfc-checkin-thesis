@@ -1,10 +1,12 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
+import * as XLSX from 'xlsx'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ReferenceLine, ResponsiveContainer, Cell } from 'recharts'
+import { supabase } from '../lib/supabase'
 import { C, S, CAL } from '../lib/theme'
-import { calcDayMinutes, fmtMins, fmtClock, HU_DAYS, HU_MONTHS } from '../lib/utils'
-import { Table, Th, SectionLabel, Badge, EmptyState } from '../components/ui'
+import { calcDayMinutes, isWorkerLate, fmtMins, fmtClock, HU_DAYS, HU_MONTHS } from '../lib/utils'
+import { Table, Th, TableEmpty, SectionLabel, Badge, EmptyState } from '../components/ui'
 
-export function InsightsTab({ employees, events }) {
+export function InsightsTab({ employees, events, settings }) {
   const [selectedId, setSelectedId] = useState('')
   useEffect(() => { if (employees.length > 0 && !selectedId) setSelectedId(employees[0].id) }, [employees, selectedId])
 
@@ -121,6 +123,109 @@ export function InsightsTab({ employees, events }) {
           })}
         </tbody>
       </Table>
+
+      <div style={{ height: '2rem' }} />
+      <MonthlySummary employees={employees} settings={settings} />
     </>
+  )
+}
+
+// ─── Company-wide monthly summary + Excel export ──────────────────────────────
+
+function MonthlySummary({ employees, settings }) {
+  const [month,   setMonth]   = useState(() => { const n = new Date(); return new Date(n.getFullYear(), n.getMonth(), 1) })
+  const [events,  setEvents]  = useState([])
+  const [absences, setAbsences] = useState([])
+  const [loading, setLoading] = useState(false)
+
+  const workers = useMemo(() => employees.filter(e => e.role === 'worker'), [employees])
+
+  useEffect(() => {
+    setLoading(true)
+    const from  = month.toISOString()
+    const to    = new Date(month.getFullYear(), month.getMonth() + 1, 1).toISOString()
+    const fromD = month.toISOString().slice(0, 10)
+    const toD   = new Date(month.getFullYear(), month.getMonth() + 1, 0).toISOString().slice(0, 10)
+    Promise.all([
+      supabase.from('events').select('user_id, type, timestamp').gte('timestamp', from).lt('timestamp', to).order('timestamp', { ascending: true }),
+      supabase.from('absences').select('user_id, type').gte('date', fromD).lte('date', toD),
+    ]).then(([{ data: evts }, { data: abs }]) => {
+      setEvents(evts ?? [])
+      setAbsences(abs ?? [])
+      setLoading(false)
+    })
+  }, [month])
+
+  const rows = useMemo(() => workers.map(w => {
+    const wEvts = events.filter(e => e.user_id === w.id)
+    const byDay = {}
+    for (const e of wEvts) (byDay[e.timestamp.slice(0, 10)] ??= []).push(e)
+
+    let totalMins = 0, workDays = 0, lateDays = 0
+    for (const dayEvts of Object.values(byDay)) {
+      const mins = calcDayMinutes(dayEvts)
+      if (mins > 0) { totalMins += mins; workDays++ }
+      const firstIn = dayEvts.find(e => e.type === 'checkin')?.timestamp
+      if (firstIn && isWorkerLate(firstIn, settings)) lateDays++
+    }
+    const wAbs        = absences.filter(a => a.user_id === w.id)
+    const justified   = wAbs.filter(a => a.type !== 'unjustified').length
+    const unjustified = wAbs.filter(a => a.type === 'unjustified').length
+
+    return { name: w.name, department: w.department ?? '', totalMins, workDays, lateDays, justified, unjustified }
+  }), [workers, events, absences, settings])
+
+  function exportExcel() {
+    const monthLabel = month.toLocaleDateString('hu', { year: 'numeric', month: 'long' })
+    const aoa = [
+      ['Dolgozó', 'Részleg', 'Ledolgozott óra', 'Munkanapok', 'Késések', 'Igazolt hiányzás', 'Igazolatlan hiányzás'],
+      ...rows.map(r => [r.name, r.department, +(r.totalMins / 60).toFixed(2), r.workDays, r.lateDays, r.justified, r.unjustified]),
+    ]
+    const ws = XLSX.utils.aoa_to_sheet(aoa)
+    ws['!cols'] = [{ wch: 22 }, { wch: 14 }, { wch: 15 }, { wch: 12 }, { wch: 10 }, { wch: 17 }, { wch: 20 }]
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Összesítő')
+    XLSX.writeFile(wb, `osszesito-${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, '0')}.xlsx`)
+  }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.75rem', flexWrap: 'wrap' }}>
+        <SectionLabel color={C.accent}>Havi összesítő — minden dolgozó</SectionLabel>
+        <div style={{ flex: 1 }} />
+        <button type="button" onClick={() => setMonth(m => new Date(m.getFullYear(), m.getMonth() - 1, 1))} style={S.btnIcon}>‹</button>
+        <span style={{ fontSize: '0.82rem', fontWeight: 700, color: C.text, minWidth: 120, textAlign: 'center' }}>
+          {month.toLocaleDateString('hu', { year: 'numeric', month: 'long' })}
+        </span>
+        <button type="button" onClick={() => setMonth(m => new Date(m.getFullYear(), m.getMonth() + 1, 1))} style={S.btnIcon}>›</button>
+        <button type="button" onClick={exportExcel} disabled={rows.length === 0} style={{ ...S.btnSecondary, opacity: rows.length === 0 ? 0.5 : 1 }}>↓ Excel</button>
+      </div>
+
+      <Table>
+        <thead>
+          <tr style={{ background: C.bg2 }}>
+            <Th>Dolgozó</Th><Th>Részleg</Th><Th>Ledolg.</Th><Th>Munkanap</Th><Th>Késés</Th><Th>Ig. hiány</Th><Th>Igazolatlan</Th>
+          </tr>
+        </thead>
+        <tbody>
+          {loading
+            ? <TableEmpty colSpan={7}>Betöltés…</TableEmpty>
+            : rows.length === 0
+              ? <TableEmpty colSpan={7}>Nincs dolgozó</TableEmpty>
+              : rows.map(r => (
+                <tr key={r.name} style={{ borderBottom: `1px solid ${C.border}` }}>
+                  <td style={{ ...S.td, fontWeight: 600, color: C.text }}>{r.name}</td>
+                  <td style={{ ...S.td, color: C.muted, fontSize: '0.8rem' }}>{r.department || '—'}</td>
+                  <td style={{ ...S.td, fontWeight: 700, color: C.green, fontFamily: 'monospace' }}>{fmtMins(r.totalMins)}</td>
+                  <td style={{ ...S.td, fontFamily: 'monospace' }}>{r.workDays}</td>
+                  <td style={{ ...S.td, fontFamily: 'monospace', color: r.lateDays > 0 ? CAL.late.bar : C.muted }}>{r.lateDays}</td>
+                  <td style={{ ...S.td, fontFamily: 'monospace', color: r.justified > 0 ? CAL.justified.bar : C.muted }}>{r.justified}</td>
+                  <td style={{ ...S.td, fontFamily: 'monospace', color: r.unjustified > 0 ? CAL.unjustified.bar : C.muted }}>{r.unjustified}</td>
+                </tr>
+              ))
+          }
+        </tbody>
+      </Table>
+    </div>
   )
 }
