@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { C, S } from '../lib/theme'
+import { normalizeUid } from '../lib/utils'
 import { Field } from '../components/ui'
 
 // datetime-local string: `hours` added to `current` (or to now if empty), local time
@@ -42,7 +43,7 @@ export function RegisterTab({ companyId, onSaved }) {
 
     const payload = {
       company_id: companyId,
-      nfc_uid: uid,
+      nfc_uid: normalizeUid(uid),
       name: name.trim(),
       role,
       department: isGuest ? null : (dept.trim() || null),

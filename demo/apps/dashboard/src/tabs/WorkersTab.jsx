@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { C, S, CAL } from '../lib/theme'
-import { calcDayMinutes, isWorkerLate, fmtMins, fmtClock } from '../lib/utils'
+import { calcDayMinutes, isWorkerLate, fmtMins, fmtClock, normalizeUid } from '../lib/utils'
 import { Table, Th, TableEmpty, SectionLabel, Badge, Field } from '../components/ui'
 
 const SHIFT_OPTIONS = ['Nappali', 'Éjszakai', 'C műszak', 'Rugalmas']
@@ -183,7 +183,7 @@ function ProfilSubTab({ worker, onSaved }) {
   async function handleSave(e) {
     e.preventDefault(); setSaving(true); setSaveErr(''); setSaveOk(false)
     const { error } = await supabase.from('profiles')
-      .update({ name: name.trim(), role, department: dept.trim() || null, nfc_uid: uid.trim() || null })
+      .update({ name: name.trim(), role, department: dept.trim() || null, nfc_uid: normalizeUid(uid) || null })
       .eq('id', worker.id)
     if (error) { setSaveErr(error.message); setSaving(false) }
     else { setSaving(false); setSaveOk(true); setTimeout(() => { setSaveOk(false); onSaved() }, 1200) }

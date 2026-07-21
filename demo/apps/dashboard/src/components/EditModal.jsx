@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { C, S } from '../lib/theme'
+import { normalizeUid } from '../lib/utils'
 import { Modal, Field, Divider } from './ui'
 
 // ISO → datetime-local string (local time)
@@ -42,7 +43,7 @@ export function EditModal({ employee, onClose, onSaved }) {
       name: name.trim(),
       role,
       department: isGuest ? null : (dept.trim() || null),
-      nfc_uid: uid.trim() || null,
+      nfc_uid: normalizeUid(uid) || null,
       guest_expires_at: isGuest ? (expiresAt ? new Date(expiresAt).toISOString() : null) : null,
     }).eq('id', employee.id)
     if (error) { setError(error.message); setSaving(false) } else onSaved()

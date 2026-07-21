@@ -68,3 +68,9 @@ export function fmtMins(m) {
 export function fmtClock(ts) {
   return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
+
+// Normalize an NFC UID the same way the checkin Edge Function does, so stored
+// values always match what the scanner sends (uppercase, no separators).
+export function normalizeUid(raw) {
+  return (raw ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '')
+}
