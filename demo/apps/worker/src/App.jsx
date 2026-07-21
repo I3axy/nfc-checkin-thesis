@@ -7,8 +7,16 @@ export default function App() {
   const [state, setState] = useState('idle') // idle | starting | ready | loading | profile | manager | unknown
   const [profile, setProfile] = useState(null)
   const [events, setEvents] = useState([])
+  const [absences, setAbsences] = useState([])
   const [managerData, setManagerData] = useState(null)
   const [nfcError, setNfcError] = useState('')
+  const [lastUid, setLastUid] = useState('')
+  const [absOpen, setAbsOpen] = useState(false)
+  const [absDate, setAbsDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [absType, setAbsType] = useState('vacation')
+  const [absNote, setAbsNote] = useState('')
+  const [absStatus, setAbsStatus] = useState(null) // null | saving | ok | error
+  const [absError, setAbsError] = useState('')
   const nfcSupported = 'NDEFReader' in window
   const scanning = useRef(false)
   const resumeTimerRef = useRef(null)
@@ -45,6 +53,7 @@ export default function App() {
 
   async function handleCard(uid) {
     scanning.current = true
+    setLastUid(uid)
     setState('loading')
 
     try {
@@ -70,12 +79,36 @@ export default function App() {
         setState('manager')
       } else {
         setEvents(data.events ?? [])
+        setAbsences(data.absences ?? [])
         setState('profile')
       }
     } catch {
       setNfcError('Network error')
       setState('unknown')
       scanning.current = false
+    }
+  }
+
+  async function submitAbsence() {
+    setAbsStatus('saving'); setAbsError('')
+    try {
+      const res = await fetch(FUNCTION_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nfc_uid: lastUid,
+          company_slug: COMPANY_SLUG,
+          action: 'submit_absence',
+          absence: { date: absDate, type: absType, note: absNote.trim() || null },
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setAbsError(data.error ?? 'Hiba történt'); setAbsStatus('error'); return }
+      setAbsStatus('ok'); setAbsOpen(false)
+      setAbsences(prev => [{ id: 'tmp-' + Date.now(), date: absDate, type: absType, note: absNote.trim() || null }, ...prev])
+      setAbsNote('')
+    } catch {
+      setAbsError('Hálózati hiba'); setAbsStatus('error')
     }
   }
 
@@ -88,7 +121,9 @@ export default function App() {
     setState('starting')
     setProfile(null)
     setEvents([])
+    setAbsences([])
     setManagerData(null)
+    setAbsOpen(false); setAbsStatus(null); setAbsError('')
     scanning.current = false
   }
 
@@ -154,13 +189,18 @@ export default function App() {
   const todayEvents = events.filter(e => new Date(e.timestamp).toDateString() === todayStr)
   const todayCheckin  = todayEvents.filter(e => e.type === 'checkin').sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))[0]
   const todayCheckout = todayEvents.filter(e => e.type === 'checkout').sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0]
+  const todayMins = calcDayMins(todayEvents)
 
+  // group last 7 days
   const byDay = {}
   for (const e of events) {
-    const day = new Date(e.timestamp).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })
-    if (!byDay[day]) byDay[day] = []
-    byDay[day].push(e)
+    const key = new Date(e.timestamp).toDateString()
+    if (!byDay[key]) byDay[key] = { label: new Date(e.timestamp).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }), evts: [] }
+    byDay[key].evts.push(e)
   }
+  const days = Object.values(byDay)
+  const weekMins = days.reduce((s, d) => s + calcDayMins(d.evts), 0)
+  const workDays = days.filter(d => calcDayMins(d.evts) > 0).length
 
   return (
     <Page>
@@ -172,32 +212,87 @@ export default function App() {
       </div>
 
       <Section label="Mai nap">
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr' }}>
           <StatCell label="Belépés" value={todayCheckin ? fmt(todayCheckin.timestamp) : '—'} color="#5ba32b" />
           <StatCell label="Kilépés" value={todayCheckout ? fmt(todayCheckout.timestamp) : '—'} color="#c94f4f" />
+          <StatCell label="Ledolgozva" value={fmtMins(todayMins)} color="#66c0f4" last />
+        </div>
+      </Section>
+
+      <Section label="Heti összesítő">
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
+          <StatCell label="Ledolgozott idő" value={fmtMins(weekMins)} color="#66c0f4" />
+          <StatCell label="Munkanapok" value={String(workDays)} color="#c6d4df" last />
         </div>
       </Section>
 
       <Section label="Utolsó 7 nap">
-        {Object.keys(byDay).length === 0
+        {days.length === 0
           ? <Empty>Nincs esemény</Empty>
-          : Object.entries(byDay).map(([day, dayEvts]) => (
-            <div key={day} style={{ borderBottom: '1px solid #3d4450', padding: '0.6rem 1rem' }}>
-              <div style={{ fontSize: '0.75rem', color: '#8f98a0', marginBottom: '0.3rem', textTransform: 'uppercase', fontWeight: 700 }}>{day}</div>
-              {dayEvts.map((e, i) => (
-                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', padding: '0.1rem 0' }}>
-                  <span style={{ color: e.type === 'checkin' ? '#5ba32b' : '#c94f4f', fontWeight: 600 }}>
-                    {e.type === 'checkin' ? '↑ Be' : '↓ Ki'}
-                  </span>
-                  <span style={{ color: '#8f98a0' }}>{fmt(e.timestamp)}</span>
+          : days.map((d, di) => {
+            const mins = calcDayMins(d.evts)
+            return (
+              <div key={di} style={{ borderBottom: '1px solid #3d4450', padding: '0.6rem 1rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.3rem' }}>
+                  <span style={{ fontSize: '0.75rem', color: '#8f98a0', textTransform: 'uppercase', fontWeight: 700 }}>{d.label}</span>
+                  {mins > 0 && <span style={{ fontSize: '0.75rem', color: '#66c0f4', fontWeight: 700 }}>{fmtMins(mins)}</span>}
                 </div>
-              ))}
-            </div>
-          ))
+                {d.evts.map((e, i) => (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', padding: '0.1rem 0' }}>
+                    <span style={{ color: e.type === 'checkin' ? '#5ba32b' : '#c94f4f', fontWeight: 600 }}>
+                      {e.type === 'checkin' ? '↑ Be' : '↓ Ki'}
+                    </span>
+                    <span style={{ color: '#8f98a0' }}>{fmt(e.timestamp)}</span>
+                  </div>
+                ))}
+              </div>
+            )
+          })
         }
       </Section>
 
-      <div style={{ padding: '0 1rem 2rem' }}>
+      <Section label="Hiányzások">
+        {absences.length === 0
+          ? <Empty>Nincs rögzített hiányzás</Empty>
+          : absences.map(a => {
+            const isPast = new Date(a.date + 'T23:59:59') < new Date()
+            return (
+              <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.55rem 1rem', borderBottom: '1px solid #3d4450', opacity: isPast ? 0.6 : 1 }}>
+                <span style={{ fontSize: '0.85rem', fontFamily: 'monospace', color: '#c6d4df' }}>{a.date}</span>
+                <span style={{ fontSize: '0.78rem', fontWeight: 700, color: a.type === 'unjustified' ? '#f87171' : '#a78bfa' }}>{ABSENCE_LABELS[a.type] ?? a.type}</span>
+              </div>
+            )
+          })
+        }
+        {absStatus === 'ok' && (
+          <div style={{ padding: '0.6rem 1rem', color: '#5ba32b', fontSize: '0.85rem', fontWeight: 600 }}>✓ Rögzítve — a vezető látni fogja.</div>
+        )}
+        {!absOpen ? (
+          <div style={{ padding: '0.75rem 1rem' }}>
+            <Btn onClick={() => { setAbsOpen(true); setAbsStatus(null); setAbsError('') }} accent>+ Új hiányzás</Btn>
+          </div>
+        ) : (
+          <div style={{ padding: '0.75rem 1rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+            <label style={LBL}>Dátum</label>
+            <input type="date" value={absDate} onChange={e => setAbsDate(e.target.value)} style={INP} />
+            <label style={LBL}>Típus</label>
+            <select value={absType} onChange={e => setAbsType(e.target.value)} style={INP}>
+              <option value="vacation">Szabadság</option>
+              <option value="sick">Betegszabadság</option>
+              <option value="other">Egyéb</option>
+            </select>
+            <label style={LBL}>Megjegyzés (opcionális)</label>
+            <input value={absNote} onChange={e => setAbsNote(e.target.value)} placeholder="pl. Orvosi vizsgálat" style={INP} />
+            {absStatus === 'error' && <div style={{ color: '#c94f4f', fontSize: '0.82rem' }}>{absError}</div>}
+            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.2rem' }}>
+              <Btn onClick={() => setAbsOpen(false)}>Mégse</Btn>
+              <Btn onClick={submitAbsence} accent>{absStatus === 'saving' ? 'Küldés…' : 'Beküldés'}</Btn>
+            </div>
+          </div>
+        )}
+      </Section>
+
+      <div style={{ padding: '1rem 1rem 2rem' }}>
         <Btn onClick={reset}>← Vissza</Btn>
       </div>
     </Page>
@@ -209,6 +304,27 @@ export default function App() {
 function fmt(ts) {
   return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
+
+function calcDayMins(dayEvents) {
+  const sorted = [...dayEvents].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+  let total = 0, lastIn = null
+  for (const e of sorted) {
+    if (e.type === 'checkin') lastIn = new Date(e.timestamp)
+    else if (e.type === 'checkout' && lastIn) { total += (new Date(e.timestamp) - lastIn) / 60000; lastIn = null }
+  }
+  if (lastIn && new Date().toDateString() === lastIn.toDateString()) total += (Date.now() - lastIn) / 60000
+  return Math.floor(total)
+}
+
+function fmtMins(m) {
+  if (m < 1) return '—'
+  const h = Math.floor(m / 60), min = Math.floor(m % 60)
+  return h === 0 ? `${min}p` : min === 0 ? `${h}ó` : `${h}ó ${min}p`
+}
+
+const ABSENCE_LABELS = { vacation: 'Szabadság', sick: 'Betegszabadság', unjustified: 'Igazolatlan', other: 'Egyéb' }
+const LBL = { fontSize: '0.7rem', color: '#8f98a0', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.05em' }
+const INP = { width: '100%', padding: '0.6rem', fontSize: '0.9rem', background: '#1b2838', border: '1px solid #3d4450', color: '#c6d4df', boxSizing: 'border-box', borderRadius: 2, outline: 'none' }
 
 function Page({ children }) {
   return (
@@ -240,9 +356,9 @@ function Section({ label, children }) {
   )
 }
 
-function StatCell({ label, value, color }) {
+function StatCell({ label, value, color, last }) {
   return (
-    <div style={{ padding: '0.75rem 1rem', borderRight: '1px solid #3d4450' }}>
+    <div style={{ padding: '0.75rem 1rem', borderRight: last ? 'none' : '1px solid #3d4450' }}>
       <div style={{ fontSize: '0.7rem', color: '#8f98a0', textTransform: 'uppercase', fontWeight: 700 }}>{label}</div>
       <div style={{ fontWeight: 800, fontSize: '1.15rem', color }}>{value}</div>
     </div>
