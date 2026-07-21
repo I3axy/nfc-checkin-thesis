@@ -3,10 +3,12 @@ import { supabase } from '../lib/supabase'
 import { C, S } from '../lib/theme'
 import { Field } from '../components/ui'
 
-// datetime-local string for `hours` from now, in local time
-function hoursFromNow(hours) {
-  const ms = Date.now() + hours * 3600000 - new Date().getTimezoneOffset() * 60000
-  return new Date(ms).toISOString().slice(0, 16)
+// datetime-local string: `hours` added to `current` (or to now if empty), local time
+function addHours(current, hours) {
+  const base = current ? new Date(current) : new Date()
+  const d = new Date(base.getTime() + hours * 3600000)
+  const pad = n => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
 export function RegisterTab({ companyId, onSaved }) {
@@ -14,7 +16,7 @@ export function RegisterTab({ companyId, onSaved }) {
   const [name, setName]         = useState('')
   const [role, setRole]         = useState('worker')
   const [dept, setDept]         = useState('')
-  const [expiresAt, setExpiresAt] = useState(() => hoursFromNow(4))
+  const [expiresAt, setExpiresAt] = useState(() => addHours(null, 4))
   const [scanning, setScanning] = useState(false)
   const [status, setStatus]     = useState(null)
   const [okGuest, setOkGuest]   = useState(false)
@@ -51,7 +53,7 @@ export function RegisterTab({ companyId, onSaved }) {
     else {
       setOkGuest(isGuest)
       setStatus('ok')
-      setUid(''); setName(''); setRole('worker'); setDept(''); setExpiresAt(hoursFromNow(4))
+      setUid(''); setName(''); setRole('worker'); setDept(''); setExpiresAt(addHours(null, 4))
       onSaved()
     }
   }
@@ -92,13 +94,14 @@ export function RegisterTab({ companyId, onSaved }) {
 
         {isGuest && (
           <Field label="Érvényesség vége">
-            <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
               {[['+2 óra', 2], ['+4 óra', 4], ['+8 óra', 8], ['+1 nap', 24]].map(([label, h]) => (
-                <button key={h} type="button" onClick={() => setExpiresAt(hoursFromNow(h))} style={{ ...S.btnSecondary, fontSize: '0.75rem', padding: '0.35rem 0.6rem' }}>{label}</button>
+                <button key={h} type="button" onClick={() => setExpiresAt(c => addHours(c, h))} style={{ ...S.btnSecondary, fontSize: '0.75rem', padding: '0.35rem 0.6rem' }}>{label}</button>
               ))}
+              <button type="button" onClick={() => setExpiresAt(addHours(null, 0))} style={{ ...S.btnIcon, fontSize: '0.72rem' }}>Most</button>
             </div>
             <input type="datetime-local" value={expiresAt} onChange={e => setExpiresAt(e.target.value)} required style={S.input} />
-            <div style={{ fontSize: '0.72rem', color: C.muted, marginTop: '0.3rem' }}>Ez után a kártya nem működik a scanner-en.</div>
+            <div style={{ fontSize: '0.72rem', color: C.muted, marginTop: '0.3rem' }}>A gombok hozzáadják az időt a fenti értékhez. Ez után a kártya nem működik a scanner-en.</div>
           </Field>
         )}
 
