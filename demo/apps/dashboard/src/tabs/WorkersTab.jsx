@@ -27,6 +27,7 @@ export function WorkersTab({ employees, settings, onSaved }) {
   }, [employees])
 
   const filtered = employees.filter(e => {
+    if (e.role === 'guest') return false   // guests are managed on the Status tab
     const q = search.toLowerCase()
     const matchSearch = e.name.toLowerCase().includes(q) || (e.department ?? '').toLowerCase().includes(q)
     const matchFilter =
@@ -109,7 +110,7 @@ export function WorkersTab({ employees, settings, onSaved }) {
         </div>
 
         <div style={{ padding: '0.4rem 0.75rem', borderTop: `1px solid ${C.border}`, fontSize: '0.65rem', color: C.muted, flexShrink: 0 }}>
-          {filtered.length} / {employees.length} dolgozó
+          {filtered.length} / {employees.filter(e => e.role !== 'guest').length} dolgozó
         </div>
       </div>
 

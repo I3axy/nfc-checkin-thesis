@@ -32,9 +32,10 @@ create table profiles (
   company_id    uuid not null references companies(id) on delete cascade,
   nfc_uid       text,
   name          text not null,
-  role          text not null check (role in ('worker', 'manager', 'admin')),
+  role          text not null check (role in ('worker', 'manager', 'admin', 'guest')),
   department    text,                        -- optional group/shift (e.g. "A műszak")
   pin           text,                        -- hashed PIN fallback (bcrypt)
+  guest_expires_at timestamptz,              -- guests only: card stops working after this time
   created_at    timestamptz not null default now(),
   unique (company_id, nfc_uid)               -- UID only unique within a company
 );

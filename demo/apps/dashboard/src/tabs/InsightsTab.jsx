@@ -7,12 +7,13 @@ import { calcDayMinutes, isWorkerLate, fmtMins, fmtClock, HU_DAYS, HU_MONTHS } f
 import { Table, Th, TableEmpty, SectionLabel, Badge, EmptyState } from '../components/ui'
 
 export function InsightsTab({ employees, events, settings }) {
+  const staff = useMemo(() => employees.filter(e => e.role !== 'guest'), [employees])
   const [selectedId, setSelectedId] = useState('')
-  useEffect(() => { if (employees.length > 0 && !selectedId) setSelectedId(employees[0].id) }, [employees, selectedId])
+  useEffect(() => { if (staff.length > 0 && !selectedId) setSelectedId(staff[0].id) }, [staff, selectedId])
 
-  if (employees.length === 0) return <EmptyState>Nincs dolgozó</EmptyState>
+  if (staff.length === 0) return <EmptyState>Nincs dolgozó</EmptyState>
 
-  const sel = employees.find(e => e.id === selectedId) ?? employees[0]
+  const sel = staff.find(e => e.id === selectedId) ?? staff[0]
   const isIn = sel.lastEvent?.type === 'checkin'
   const workerEvents = events.filter(e => e.user_id === sel.id)
 
@@ -34,7 +35,7 @@ export function InsightsTab({ employees, events, settings }) {
       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.25rem' }}>
         <span style={{ fontSize: '0.78rem', color: C.muted, whiteSpace: 'nowrap' }}>Dolgozó:</span>
         <select value={selectedId} onChange={e => setSelectedId(e.target.value)} style={{ ...S.input, width: 'auto', minWidth: 200 }}>
-          {employees.map(emp => <option key={emp.id} value={emp.id}>{emp.name}</option>)}
+          {staff.map(emp => <option key={emp.id} value={emp.id}>{emp.name}</option>)}
         </select>
         <Badge color={isIn ? C.green : C.muted}>{isIn ? 'Bent' : 'Kint'}</Badge>
         {sel.department && <span style={{ fontSize: '0.78rem', color: C.muted }}>{sel.department}</span>}

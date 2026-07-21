@@ -10,8 +10,10 @@ export function StatusTab({ employees, onSaved, settings }) {
 
   const departments = useMemo(() => ['all', ...new Set(employees.map(e => e.department).filter(Boolean))].sort(), [employees])
   const filtered = deptFilter === 'all' ? employees : employees.filter(e => e.department === deptFilter)
-  const inside  = filtered.filter(e => e.lastEvent?.type === 'checkin')
-  const outside = filtered.filter(e => e.lastEvent?.type !== 'checkin')
+  const staff   = filtered.filter(e => e.role !== 'guest')
+  const guests  = employees.filter(e => e.role === 'guest')
+  const inside  = staff.filter(e => e.lastEvent?.type === 'checkin')
+  const outside = staff.filter(e => e.lastEvent?.type !== 'checkin')
 
   if (employees.length === 0) return (
     <div style={{ color: C.muted, padding: '3rem', textAlign: 'center', fontSize: '0.9rem', border: `1px solid ${C.border}` }}>
@@ -53,8 +55,54 @@ export function StatusTab({ employees, onSaved, settings }) {
         </tbody>
       </Table>
 
+      {guests.length > 0 && (
+        <>
+          <div style={{ height: '1.25rem' }} />
+          <SectionLabel color={C.accent}>Vendégek — {guests.length}</SectionLabel>
+          <Table>
+            <tbody>
+              {guests.map(g => <GuestRow key={g.id} guest={g} onEdit={() => setEditing(g)} />)}
+            </tbody>
+          </Table>
+        </>
+      )}
+
       {editing && <EditModal employee={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); onSaved() }} />}
     </>
+  )
+}
+
+function GuestRow({ guest, onEdit }) {
+  const isIn    = guest.lastEvent?.type === 'checkin'
+  const exp     = guest.guest_expires_at ? new Date(guest.guest_expires_at) : null
+  const expired = exp && exp < new Date()
+  const expLabel = exp ? exp.toLocaleString('hu', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'
+
+  return (
+    <tr style={{ borderBottom: `1px solid ${C.border}`, opacity: expired ? 0.55 : 1 }}>
+      <td style={{ ...S.td, width: 10, paddingRight: 0 }}>
+        <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: isIn ? C.green : C.border }} />
+      </td>
+      <td style={{ ...S.td, fontWeight: 700, color: C.text }}>
+        {guest.name}
+        <span style={{ marginLeft: '0.5rem', fontSize: '0.6rem', color: C.accent, border: `1px solid ${C.accent}40`, padding: '0.1rem 0.35rem', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700 }}>Vendég</span>
+      </td>
+      <td style={S.td}>
+        {guest.lastEvent
+          ? <Badge color={isIn ? C.green : C.red}>{isIn ? '↑ Bent' : '↓ Kint'} {fmtClock(guest.lastEvent.timestamp)}</Badge>
+          : <span style={{ color: C.muted, fontSize: '0.78rem' }}>Még nem volt</span>
+        }
+      </td>
+      <td style={{ ...S.td, fontSize: '0.78rem' }}>
+        {expired
+          ? <span style={{ color: CAL.unjustified.bar, fontWeight: 700 }}>⏰ Lejárt · {expLabel}</span>
+          : <span style={{ color: C.muted }}>Lejár: <span style={{ color: C.text }}>{expLabel}</span></span>
+        }
+      </td>
+      <td style={{ ...S.td, textAlign: 'right' }}>
+        <button onClick={onEdit} style={S.btnIcon}>✎</button>
+      </td>
+    </tr>
   )
 }
 

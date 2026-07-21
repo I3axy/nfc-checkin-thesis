@@ -42,7 +42,7 @@ export default function App() {
         body: JSON.stringify({ nfc_uid: uid, company_slug: COMPANY_SLUG, ...(photoBase64 ? { photo_base64: photoBase64 } : {}) }),
       })
       const data = await res.json()
-      if (!res.ok) return { ok: false, code: data.code, error: data.error }
+      if (!res.ok) return { ok: false, code: data.code, error: data.error, user: data.user }
       if (data.needs_photo) return { ok: true, needsPhoto: true, user: data.user }
       return { ok: true, event: data.event, user: data.user }
     } catch {
@@ -70,6 +70,9 @@ export default function App() {
       if (result.code === 'UNKNOWN_CARD') {
         addLog(pendingUid.current, 'unknown', '')
         flash('unknown', '')
+      } else if (result.code === 'GUEST_EXPIRED') {
+        addLog(pendingUid.current, 'expired', result.user?.name ?? '')
+        flash('expired', result.user?.name ?? '')
       } else {
         addLog(pendingUid.current, 'error', result.error ?? 'Error')
         flash('unknown', '')
@@ -193,9 +196,9 @@ export default function App() {
     </Screen>
   )
 
-  const bg    = { ready: '#060c18', checkin: '#10b981', checkout: '#ef4444', unknown: '#f59e0b' }[screen] ?? '#060c18'
-  const emoji = { ready: '📡', checkin: '✅', checkout: '🔴', unknown: '❓' }[screen]
-  const title = { ready: 'Tap your NFC card', checkin: 'CHECKED IN', checkout: 'CHECKED OUT', unknown: 'Card not registered' }[screen]
+  const bg    = { ready: '#060c18', checkin: '#10b981', checkout: '#ef4444', unknown: '#f59e0b', expired: '#b45309' }[screen] ?? '#060c18'
+  const emoji = { ready: '📡', checkin: '✅', checkout: '🔴', unknown: '❓', expired: '⏰' }[screen]
+  const title = { ready: 'Tap your NFC card', checkin: 'CHECKED IN', checkout: 'CHECKED OUT', unknown: 'Card not registered', expired: 'Guest pass expired' }[screen]
 
   return (
     <Screen bg={bg}>
@@ -214,7 +217,7 @@ export default function App() {
           {log.map((entry, i) => (
             <div key={i} style={{ ...S.logRow, opacity: i === 0 ? 1 : 0.45 }}>
               <span style={{ color: entry.result === 'checkin' ? '#10b981' : entry.result === 'checkout' ? '#ef4444' : '#f59e0b' }}>
-                {entry.result === 'checkin' ? '↑ IN' : entry.result === 'checkout' ? '↓ OUT' : '? UNK'}
+                {entry.result === 'checkin' ? '↑ IN' : entry.result === 'checkout' ? '↓ OUT' : entry.result === 'expired' ? '⏰ EXP' : '? UNK'}
                 {entry.personName ? ` ${entry.personName}` : ''}
               </span>
               <span style={{ color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{entry.uid}</span>

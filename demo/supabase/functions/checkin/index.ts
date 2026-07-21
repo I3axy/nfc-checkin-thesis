@@ -46,7 +46,7 @@ Deno.serve(async (req) => {
     const variants = [uid, uid.replace(/(.{2})/g, '$1:').slice(0, -1)]
     const { data: profile, error: profileErr } = await supabase
       .from('profiles')
-      .select('id, name, role')
+      .select('id, name, role, guest_expires_at')
       .eq('company_id', company.id)
       .in('nfc_uid', variants)
       .maybeSingle()
@@ -55,6 +55,14 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({ error: 'Unknown card', code: 'UNKNOWN_CARD' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Guest cards stop working after their expiry time
+    if (profile.role === 'guest' && profile.guest_expires_at && new Date(profile.guest_expires_at) < new Date()) {
+      return new Response(
+        JSON.stringify({ error: 'Guest pass expired', code: 'GUEST_EXPIRED', user: { name: profile.name } }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 

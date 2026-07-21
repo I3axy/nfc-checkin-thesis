@@ -3,11 +3,19 @@ import { supabase } from '../lib/supabase'
 import { C, S } from '../lib/theme'
 import { Modal, Field, Divider } from './ui'
 
+// ISO → datetime-local string (local time)
+function toLocalInput(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
+}
+
 export function EditModal({ employee, onClose, onSaved }) {
   const [name, setName]   = useState(employee.name)
   const [role, setRole]   = useState(employee.role)
   const [dept, setDept]   = useState(employee.department ?? '')
   const [uid, setUid]     = useState(employee.nfc_uid ?? '')
+  const [expiresAt, setExpiresAt] = useState(toLocalInput(employee.guest_expires_at))
   const [scanning, setScanning]   = useState(false)
   const [saving, setSaving]       = useState(false)
   const [error, setError]         = useState('')
@@ -26,9 +34,17 @@ export function EditModal({ employee, onClose, onSaved }) {
     } catch (err) { setScanning(false); setError('NFC scan failed: ' + err.message) }
   }
 
+  const isGuest = role === 'guest'
+
   async function handleSave(e) {
     e.preventDefault(); setSaving(true); setError('')
-    const { error } = await supabase.from('profiles').update({ name: name.trim(), role, department: dept.trim() || null, nfc_uid: uid.trim() || null }).eq('id', employee.id)
+    const { error } = await supabase.from('profiles').update({
+      name: name.trim(),
+      role,
+      department: isGuest ? null : (dept.trim() || null),
+      nfc_uid: uid.trim() || null,
+      guest_expires_at: isGuest ? (expiresAt ? new Date(expiresAt).toISOString() : null) : null,
+    }).eq('id', employee.id)
     if (error) { setError(error.message); setSaving(false) } else onSaved()
   }
 
@@ -50,9 +66,13 @@ export function EditModal({ employee, onClose, onSaved }) {
               <option value="worker">Worker</option>
               <option value="manager">Manager</option>
               <option value="admin">Admin</option>
+              <option value="guest">Vendég</option>
             </select>
           </Field>
-          <Field label="Részleg"><input value={dept} onChange={e => setDept(e.target.value)} placeholder="pl. A műszak" style={S.input} /></Field>
+          {isGuest
+            ? <Field label="Érvényesség vége"><input type="datetime-local" value={expiresAt} onChange={e => setExpiresAt(e.target.value)} style={S.input} /></Field>
+            : <Field label="Részleg"><input value={dept} onChange={e => setDept(e.target.value)} placeholder="pl. A műszak" style={S.input} /></Field>
+          }
         </div>
         <Field label="NFC UID">
           <div style={{ display: 'flex', gap: '0.5rem' }}>
