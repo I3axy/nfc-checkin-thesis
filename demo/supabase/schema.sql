@@ -51,8 +51,14 @@ create table events (
   timestamp   timestamptz not null default now(),
   note        text,                          -- manual correction comment
   is_manual   bool not null default false,   -- true if manager entered manually
-  photo_url   text                           -- foto check-in Storage URL
+  photo_url   text,                          -- foto check-in Storage URL
+  client_event_id uuid                       -- client-gen id for idempotent offline sync
 );
+
+-- At most one event per client_event_id (offline sync idempotency); nulls free
+create unique index if not exists events_client_event_id_key
+  on events (client_event_id)
+  where client_event_id is not null;
 
 -- ---------------------------------------------------------------------------
 -- ABSENCES

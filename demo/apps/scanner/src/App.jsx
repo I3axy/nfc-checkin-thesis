@@ -1,17 +1,27 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
+import {
+  normalizeUid, cacheRoster, lookupCard, getState, setState,
+  enqueue, queueCount, getMeta,
+} from './db.js'
+import { syncQueue } from './sync.js'
 
 const RESET_DELAY = 3000
 const CAMERA_TIMEOUT = 20000
+const SYNC_INTERVAL = 20000
 const FUNCTION_URL = import.meta.env.VITE_CHECKIN_FUNCTION_URL
 const COMPANY_SLUG = import.meta.env.VITE_COMPANY_SLUG
 
 export default function App() {
-  const [screen, setScreen] = useState('idle')   // idle | starting | ready | checkin | checkout | unknown | camera | uploading
+  const [screen, setScreen] = useState('idle')   // idle | starting | ready | checkin | checkout | unknown | expired | camera | uploading
   const [name, setName] = useState('')
   const [lastUid, setLastUid] = useState('')
   const [error, setError] = useState('')
   const [cameraError, setCameraError] = useState('')
   const [log, setLog] = useState([])
+  const [online, setOnline] = useState(navigator.onLine)
+  const [pending, setPending] = useState(0)
+  const [syncingUi, setSyncingUi] = useState(false)
+  const [savedOffline, setSavedOffline] = useState(false)
   const nfcSupported = 'NDEFReader' in window
   const processing = useRef(false)
   const resetTimer = useRef(null)
@@ -19,7 +29,61 @@ export default function App() {
   const videoRef = useRef(null)
   const streamRef = useRef(null)
   const cameraTimeout = useRef(null)
+  const captureMode = useRef('online')   // 'online' | 'offline'
+  const offlineCtx = useRef(null)        // { uid, name, type } during offline photo capture
+  const syncing = useRef(false)
 
+  // --- background: roster refresh + queue sync --------------------------------
+  useEffect(() => {
+    refreshPending()
+    if (navigator.onLine) syncAndRefresh()
+
+    const onOnline = () => { setOnline(true); syncAndRefresh() }
+    const onOffline = () => setOnline(false)
+    window.addEventListener('online', onOnline)
+    window.addEventListener('offline', onOffline)
+    const iv = setInterval(() => { if (navigator.onLine) syncAndRefresh() }, SYNC_INTERVAL)
+
+    return () => {
+      window.removeEventListener('online', onOnline)
+      window.removeEventListener('offline', onOffline)
+      clearInterval(iv)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  async function refreshPending() {
+    setPending(await queueCount())
+  }
+
+  async function refreshRoster() {
+    try {
+      const res = await fetch(FUNCTION_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ company_slug: COMPANY_SLUG, action: 'roster' }),
+      })
+      if (!res.ok) return
+      const data = await res.json()
+      await cacheRoster(data)
+    } catch { /* offline — keep the last cached roster */ }
+  }
+
+  async function syncAndRefresh() {
+    if (syncing.current) return
+    syncing.current = true
+    setSyncingUi(true)
+    try {
+      await syncQueue({ functionUrl: FUNCTION_URL, companySlug: COMPANY_SLUG, onProgress: refreshPending })
+      await refreshRoster()
+    } finally {
+      await refreshPending()
+      syncing.current = false
+      setSyncingUi(false)
+    }
+  }
+
+  // --- NFC --------------------------------------------------------------------
   async function startScan() {
     setScreen('starting')
     setError('')
@@ -46,44 +110,73 @@ export default function App() {
       if (data.needs_photo) return { ok: true, needsPhoto: true, user: data.user }
       return { ok: true, event: data.event, user: data.user }
     } catch {
-      return { ok: false, error: 'Network error' }
+      return { ok: false, offline: true }   // network failure — fall back to offline
     }
   }
 
-  async function handleCard(uid) {
+  async function handleCard(rawUid) {
     if (processing.current) return
     processing.current = true
     if (resetTimer.current) clearTimeout(resetTimer.current)
+    const uid = normalizeUid(rawUid)
     setLastUid(uid)
     pendingUid.current = uid
 
+    // Straight to offline if the browser knows it's offline.
+    if (!navigator.onLine) { await recordOffline(uid); return }
+
     const result = await callCheckin(uid, null)
-    if (result.ok && result.needsPhoto) {
-      openCamera()
+    if (result.offline) { await recordOffline(uid); return }   // died mid-request
+    if (result.ok && result.needsPhoto) { openCamera('online'); return }
+    finishResult(result)
+  }
+
+  // --- offline path -----------------------------------------------------------
+  async function recordOffline(uid) {
+    const card = await lookupCard(uid)
+    if (!card) { flash('unknown', ''); return }                // never synced this card
+    if (card.role === 'guest' && card.guest_expires_at && new Date(card.guest_expires_at) < new Date()) {
+      flash('expired', card.name); return
+    }
+    const cur = await getState(uid)
+    const type = cur === 'checkin' ? 'checkout' : 'checkin'
+
+    if (await getMeta('photo_required')) {
+      offlineCtx.current = { uid, name: card.name, type }
+      openCamera('offline')
       return
     }
-    finishResult(result)
+    await commitOffline({ uid, name: card.name, type, photoBase64: null })
+  }
+
+  async function commitOffline({ uid, name, type, photoBase64 }) {
+    await enqueue({
+      uid,
+      name,
+      type,
+      timestamp: new Date().toISOString(),
+      client_event_id: crypto.randomUUID(),
+      photo_base64: photoBase64 || null,
+    })
+    await setState(uid, type)
+    await refreshPending()
+    flash(type, name, { offline: true })
+    if (navigator.onLine) syncAndRefresh()
   }
 
   function finishResult(result) {
     if (!result.ok) {
-      if (result.code === 'UNKNOWN_CARD') {
-        addLog(pendingUid.current, 'unknown', '')
-        flash('unknown', '')
-      } else if (result.code === 'GUEST_EXPIRED') {
-        addLog(pendingUid.current, 'expired', result.user?.name ?? '')
-        flash('expired', result.user?.name ?? '')
-      } else {
-        addLog(pendingUid.current, 'error', result.error ?? 'Error')
-        flash('unknown', '')
-      }
+      if (result.code === 'UNKNOWN_CARD') { flash('unknown', '') }
+      else if (result.code === 'GUEST_EXPIRED') { flash('expired', result.user?.name ?? '') }
+      else { flash('unknown', '') }
       return
     }
-    addLog(pendingUid.current, result.event.type, result.user.name)
     flash(result.event.type, result.user.name)
   }
 
-  async function openCamera() {
+  // --- camera -----------------------------------------------------------------
+  async function openCamera(mode) {
+    captureMode.current = mode
     setCameraError('')
     setScreen('camera')
     try {
@@ -95,6 +188,12 @@ export default function App() {
       }
       cameraTimeout.current = setTimeout(() => cancelCamera('Photo timed out'), CAMERA_TIMEOUT)
     } catch (err) {
+      // Offline: don't lose the attendance record just because the camera failed.
+      if (mode === 'offline' && offlineCtx.current) {
+        stopCameraStream()
+        await commitOffline({ ...offlineCtx.current, photoBase64: null })
+        return
+      }
       setCameraError(err.message || 'Camera unavailable')
     }
   }
@@ -104,9 +203,13 @@ export default function App() {
     if (cameraTimeout.current) { clearTimeout(cameraTimeout.current); cameraTimeout.current = null }
   }
 
-  function cancelCamera(reason) {
+  async function cancelCamera(reason) {
     stopCameraStream()
-    addLog(pendingUid.current, 'error', reason || 'Photo cancelled')
+    // Offline capture cancelled/timed out → still record the event (no photo).
+    if (captureMode.current === 'offline' && offlineCtx.current) {
+      await commitOffline({ ...offlineCtx.current, photoBase64: null })
+      return
+    }
     flash('unknown', '')
   }
 
@@ -119,26 +222,47 @@ export default function App() {
     canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height)
     const dataUrl = canvas.toDataURL('image/jpeg', 0.82)
     stopCameraStream()
+
+    if (captureMode.current === 'offline') {
+      await commitOffline({ ...offlineCtx.current, photoBase64: dataUrl })
+      return
+    }
+
     setScreen('uploading')
     const result = await callCheckin(pendingUid.current, dataUrl)
+    if (result.offline) {
+      // Net died between capture and upload — keep the photo, record offline.
+      const card = await lookupCard(pendingUid.current)
+      const cur = await getState(pendingUid.current)
+      const type = cur === 'checkin' ? 'checkout' : 'checkin'
+      await commitOffline({ uid: pendingUid.current, name: card?.name ?? '', type, photoBase64: dataUrl })
+      return
+    }
     finishResult(result)
   }
 
-  function addLog(uid, result, personName) {
-    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-    setLog(prev => [{ uid, result, personName, time }, ...prev].slice(0, 10))
-  }
-
-  function flash(screenKey, personName) {
+  // --- feedback ---------------------------------------------------------------
+  function flash(screenKey, personName, opts = {}) {
+    if (screenKey !== 'camera' && screenKey !== 'uploading') {
+      addLog(pendingUid.current, screenKey, personName, opts.offline)
+    }
+    setSavedOffline(!!opts.offline)
     setScreen(screenKey)
     setName(personName)
     resetTimer.current = setTimeout(() => {
       setScreen('ready')
       setName('')
+      setSavedOffline(false)
       processing.current = false
     }, RESET_DELAY)
   }
 
+  function addLog(uid, result, personName, offline) {
+    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    setLog(prev => [{ uid, result, personName, time, offline }, ...prev].slice(0, 10))
+  }
+
+  // --- render -----------------------------------------------------------------
   if (!nfcSupported) return (
     <Screen bg="#060c18">
       <div style={S.emoji}>⚠️</div>
@@ -149,14 +273,11 @@ export default function App() {
 
   if (screen === 'idle') return (
     <Screen bg="#060c18">
+      <StatusBadge online={online} pending={pending} syncing={syncingUi} />
       <div style={S.emoji}>📡</div>
       <div style={S.title}>NFC Scanner</div>
-      {error && (
-        <div style={S.errorBox}>{error}</div>
-      )}
-      <button onClick={startScan} style={S.startBtn}>
-        Start Scanning
-      </button>
+      {error && <div style={S.errorBox}>{error}</div>}
+      <button onClick={startScan} style={S.startBtn}>Start Scanning</button>
     </Screen>
   )
 
@@ -169,6 +290,7 @@ export default function App() {
 
   if (screen === 'camera') return (
     <Screen bg="#060c18">
+      <StatusBadge online={online} pending={pending} syncing={syncingUi} />
       <div style={S.panel}>
         <div style={S.title}>Take a check-in photo</div>
         {cameraError ? (
@@ -202,15 +324,18 @@ export default function App() {
 
   return (
     <Screen bg={bg}>
+      <StatusBadge online={online} pending={pending} syncing={syncingUi} />
       <div style={S.panel}>
         <div style={S.emoji}>{emoji}</div>
         <div style={S.title}>{title}</div>
       </div>
       {name && <div style={S.name}>{name}</div>}
 
-      {screen === 'unknown' && lastUid && (
-        <div style={S.uidBox}>{lastUid}</div>
+      {savedOffline && (screen === 'checkin' || screen === 'checkout') && (
+        <div style={S.offlineNote}>💾 Elmentve offline · szinkron később</div>
       )}
+
+      {screen === 'unknown' && lastUid && <div style={S.uidBox}>{lastUid}</div>}
 
       {screen === 'ready' && log.length > 0 && (
         <div style={S.logPanel}>
@@ -219,6 +344,7 @@ export default function App() {
               <span style={{ color: entry.result === 'checkin' ? '#10b981' : entry.result === 'checkout' ? '#ef4444' : '#f59e0b' }}>
                 {entry.result === 'checkin' ? '↑ IN' : entry.result === 'checkout' ? '↓ OUT' : entry.result === 'expired' ? '⏰ EXP' : '? UNK'}
                 {entry.personName ? ` ${entry.personName}` : ''}
+                {entry.offline ? ' 💾' : ''}
               </span>
               <span style={{ color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{entry.uid}</span>
               <span style={{ color: '#475569', textAlign: 'right' }}>{entry.time}</span>
@@ -230,12 +356,20 @@ export default function App() {
   )
 }
 
-function Screen({ bg, children }) {
+function StatusBadge({ online, pending, syncing }) {
   return (
-    <div style={{ ...S.fullscreen, background: bg }}>
-      {children}
+    <div style={S.badge}>
+      <span style={{ ...S.badgeDot, background: online ? '#10b981' : '#f59e0b' }} />
+      <span>{online ? 'Online' : 'Offline'}</span>
+      {pending > 0 && (
+        <span style={S.badgePending}>{syncing ? '⟳' : '•'} {pending} vár</span>
+      )}
     </div>
   )
+}
+
+function Screen({ bg, children }) {
+  return <div style={{ ...S.fullscreen, background: bg }}>{children}</div>
 }
 
 const S = {
@@ -245,6 +379,7 @@ const S = {
   title:      { fontSize: 'clamp(1.7rem, 7vw, 3rem)', fontWeight: 800, textAlign: 'center', padding: '0 1rem', maxWidth: 720 },
   name:       { fontSize: 'clamp(1.35rem, 5.5vw, 2.2rem)', fontWeight: 600, opacity: 0.9, textAlign: 'center' },
   sub:        { fontSize: 'clamp(1rem, 3.6vw, 1.2rem)', opacity: 0.7, textAlign: 'center' },
+  offlineNote:{ fontSize: 'clamp(0.85rem, 3.4vw, 1.05rem)', fontWeight: 600, background: 'rgba(0,0,0,0.25)', padding: '0.4rem 0.9rem', borderRadius: '999px' },
   startBtn:   { marginTop: '0.5rem', padding: '1rem clamp(1.6rem, 8vw, 3rem)', fontSize: 'clamp(1rem, 4.4vw, 1.3rem)', fontWeight: 800, background: '#1d4ed8', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', letterSpacing: '0.02em' },
   cancelBtn:  { marginTop: '0.5rem', padding: '1rem clamp(1.6rem, 8vw, 3rem)', fontSize: 'clamp(1rem, 4.4vw, 1.3rem)', fontWeight: 700, background: 'transparent', color: '#fff', border: '2px solid rgba(255,255,255,0.35)', borderRadius: '4px', cursor: 'pointer', letterSpacing: '0.02em' },
   errorBox:   { fontFamily: 'monospace', fontSize: '0.85rem', color: '#fca5a5', background: 'rgba(0,0,0,0.4)', padding: '0.5rem 1rem', borderRadius: '4px', textAlign: 'center', maxWidth: '80%' },
@@ -252,4 +387,7 @@ const S = {
   logPanel:   { position: 'absolute', bottom: 0, left: 0, right: 0, padding: '0.75rem', background: 'rgba(0,0,0,0.55)', maxHeight: '34dvh', overflowY: 'auto' },
   logRow:     { display: 'grid', gridTemplateColumns: '1.2fr 1fr auto', gap: '0.5rem', alignItems: 'center', fontSize: '0.75rem', padding: '0.15rem 0', fontFamily: 'monospace' },
   cameraVideo:{ width: 'min(92vw, 480px)', aspectRatio: '3 / 4', objectFit: 'cover', borderRadius: '8px', background: '#000', transform: 'scaleX(-1)' },
+  badge:      { position: 'absolute', top: '0.75rem', left: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', fontWeight: 600, background: 'rgba(0,0,0,0.35)', padding: '0.35rem 0.7rem', borderRadius: '999px', letterSpacing: '0.02em' },
+  badgeDot:   { width: 8, height: 8, borderRadius: '50%', display: 'inline-block' },
+  badgePending: { color: '#fcd34d' },
 }
