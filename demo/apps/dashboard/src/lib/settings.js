@@ -7,6 +7,7 @@ export const DEFAULT_SETTINGS = {
   lateThresholdMinutes: 15,
   autoCheckoutHour: 23,
   photoRequired: false,
+  pinPhotoRequired: false,
   theme: 'blue',
 }
 
@@ -27,6 +28,7 @@ export function companyToSettings(company) {
     lateThresholdMinutes: company.late_threshold_minutes,
     autoCheckoutHour:     company.auto_checkout_hour,
     photoRequired:        company.photo_required,
+    pinPhotoRequired:     company.pin_photo_required,
   }
 }
 
@@ -38,5 +40,6 @@ export function settingsToCompany(s) {
     late_threshold_minutes: Number(s.lateThresholdMinutes),
     auto_checkout_hour:     Number(s.autoCheckoutHour),
     photo_required:         !!s.photoRequired,
+    pin_photo_required:     !!s.pinPhotoRequired,
   }
 }

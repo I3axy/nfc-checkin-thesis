@@ -74,3 +74,12 @@ export function fmtClock(ts) {
 export function normalizeUid(raw) {
   return (raw ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '')
 }
+
+// Deterministic, company-salted PIN hash. The exact same formula runs in the
+// checkin Edge Function, so a PIN set here resolves to this profile there.
+// The raw PIN is never stored — only this hash.
+export async function hashPin(companyId, pin) {
+  const data = new TextEncoder().encode(`${companyId}:${pin}`)
+  const buf = await crypto.subtle.digest('SHA-256', data)
+  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('')
+}

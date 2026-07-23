@@ -22,10 +22,12 @@ export default function App() {
   const [pending, setPending] = useState(0)
   const [syncingUi, setSyncingUi] = useState(false)
   const [savedOffline, setSavedOffline] = useState(false)
+  const [pinInput, setPinInput] = useState('')
   const nfcSupported = 'NDEFReader' in window
   const processing = useRef(false)
   const resetTimer = useRef(null)
   const pendingUid = useRef(null)
+  const pendingIdentity = useRef(null)   // { nfc_uid } | { pin } for the photo follow-up
   const videoRef = useRef(null)
   const streamRef = useRef(null)
   const cameraTimeout = useRef(null)
@@ -98,12 +100,13 @@ export default function App() {
     }
   }
 
-  async function callCheckin(uid, photoBase64) {
+  // identity is { nfc_uid } for a card or { pin } for keypad entry
+  async function callCheckin(identity, photoBase64) {
     try {
       const res = await fetch(FUNCTION_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nfc_uid: uid, company_slug: COMPANY_SLUG, ...(photoBase64 ? { photo_base64: photoBase64 } : {}) }),
+        body: JSON.stringify({ ...identity, company_slug: COMPANY_SLUG, ...(photoBase64 ? { photo_base64: photoBase64 } : {}) }),
       })
       const data = await res.json()
       if (!res.ok) return { ok: false, code: data.code, error: data.error, user: data.user }
@@ -121,12 +124,43 @@ export default function App() {
     const uid = normalizeUid(rawUid)
     setLastUid(uid)
     pendingUid.current = uid
+    pendingIdentity.current = { nfc_uid: uid }
 
     // Straight to offline if the browser knows it's offline.
     if (!navigator.onLine) { await recordOffline(uid); return }
 
-    const result = await callCheckin(uid, null)
+    const result = await callCheckin({ nfc_uid: uid }, null)
     if (result.offline) { await recordOffline(uid); return }   // died mid-request
+    if (result.ok && result.needsPhoto) { openCamera('online'); return }
+    finishResult(result)
+  }
+
+  // --- PIN keypad (online only; a PIN can't be verified offline) --------------
+  function openPinPad() {
+    if (processing.current) return
+    processing.current = true            // block card taps while typing a PIN
+    if (resetTimer.current) clearTimeout(resetTimer.current)
+    setPinInput('')
+    setScreen('pin')
+  }
+
+  function cancelPin() {
+    setPinInput('')
+    setScreen('ready')
+    processing.current = false
+  }
+
+  async function submitPin() {
+    if (pinInput.length < 4) return
+    const value = pinInput
+    setPinInput('')
+    pendingUid.current = null
+    pendingIdentity.current = { pin: value }
+    setLastUid('')
+
+    if (!navigator.onLine) { flash('noconn', ''); return }
+    const result = await callCheckin({ pin: value }, null)
+    if (result.offline) { flash('noconn', ''); return }
     if (result.ok && result.needsPhoto) { openCamera('online'); return }
     finishResult(result)
   }
@@ -167,6 +201,7 @@ export default function App() {
   function finishResult(result) {
     if (!result.ok) {
       if (result.code === 'UNKNOWN_CARD') { flash('unknown', '') }
+      else if (result.code === 'UNKNOWN_PIN') { flash('badpin', '') }
       else if (result.code === 'GUEST_EXPIRED') { flash('expired', result.user?.name ?? '') }
       else { flash('unknown', '') }
       return
@@ -229,9 +264,11 @@ export default function App() {
     }
 
     setScreen('uploading')
-    const result = await callCheckin(pendingUid.current, dataUrl)
+    const result = await callCheckin(pendingIdentity.current, dataUrl)
     if (result.offline) {
-      // Net died between capture and upload — keep the photo, record offline.
+      // PIN entries can't be recorded offline (no way to verify) — just report.
+      if (pendingIdentity.current?.pin) { flash('noconn', ''); return }
+      // Card: net died between capture and upload — keep the photo, record offline.
       const card = await lookupCard(pendingUid.current)
       const cur = await getState(pendingUid.current)
       const type = cur === 'checkin' ? 'checkout' : 'checkin'
@@ -243,7 +280,7 @@ export default function App() {
 
   // --- feedback ---------------------------------------------------------------
   function flash(screenKey, personName, opts = {}) {
-    if (screenKey !== 'camera' && screenKey !== 'uploading') {
+    if (!['camera', 'uploading', 'noconn'].includes(screenKey)) {
       addLog(pendingUid.current, screenKey, personName, opts.offline)
     }
     setSavedOffline(!!opts.offline)
@@ -318,9 +355,28 @@ export default function App() {
     </Screen>
   )
 
-  const bg    = { ready: '#060c18', checkin: '#10b981', checkout: '#ef4444', unknown: '#f59e0b', expired: '#b45309' }[screen] ?? '#060c18'
-  const emoji = { ready: '📡', checkin: '✅', checkout: '🔴', unknown: '❓', expired: '⏰' }[screen]
-  const title = { ready: 'Tap your NFC card', checkin: 'CHECKED IN', checkout: 'CHECKED OUT', unknown: 'Card not registered', expired: 'Guest pass expired' }[screen]
+  if (screen === 'pin') return (
+    <Screen bg="#060c18">
+      <StatusBadge online={online} pending={pending} syncing={syncingUi} />
+      <div style={S.panel}>
+        <div style={S.title}>Enter PIN</div>
+        <div style={S.pinDots}>{pinInput ? '•'.repeat(pinInput.length) : '—'}</div>
+        <div style={S.keypad}>
+          {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map(d => (
+            <button key={d} onClick={() => setPinInput(p => (p.length < 6 ? p + d : p))} style={S.key}>{d}</button>
+          ))}
+          <button onClick={() => setPinInput(p => p.slice(0, -1))} style={S.key}>⌫</button>
+          <button onClick={() => setPinInput(p => (p.length < 6 ? p + '0' : p))} style={S.key}>0</button>
+          <button onClick={submitPin} disabled={pinInput.length < 4} style={{ ...S.key, ...S.keyOk, opacity: pinInput.length < 4 ? 0.4 : 1 }}>✓</button>
+        </div>
+        <button onClick={cancelPin} style={S.cancelBtn}>Cancel</button>
+      </div>
+    </Screen>
+  )
+
+  const bg    = { ready: '#060c18', checkin: '#10b981', checkout: '#ef4444', unknown: '#f59e0b', expired: '#b45309', badpin: '#f59e0b', noconn: '#334155' }[screen] ?? '#060c18'
+  const emoji = { ready: '📡', checkin: '✅', checkout: '🔴', unknown: '❓', expired: '⏰', badpin: '🔒', noconn: '📵' }[screen]
+  const title = { ready: 'Tap your NFC card', checkin: 'CHECKED IN', checkout: 'CHECKED OUT', unknown: 'Card not registered', expired: 'Guest pass expired', badpin: 'Wrong PIN', noconn: 'No connection' }[screen]
 
   return (
     <Screen bg={bg}>
@@ -333,6 +389,10 @@ export default function App() {
 
       {savedOffline && (screen === 'checkin' || screen === 'checkout') && (
         <div style={S.offlineNote}>💾 Elmentve offline · szinkron később</div>
+      )}
+
+      {screen === 'ready' && online && (
+        <button onClick={openPinPad} style={S.pinBtn}>🔢 PIN</button>
       )}
 
       {screen === 'unknown' && lastUid && <div style={S.uidBox}>{lastUid}</div>}
@@ -390,4 +450,9 @@ const S = {
   badge:      { position: 'absolute', top: '0.75rem', left: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', fontWeight: 600, background: 'rgba(0,0,0,0.35)', padding: '0.35rem 0.7rem', borderRadius: '999px', letterSpacing: '0.02em' },
   badgeDot:   { width: 8, height: 8, borderRadius: '50%', display: 'inline-block' },
   badgePending: { color: '#fcd34d' },
+  pinBtn:     { marginTop: '0.5rem', padding: '0.7rem 1.6rem', fontSize: 'clamp(0.95rem, 4vw, 1.15rem)', fontWeight: 700, background: 'rgba(255,255,255,0.08)', color: '#cbd5e1', border: '2px solid rgba(255,255,255,0.2)', borderRadius: '999px', cursor: 'pointer' },
+  pinDots:    { fontSize: '2.4rem', letterSpacing: '0.4rem', minHeight: '3rem', fontWeight: 700, color: '#e2e8f0' },
+  keypad:     { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.6rem', width: 'min(86vw, 320px)' },
+  key:        { padding: '1rem 0', fontSize: '1.5rem', fontWeight: 700, background: 'rgba(255,255,255,0.08)', color: '#fff', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', cursor: 'pointer' },
+  keyOk:      { background: '#10b981', border: 'none' },
 }

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { C, S } from '../lib/theme'
-import { normalizeUid } from '../lib/utils'
+import { normalizeUid, hashPin } from '../lib/utils'
 import { Modal, Field, Divider } from './ui'
 
 // ISO → datetime-local string (local time)
@@ -16,6 +16,8 @@ export function EditModal({ employee, onClose, onSaved }) {
   const [role, setRole]   = useState(employee.role)
   const [dept, setDept]   = useState(employee.department ?? '')
   const [uid, setUid]     = useState(employee.nfc_uid ?? '')
+  const [pinValue, setPinValue] = useState('')
+  const [clearPin, setClearPin] = useState(false)
   const [expiresAt, setExpiresAt] = useState(toLocalInput(employee.guest_expires_at))
   const [scanning, setScanning]   = useState(false)
   const [saving, setSaving]       = useState(false)
@@ -38,15 +40,27 @@ export function EditModal({ employee, onClose, onSaved }) {
   const isGuest = role === 'guest'
 
   async function handleSave(e) {
-    e.preventDefault(); setSaving(true); setError('')
-    const { error } = await supabase.from('profiles').update({
+    e.preventDefault()
+    if (!isGuest && pinValue && !/^\d{4,6}$/.test(pinValue)) { setError('A PIN 4–6 számjegy legyen'); return }
+    setSaving(true); setError('')
+
+    const update = {
       name: name.trim(),
       role,
       department: isGuest ? null : (dept.trim() || null),
       nfc_uid: normalizeUid(uid) || null,
       guest_expires_at: isGuest ? (expiresAt ? new Date(expiresAt).toISOString() : null) : null,
-    }).eq('id', employee.id)
-    if (error) { setError(error.message); setSaving(false) } else onSaved()
+    }
+    // PIN: only touch it when the manager explicitly sets a new one or clears it.
+    if (clearPin) update.pin = null
+    else if (!isGuest && pinValue) update.pin = await hashPin(employee.company_id, pinValue)
+
+    const { error } = await supabase.from('profiles').update(update).eq('id', employee.id)
+    if (error) {
+      const dupPin = error.code === '23505' && /pin/i.test(error.message)
+      setError(dupPin ? 'Ez a PIN már foglalt a cégben, válassz másikat' : error.message)
+      setSaving(false)
+    } else onSaved()
   }
 
   async function handleAddEvent() {
@@ -81,6 +95,24 @@ export function EditModal({ employee, onClose, onSaved }) {
             {nfcSupported && <button type="button" onClick={scanCard} disabled={scanning} style={{ ...S.btnPrimary, padding: '0 1rem', opacity: scanning ? 0.6 : 1 }}>{scanning ? '…' : '📡'}</button>}
           </div>
         </Field>
+        {!isGuest && (
+          <Field label="PIN">
+            <input
+              value={pinValue}
+              onChange={e => setPinValue(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              disabled={clearPin}
+              inputMode="numeric"
+              placeholder={employee.pin ? '•••• beállítva — új PIN a cseréhez' : 'nincs — új PIN megadása'}
+              style={{ ...S.input, fontFamily: 'monospace', letterSpacing: '0.2em', opacity: clearPin ? 0.5 : 1 }}
+            />
+            {employee.pin && (
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.75rem', color: C.muted, marginTop: '0.35rem', cursor: 'pointer' }}>
+                <input type="checkbox" checked={clearPin} onChange={e => setClearPin(e.target.checked)} style={{ accentColor: C.accent }} />
+                PIN törlése
+              </label>
+            )}
+          </Field>
+        )}
         {error && <div style={S.errorBox}>{error}</div>}
         <div style={{ display: 'flex', gap: '0.5rem' }}>
           <button type="button" onClick={onClose} style={{ ...S.btnSecondary, flex: 1 }}>Mégse</button>

@@ -27,11 +27,14 @@ export function SettingsTab({ settings, companyId, onChange }) {
   const [lateThreshold, setLateThreshold] = useState(settings.lateThresholdMinutes)
   const [autoCheckout,  setAutoCheckout]  = useState(settings.autoCheckoutHour)
   const [photoRequired, setPhotoRequired] = useState(settings.photoRequired ?? false)
+  const [pinPhotoRequired, setPinPhotoRequired] = useState(settings.pinPhotoRequired ?? false)
   const [theme,         setTheme]         = useState(settings.theme ?? 'blue')
   const [saving,        setSaving]        = useState(false)
   const [saved,         setSaved]         = useState(false)
   const [error,         setError]         = useState('')
   const [pwSent,        setPwSent]        = useState(false)
+  const [sending,       setSending]       = useState(false)
+  const [digestMsg,     setDigestMsg]     = useState('')
 
   async function handleSave(e) {
     e.preventDefault()
@@ -40,7 +43,7 @@ export function SettingsTab({ settings, companyId, onChange }) {
 
     const next = {
       startHour, startMinute, lateThresholdMinutes: lateThreshold,
-      autoCheckoutHour: autoCheckout, photoRequired, theme,
+      autoCheckoutHour: autoCheckout, photoRequired, pinPhotoRequired, theme,
     }
     const { data, error } = await supabase.from('companies').update(settingsToCompany(next)).eq('id', companyId).select()
     setSaving(false)
@@ -51,10 +54,30 @@ export function SettingsTab({ settings, companyId, onChange }) {
     onChange({
       startHour: Number(startHour), startMinute: Number(startMinute),
       lateThresholdMinutes: Number(lateThreshold), autoCheckoutHour: Number(autoCheckout),
-      photoRequired, theme,
+      photoRequired, pinPhotoRequired, theme,
     })
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
+  }
+
+  async function handleSendDigest() {
+    if (!companyId) { setDigestMsg('A cég azonosító még töltődik, próbáld újra'); return }
+    setSending(true); setDigestMsg('')
+    try {
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-alerts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ company_id: companyId }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) setDigestMsg('Hiba: ' + (data.error ?? res.status))
+      else if (data.errors?.length) setDigestMsg(`Küldve: ${data.sent}. Resend válasz: ${data.errors[0]}`)
+      else setDigestMsg(`✓ Elküldve (${data.sent} email)`)
+    } catch (e) {
+      setDigestMsg('Hálózati hiba: ' + e.message)
+    } finally {
+      setSending(false)
+    }
   }
 
   async function handlePasswordReset() {
@@ -102,6 +125,12 @@ export function SettingsTab({ settings, companyId, onChange }) {
               <Toggle on={photoRequired} onClick={() => setPhotoRequired(v => !v)} />
             </div>
           </SettingsRow>
+          <SettingsRow label="PIN-nél fotó kötelező" hint="a PIN megosztható, ezért PIN-belépésnél külön kérhető fotó">
+            <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', justifyContent: 'flex-end' }}>
+              <span style={{ fontSize: '0.78rem', color: pinPhotoRequired ? C.green : C.muted, minWidth: 24 }}>{pinPhotoRequired ? 'Be' : 'Ki'}</span>
+              <Toggle on={pinPhotoRequired} onClick={() => setPinPhotoRequired(v => !v)} />
+            </div>
+          </SettingsRow>
         </tbody>
       </Table>
 
@@ -123,6 +152,21 @@ export function SettingsTab({ settings, companyId, onChange }) {
           ))}
         </tbody>
       </Table>
+
+      <div style={{ height: '1.5rem' }} />
+      <SectionLabel color={C.accent}>Értesítések</SectionLabel>
+      <Table>
+        <tbody>
+          <tr style={{ borderBottom: `1px solid ${C.border}` }}>
+            <td style={{ ...S.td, color: C.muted }}>Napi összesítő</td>
+            <td style={{ ...S.td, fontSize: '0.78rem', color: C.muted }}>Jelenléti riport a menedzserek email-címére</td>
+            <td style={{ ...S.td, textAlign: 'right' }}>
+              <button type="button" onClick={handleSendDigest} disabled={sending} style={S.btnSecondary}>{sending ? 'Küldés…' : 'Küldés most →'}</button>
+            </td>
+          </tr>
+        </tbody>
+      </Table>
+      {digestMsg && <div style={{ fontSize: '0.78rem', color: digestMsg.startsWith('✓') ? C.green : '#d97706', marginTop: '0.5rem', wordBreak: 'break-word' }}>{digestMsg}</div>}
 
       <div style={{ height: '1.5rem' }} />
       <SectionLabel color={C.accent}>Fiók</SectionLabel>

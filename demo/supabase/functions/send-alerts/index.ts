@@ -5,10 +5,28 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// The demo runs in Hungary; work-start rules are wall-clock local time.
+const TZ = 'Europe/Budapest'
+const localDateStr = (d: Date) =>
+  new Intl.DateTimeFormat('en-CA', { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d)
+const localMinutes = (d: Date) => {
+  const p = new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(d)
+  const h = Number(p.find((x) => x.type === 'hour')!.value)
+  const m = Number(p.find((x) => x.type === 'minute')!.value)
+  return h * 60 + m
+}
+const hhmm = (d: Date) =>
+  new Intl.DateTimeFormat('en-GB', { timeZone: TZ, hour: '2-digit', minute: '2-digit', hour12: false }).format(d)
+
+const ABSENCE_LABELS: Record<string, string> = {
+  vacation: 'Szabadság', sick: 'Betegszabadság', unjustified: 'Igazolatlan', other: 'Egyéb',
+}
+
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
-  }
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   const supabase = createClient(
     Deno.env.get('SUPABASE_URL')!,
@@ -16,92 +34,130 @@ Deno.serve(async (req) => {
   )
 
   const resendApiKey = Deno.env.get('RESEND_API_KEY')
-  if (!resendApiKey) {
-    return new Response(JSON.stringify({ error: 'RESEND_API_KEY not set' }), { status: 500 })
-  }
+  if (!resendApiKey) return json({ error: 'RESEND_API_KEY not set' }, 500)
 
-  const todayStart = new Date()
-  todayStart.setUTCHours(0, 0, 0, 0)
+  // Optional { company_id } → digest for one company (the dashboard "send now"
+  // button). No body → every company (the scheduled pg_cron run).
+  let onlyCompanyId: string | null = null
+  try {
+    const body = await req.json()
+    onlyCompanyId = body?.company_id ?? null
+  } catch { /* no body */ }
 
-  // Get all companies
-  const { data: companies } = await supabase.from('companies').select('id, name')
-  if (!companies?.length) return new Response(JSON.stringify({ sent: 0 }))
+  const now = new Date()
+  const todayStr = localDateStr(now)
+  // Events can straddle the UTC/local boundary, so pull a wide window and
+  // filter to the local day in JS.
+  const since = new Date(now.getTime() - 36 * 60 * 60 * 1000).toISOString()
+
+  let companyQuery = supabase
+    .from('companies')
+    .select('id, name, work_start_hour, work_start_minute, late_threshold_minutes')
+  if (onlyCompanyId) companyQuery = companyQuery.eq('id', onlyCompanyId)
+  const { data: companies } = await companyQuery
+  if (!companies?.length) return json({ sent: 0, companies: 0 })
 
   let totalSent = 0
+  const errors: string[] = []
 
   for (const company of companies) {
-    // Workers who have no checkin today AND no absence today
+    const startMin = company.work_start_hour * 60 + company.work_start_minute + company.late_threshold_minutes
+
     const { data: workers } = await supabase
       .from('profiles')
       .select('id, name')
       .eq('company_id', company.id)
       .eq('role', 'worker')
-
+      .order('name')
     if (!workers?.length) continue
 
-    const { data: todayCheckins } = await supabase
-      .from('events')
-      .select('user_id')
-      .eq('company_id', company.id)
-      .eq('type', 'checkin')
-      .gte('timestamp', todayStart.toISOString())
+    const [{ data: events }, { data: absences }] = await Promise.all([
+      supabase
+        .from('events')
+        .select('user_id, type, timestamp')
+        .eq('company_id', company.id)
+        .eq('type', 'checkin')
+        .gte('timestamp', since),
+      supabase
+        .from('absences')
+        .select('user_id, type')
+        .eq('company_id', company.id)
+        .eq('date', todayStr),
+    ])
 
-    const { data: todayAbsences } = await supabase
-      .from('absences')
-      .select('user_id')
-      .eq('company_id', company.id)
-      .eq('date', todayStart.toISOString().slice(0, 10))
+    // Earliest check-in today (local day) per worker
+    const firstIn: Record<string, Date> = {}
+    for (const e of events ?? []) {
+      const t = new Date(e.timestamp)
+      if (localDateStr(t) !== todayStr) continue
+      if (!firstIn[e.user_id] || t < firstIn[e.user_id]) firstIn[e.user_id] = t
+    }
+    const absenceByUser: Record<string, string> = {}
+    for (const a of absences ?? []) absenceByUser[a.user_id] = a.type
 
-    const checkedInIds = new Set(todayCheckins?.map((e) => e.user_id) ?? [])
-    const absentIds = new Set(todayAbsences?.map((a) => a.user_id) ?? [])
+    const present = workers
+      .filter((w) => firstIn[w.id])
+      .map((w) => ({ name: w.name, at: firstIn[w.id], late: localMinutes(firstIn[w.id]) > startMin }))
+    const onLeave = workers.filter((w) => !firstIn[w.id] && absenceByUser[w.id])
+      .map((w) => ({ name: w.name, type: absenceByUser[w.id] }))
+    const missing = workers.filter((w) => !firstIn[w.id] && !absenceByUser[w.id])
 
-    const missing = workers.filter((w) => !checkedInIds.has(w.id) && !absentIds.has(w.id))
-    if (!missing.length) continue
-
-    // Get manager emails
+    // Manager emails (auth users linked to manager/admin profiles)
     const { data: managers } = await supabase
       .from('profiles')
       .select('auth_user_id')
       .eq('company_id', company.id)
       .in('role', ['manager', 'admin'])
-
-    if (!managers?.length) continue
-
-    const managerAuthIds = managers.map((m) => m.auth_user_id).filter(Boolean)
+    const managerAuthIds = (managers ?? []).map((m) => m.auth_user_id).filter(Boolean)
     if (!managerAuthIds.length) continue
 
     const { data: authUsers } = await supabase.auth.admin.listUsers()
-    const managerEmails = authUsers?.users
+    const managerEmails = (authUsers?.users ?? [])
       .filter((u) => managerAuthIds.includes(u.id))
       .map((u) => u.email)
-      .filter(Boolean) ?? []
-
+      .filter(Boolean) as string[]
     if (!managerEmails.length) continue
 
-    const missingList = missing.map((w) => `• ${w.name}`).join('\n')
-    const subject = `[${company.name}] Hiányzók ma — ${missing.length} fő`
-    const body = `Jó reggelt!\n\nMa reggel 9:00-ig az alábbi munkavállalók nem jelentkeztek be és nincs rögzített hiányzásuk:\n\n${missingList}\n\nNFC Check-in rendszer`
+    const lateCount = present.filter((p) => p.late).length
+    const subject = `[${company.name}] Napi jelenlét — ${present.length} jelen, ${missing.length} hiányzik${lateCount ? `, ${lateCount} késett` : ''}`
+    const html = renderDigest(company.name, todayStr, present, onLeave, missing)
 
     for (const email of managerEmails) {
-      await fetch('https://api.resend.com/emails', {
+      const res = await fetch('https://api.resend.com/emails', {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${resendApiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          from: 'nfc-checkin@resend.dev',
-          to: email,
-          subject,
-          text: body,
-        }),
+        headers: { Authorization: `Bearer ${resendApiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from: 'NFC Check-in <onboarding@resend.dev>', to: [email], subject, html }),
       })
-      totalSent++
+      if (res.ok) totalSent++
+      else errors.push(`${email}: ${res.status} ${await res.text()}`)
     }
   }
 
-  return new Response(
-    JSON.stringify({ sent: totalSent }),
-    { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-  )
+  return json({ sent: totalSent, companies: companies.length, errors })
 })
+
+function renderDigest(
+  companyName: string,
+  dateStr: string,
+  present: { name: string; at: Date; late: boolean }[],
+  onLeave: { name: string; type: string }[],
+  missing: { name: string }[],
+) {
+  const row = (s: string) => `<li style="padding:2px 0">${s}</li>`
+  const section = (title: string, items: string[]) =>
+    `<h3 style="margin:18px 0 6px;font-size:15px">${title}</h3>` +
+    (items.length ? `<ul style="margin:0;padding-left:20px">${items.join('')}</ul>` : `<div style="color:#888;font-size:13px">—</div>`)
+
+  return `
+  <div style="font-family:system-ui,Segoe UI,Arial,sans-serif;max-width:560px;color:#111">
+    <h2 style="margin:0 0 2px">Napi jelenléti összesítő</h2>
+    <div style="color:#666;font-size:13px">${companyName} · ${dateStr}</div>
+    ${section(`✅ Jelen (${present.length})`, present.map((p) =>
+      row(`${p.name} — <b>${hhmm(p.at)}</b>${p.late ? ' <span style="color:#d97706">⚠️ késett</span>' : ''}`)))}
+    ${section(`🌴 Igazolt hiányzás (${onLeave.length})`, onLeave.map((p) =>
+      row(`${p.name} — ${ABSENCE_LABELS[p.type] ?? p.type}`)))}
+    ${section(`❌ Nem jelentkezett be (${missing.length})`, missing.map((p) => row(p.name)))}
+    <hr style="margin:18px 0;border:none;border-top:1px solid #eee">
+    <div style="color:#999;font-size:12px">NFC Check-in rendszer · automatikus üzenet</div>
+  </div>`
+}

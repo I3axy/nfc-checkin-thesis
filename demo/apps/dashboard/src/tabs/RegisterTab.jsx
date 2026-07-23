@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { C, S } from '../lib/theme'
-import { normalizeUid } from '../lib/utils'
+import { normalizeUid, hashPin } from '../lib/utils'
 import { Field } from '../components/ui'
 
 // datetime-local string: `hours` added to `current` (or to now if empty), local time
@@ -17,6 +17,7 @@ export function RegisterTab({ companyId, onSaved }) {
   const [name, setName]         = useState('')
   const [role, setRole]         = useState('worker')
   const [dept, setDept]         = useState('')
+  const [pin, setPin]           = useState('')
   const [expiresAt, setExpiresAt] = useState(() => addHours(null, 4))
   const [scanning, setScanning] = useState(false)
   const [status, setStatus]     = useState(null)
@@ -39,6 +40,7 @@ export function RegisterTab({ companyId, onSaved }) {
     if (!uid) { setErrorMsg('Először olvass be egy kártyát'); setStatus('error'); return }
     if (!companyId) { setErrorMsg('A cég azonosító még töltődik, próbáld újra egy pillanat múlva'); setStatus('error'); return }
     if (isGuest && !expiresAt) { setErrorMsg('Adj meg egy érvényességi időt a vendégnek'); setStatus('error'); return }
+    if (!isGuest && pin && !/^\d{4,6}$/.test(pin)) { setErrorMsg('A PIN 4–6 számjegy legyen'); setStatus('error'); return }
     setStatus('saving'); setErrorMsg('')
 
     const payload = {
@@ -47,14 +49,18 @@ export function RegisterTab({ companyId, onSaved }) {
       name: name.trim(),
       role,
       department: isGuest ? null : (dept.trim() || null),
+      pin: (!isGuest && pin) ? await hashPin(companyId, pin) : null,
       guest_expires_at: isGuest ? new Date(expiresAt).toISOString() : null,
     }
     const { error } = await supabase.from('profiles').insert(payload)
-    if (error) { setErrorMsg(error.message); setStatus('error') }
-    else {
+    if (error) {
+      const dupPin = error.code === '23505' && /pin/i.test(error.message)
+      setErrorMsg(dupPin ? 'Ez a PIN már foglalt a cégben, válassz másikat' : error.message)
+      setStatus('error')
+    } else {
       setOkGuest(isGuest)
       setStatus('ok')
-      setUid(''); setName(''); setRole('worker'); setDept(''); setExpiresAt(addHours(null, 4))
+      setUid(''); setName(''); setRole('worker'); setDept(''); setPin(''); setExpiresAt(addHours(null, 4))
       onSaved()
     }
   }
@@ -92,6 +98,13 @@ export function RegisterTab({ companyId, onSaved }) {
           </Field>
           {!isGuest && <Field label="Részleg"><input value={dept} onChange={e => setDept(e.target.value)} placeholder="pl. A műszak" style={S.input} /></Field>}
         </div>
+
+        {!isGuest && (
+          <Field label="PIN (opcionális)">
+            <input value={pin} onChange={e => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" placeholder="pl. 1234" style={{ ...S.input, fontFamily: 'monospace', letterSpacing: '0.2em' }} />
+            <div style={{ fontSize: '0.72rem', color: C.muted, marginTop: '0.3rem' }}>4–6 számjegy — kártya nélküli belépéshez a scanneren. Titkosítva tároljuk.</div>
+          </Field>
+        )}
 
         {isGuest && (
           <Field label="Érvényesség vége">

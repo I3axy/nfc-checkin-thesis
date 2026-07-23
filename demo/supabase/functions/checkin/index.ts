@@ -14,6 +14,13 @@ const json = (body: unknown, status = 200) =>
 // Normalize UID: uppercase, strip separators
 const normalizeUid = (raw: string) => String(raw ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '')
 
+// Deterministic, company-salted PIN hash — must match the dashboard's hashPin.
+async function hashPin(companyId: string, pin: string) {
+  const data = new TextEncoder().encode(`${companyId}:${pin}`)
+  const buf = await crypto.subtle.digest('SHA-256', data)
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('')
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -22,6 +29,7 @@ Deno.serve(async (req) => {
   try {
     const {
       nfc_uid,
+      pin,
       company_slug,
       photo_base64,
       action,
@@ -42,7 +50,7 @@ Deno.serve(async (req) => {
     // Lookup company
     const { data: company, error: companyErr } = await supabase
       .from('companies')
-      .select('id, photo_required')
+      .select('id, photo_required, pin_photo_required')
       .eq('slug', company_slug)
       .single()
 
@@ -87,24 +95,43 @@ Deno.serve(async (req) => {
       return json({ photo_required: company.photo_required, profiles: roster })
     }
 
-    // From here on we need a card.
-    if (!nfc_uid) {
-      return json({ error: 'nfc_uid required' }, 400)
+    // From here on we need to identify a person: by PIN (keypad fallback) or by
+    // NFC card. viaPin drives whether the PIN-specific photo policy applies.
+    const viaPin = !!pin
+    let profile: { id: string; name: string; role: string; guest_expires_at: string | null } | null = null
+
+    if (viaPin) {
+      const pinHash = await hashPin(company.id, String(pin))
+      const { data } = await supabase
+        .from('profiles')
+        .select('id, name, role, guest_expires_at')
+        .eq('company_id', company.id)
+        .eq('pin', pinHash)
+        .maybeSingle()
+      profile = data
+      if (!profile) {
+        return json({ error: 'Wrong PIN', code: 'UNKNOWN_PIN' }, 404)
+      }
+    } else {
+      if (!nfc_uid) {
+        return json({ error: 'nfc_uid or pin required' }, 400)
+      }
+      const uid = normalizeUid(nfc_uid)
+      const variants = [uid, uid.replace(/(.{2})/g, '$1:').slice(0, -1)]
+      const { data } = await supabase
+        .from('profiles')
+        .select('id, name, role, guest_expires_at')
+        .eq('company_id', company.id)
+        .in('nfc_uid', variants)
+        .maybeSingle()
+      profile = data
+      if (!profile) {
+        return json({ error: 'Unknown card', code: 'UNKNOWN_CARD' }, 404)
+      }
     }
 
-    const uid = normalizeUid(nfc_uid)
-    const variants = [uid, uid.replace(/(.{2})/g, '$1:').slice(0, -1)]
-
-    const { data: profile, error: profileErr } = await supabase
-      .from('profiles')
-      .select('id, name, role, guest_expires_at')
-      .eq('company_id', company.id)
-      .in('nfc_uid', variants)
-      .maybeSingle()
-
-    if (profileErr || !profile) {
-      return json({ error: 'Unknown card', code: 'UNKNOWN_CARD' }, 404)
-    }
+    // Photo policy differs for card vs PIN (a PIN can be shared with a colleague)
+    const photoRequired = viaPin ? company.pin_photo_required : company.photo_required
 
     // -------------------------------------------------------------------------
     // action:'sync' — replay a single event recorded while the scanner was
@@ -200,10 +227,10 @@ Deno.serve(async (req) => {
 
     const eventType = lastEvent?.type === 'checkin' ? 'checkout' : 'checkin'
 
-    // Two-step flow: if the company requires a photo and none was sent yet,
-    // tell the client to capture one — don't insert the event or run
+    // Two-step flow: if a photo is required (card or PIN policy) and none was
+    // sent yet, tell the client to capture one — don't insert the event or run
     // deduplication until the follow-up request arrives with the photo.
-    if (company.photo_required && !photo_base64) {
+    if (photoRequired && !photo_base64) {
       return json({
         needs_photo: true,
         user: { id: profile.id, name: profile.name, role: profile.role },

@@ -16,6 +16,7 @@ create table companies (
   name        text not null,
   slug        text not null unique,          -- URL-friendly identifier (e.g. "acme-corp")
   photo_required bool not null default false, -- foto check-in on/off per company
+  pin_photo_required bool not null default false, -- require photo for PIN check-ins (PINs are shareable)
   work_start_hour        int not null default 8,   -- work rules (per company)
   work_start_minute      int not null default 0,
   late_threshold_minutes int not null default 15,  -- late if checkin > start + threshold
@@ -34,11 +35,15 @@ create table profiles (
   name          text not null,
   role          text not null check (role in ('worker', 'manager', 'admin', 'guest')),
   department    text,                        -- optional group/shift (e.g. "A műszak")
-  pin           text,                        -- hashed PIN fallback (bcrypt)
+  pin           text,                        -- PIN fallback: sha256(company_id || ':' || pin), company-salted for lookup
   guest_expires_at timestamptz,              -- guests only: card stops working after this time
   created_at    timestamptz not null default now(),
   unique (company_id, nfc_uid)               -- UID only unique within a company
 );
+
+-- A PIN resolves to exactly one person within a company (null = no PIN)
+create unique index if not exists profiles_company_pin_key
+  on profiles (company_id, pin) where pin is not null;
 
 -- ---------------------------------------------------------------------------
 -- EVENTS
