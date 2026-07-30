@@ -102,10 +102,15 @@ function Dashboard() {
       if (!user) return
       supabase.from('profiles').select('id, company_id, role, name').eq('auth_user_id', user.id).maybeSingle()
         .then(({ data: profile }) => {
-          setMe(profile)
+          // Keep the login email even if no profile row is linked yet
+          setMe({ ...(profile ?? {}), email: user.email })
           if (!profile?.company_id) return
           supabase.from('companies').select('*').eq('id', profile.company_id).maybeSingle()
-            .then(({ data: company }) => { if (company) setSettings(s => ({ ...s, ...companyToSettings(company) })) })
+            .then(({ data: company }) => {
+              if (!company) return
+              setSettings(s => ({ ...s, ...companyToSettings(company) }))
+              setMe(m => ({ ...m, companyName: company.name, companySlug: company.slug }))
+            })
         })
     })
   }, [])
@@ -242,6 +247,15 @@ function Dashboard() {
             </button>
           ) : (
             <div style={{ padding: '0.75rem 1rem' }}>
+              {/* Which account is actually logged in — easy to lose track of */}
+              <div style={{ marginBottom: '0.6rem', overflow: 'hidden' }}>
+                <div style={{ fontSize: '0.78rem', fontWeight: 700, color: C.text, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                  {me?.name ?? 'Bejelentkezve'}
+                </div>
+                <div style={{ fontSize: '0.7rem', color: C.muted, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }} title={me?.email ?? ''}>
+                  {me?.email ?? '…'}
+                </div>
+              </div>
               <button onClick={() => supabase.auth.signOut()} style={{ ...S.btnSecondary, width: '100%', fontSize: '0.78rem' }}>
                 Kilépés
               </button>
@@ -257,7 +271,7 @@ function Dashboard() {
           {tab === 'log'      && <LogTab      events={events} onSaved={loadData} />}
           {tab === 'insights' && <InsightsTab employees={employees} events={events} settings={settings} />}
           {tab === 'register' && <RegisterTab companyId={me?.company_id} onSaved={loadData} />}
-          {tab === 'settings' && <SettingsTab settings={settings} companyId={me?.company_id} onChange={setSettings} />}
+          {tab === 'settings' && <SettingsTab settings={settings} companyId={me?.company_id} me={me} onChange={setSettings} />}
         </div>
       </main>
     </div>

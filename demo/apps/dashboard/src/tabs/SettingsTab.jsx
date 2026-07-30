@@ -21,7 +21,9 @@ function Toggle({ on, onClick }) {
   )
 }
 
-export function SettingsTab({ settings, companyId, onChange }) {
+const ROLE_LABELS = { manager: 'Manager', admin: 'Admin', worker: 'Worker', guest: 'Vendég' }
+
+export function SettingsTab({ settings, companyId, me, onChange }) {
   const [startHour,     setStartHour]     = useState(settings.startHour)
   const [startMinute,   setStartMinute]   = useState(settings.startMinute)
   const [lateThreshold, setLateThreshold] = useState(settings.lateThresholdMinutes)
@@ -172,6 +174,28 @@ export function SettingsTab({ settings, companyId, onChange }) {
       <SectionLabel color={C.accent}>Fiók</SectionLabel>
       <Table>
         <tbody>
+          <tr style={{ borderBottom: `1px solid ${C.border}` }}>
+            <td style={{ ...S.td, color: C.muted }}>Bejelentkezve</td>
+            <td style={{ ...S.td, fontWeight: 700 }} colSpan={2}>
+              {me?.email ?? '…'}
+              {me?.name && <span style={{ fontWeight: 400, color: C.muted }}> · {me.name}</span>}
+            </td>
+          </tr>
+          <tr style={{ borderBottom: `1px solid ${C.border}` }}>
+            <td style={{ ...S.td, color: C.muted }}>Szerepkör</td>
+            <td style={{ ...S.td }} colSpan={2}>
+              {me?.role
+                ? <Badge color={me.role === 'admin' ? C.accent : C.green}>{ROLE_LABELS[me.role] ?? me.role}</Badge>
+                : <span style={{ color: C.muted, fontSize: '0.78rem' }}>nincs profil hozzárendelve ehhez a fiókhoz</span>}
+            </td>
+          </tr>
+          <tr style={{ borderBottom: `1px solid ${C.border}` }}>
+            <td style={{ ...S.td, color: C.muted }}>Cég</td>
+            <td style={{ ...S.td }} colSpan={2}>
+              {me?.companyName ?? '…'}
+              {me?.companySlug && <span style={{ color: C.muted, fontSize: '0.78rem', fontFamily: 'monospace' }}> · {me.companySlug}</span>}
+            </td>
+          </tr>
           <tr style={{ borderBottom: `1px solid ${C.border}` }}>
             <td style={{ ...S.td, color: C.muted }}>Jelszó</td>
             <td style={{ ...S.td, fontSize: '0.78rem', color: C.muted }}>Küldünk egy linket a fiókhoz tartozó email-re</td>

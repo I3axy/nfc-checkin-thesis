@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { C, S, CAL } from '../lib/theme'
-import { calcDayMinutes, isWorkerLate, fmtMins, fmtClock, normalizeUid } from '../lib/utils'
+import { calcDayMinutes, isWorkerLate, fmtMins, fmtClock, normalizeUid, hashPin } from '../lib/utils'
 import { Table, Th, TableEmpty, SectionLabel, Badge, Field } from '../components/ui'
 
 const SHIFT_OPTIONS = ['Nappali', 'Éjszakai', 'C műszak', 'Rugalmas']
@@ -176,17 +176,29 @@ function ProfilSubTab({ worker, onSaved }) {
   const [role,    setRole]    = useState(worker.role)
   const [dept,    setDept]    = useState(worker.department ?? '')
   const [uid,     setUid]     = useState(worker.nfc_uid ?? '')
+  const [pinValue, setPinValue] = useState('')
+  const [clearPin, setClearPin] = useState(false)
   const [saving,  setSaving]  = useState(false)
   const [saveErr, setSaveErr] = useState('')
   const [saveOk,  setSaveOk]  = useState(false)
 
   async function handleSave(e) {
-    e.preventDefault(); setSaving(true); setSaveErr(''); setSaveOk(false)
-    const { error } = await supabase.from('profiles')
-      .update({ name: name.trim(), role, department: dept.trim() || null, nfc_uid: normalizeUid(uid) || null })
-      .eq('id', worker.id)
-    if (error) { setSaveErr(error.message); setSaving(false) }
-    else { setSaving(false); setSaveOk(true); setTimeout(() => { setSaveOk(false); onSaved() }, 1200) }
+    e.preventDefault()
+    if (pinValue && !/^\d{4,6}$/.test(pinValue)) { setSaveErr('A PIN 4–6 számjegy legyen'); return }
+    setSaving(true); setSaveErr(''); setSaveOk(false)
+
+    const update = { name: name.trim(), role, department: dept.trim() || null, nfc_uid: normalizeUid(uid) || null }
+    // PIN: only touch it when explicitly set or cleared (it's stored hashed)
+    if (clearPin) update.pin = null
+    else if (pinValue) update.pin = await hashPin(worker.company_id, pinValue)
+
+    const { error } = await supabase.from('profiles').update(update).eq('id', worker.id)
+    if (error) {
+      const dupPin = error.code === '23505' && /pin/i.test(error.message)
+      setSaveErr(dupPin ? 'Ez a PIN már foglalt a cégben, válassz másikat' : error.message)
+      setSaving(false)
+    }
+    else { setSaving(false); setSaveOk(true); setPinValue(''); setClearPin(false); setTimeout(() => { setSaveOk(false); onSaved() }, 1200) }
   }
 
   return (
@@ -197,6 +209,22 @@ function ProfilSubTab({ worker, onSaved }) {
         </Field>
         <Field label="NFC UID">
           <input value={uid} onChange={e => setUid(e.target.value)} style={{ ...S.input, fontFamily: 'monospace' }} placeholder="pl. 04:A3:B2:C1" />
+        </Field>
+        <Field label="PIN">
+          <input
+            value={pinValue}
+            onChange={e => setPinValue(e.target.value.replace(/\D/g, '').slice(0, 6))}
+            disabled={clearPin}
+            inputMode="numeric"
+            placeholder={worker.pin ? '•••• beállítva — új PIN a cseréhez' : 'nincs — 4–6 számjegy'}
+            style={{ ...S.input, fontFamily: 'monospace', letterSpacing: '0.2em', opacity: clearPin ? 0.5 : 1 }}
+          />
+          {worker.pin && (
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.75rem', color: C.muted, marginTop: '0.35rem', cursor: 'pointer' }}>
+              <input type="checkbox" checked={clearPin} onChange={e => setClearPin(e.target.checked)} style={{ accentColor: C.accent }} />
+              PIN törlése
+            </label>
+          )}
         </Field>
         <Field label="Szerepkör">
           <select value={role} onChange={e => setRole(e.target.value)} style={S.input}>
