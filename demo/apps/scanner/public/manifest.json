@@ -2,7 +2,9 @@
   "name": "NFC Scanner",
   "short_name": "Scanner",
   "start_url": "/",
+  "scope": "/",
   "display": "fullscreen",
+  "orientation": "portrait",
   "background_color": "#111827",
   "theme_color": "#111827",
   "icons": [

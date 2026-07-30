@@ -2,8 +2,12 @@ import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App.jsx'
 
+// updateViaCache:'none' keeps the worker script itself out of the HTTP cache,
+// so a redeployed sw.js is picked up instead of a stale copy.
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js?v=3'))
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).catch(() => {})
+  })
 }
 
 const fnUrl = import.meta.env.VITE_WORKER_FUNCTION_URL

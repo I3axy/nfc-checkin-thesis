@@ -242,32 +242,40 @@ create index on absences   (company_id, user_id, date);
 alter publication supabase_realtime add table events;
 
 -- ---------------------------------------------------------------------------
--- PG_CRON — automatic checkout at midnight UTC
+-- PG_CRON — automatic checkout at each company's configured hour
 -- ---------------------------------------------------------------------------
-select cron.schedule(
-  'auto-checkout',
-  '0 0 * * *',
-  $$
-    insert into events (company_id, user_id, type, is_manual, note)
-    select distinct on (e.company_id, e.user_id)
-      p.company_id,
-      e.user_id,
-      'checkout',
-      false,
-      'Automatikus kiléptetés éjfélkor'
-    from events e
-    join profiles p on p.id = e.user_id
-    where e.type = 'checkin'
-      and e.timestamp > now() - interval '24 hours'
-      and not exists (
-        select 1 from events e2
-        where e2.user_id = e.user_id
-          and e2.type = 'checkout'
-          and e2.timestamp > e.timestamp
-      )
-    order by e.company_id, e.user_id, e.timestamp desc
-  $$
-);
+-- Runs hourly and closes open check-ins only where the company's
+-- auto_checkout_hour matches the current local hour (DST-aware).
+create or replace function auto_checkout_due()
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  cur_hour int;
+begin
+  cur_hour := extract(hour from (now() at time zone 'Europe/Budapest'))::int;
+
+  insert into events (company_id, user_id, type, is_manual, note)
+  select distinct on (e.company_id, e.user_id)
+    e.company_id, e.user_id, 'checkout', false, 'Automatikus kiléptetés'
+  from events e
+  join companies c on c.id = e.company_id
+  where c.auto_checkout_hour = cur_hour
+    and e.type = 'checkin'
+    and e.timestamp > now() - interval '24 hours'
+    and not exists (
+      select 1 from events e2
+      where e2.user_id = e.user_id
+        and e2.type = 'checkout'
+        and e2.timestamp > e.timestamp
+    )
+  order by e.company_id, e.user_id, e.timestamp desc;
+end;
+$$;
+
+select cron.schedule('auto-checkout', '0 * * * *', $$ select auto_checkout_due(); $$);
 -- profiles table
 create table profiles (
   id uuid primary key references auth.users on delete cascade,

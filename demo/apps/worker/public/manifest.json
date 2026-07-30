@@ -2,7 +2,9 @@
   "name": "Worker App",
   "short_name": "Worker",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#1d4ed8",
   "theme_color": "#1d4ed8",
   "icons": [
