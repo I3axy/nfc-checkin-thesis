@@ -8,16 +8,20 @@ export const DEFAULT_SETTINGS = {
   autoCheckoutHour: 23,
   photoRequired: false,
   pinPhotoRequired: false,
-  theme: 'blue',
+  theme: 'dark',
 }
 
-// ─── Theme (localStorage) ──────────────────────────────────────────────
+// ─── Theme (localStorage + <html data-theme>) ──────────────────────────
+// Two themes: 'dark' | 'light'. The old 'blue' value migrates to 'dark'.
 export function loadTheme() {
-  return localStorage.getItem('nfc_theme') ?? 'blue'
+  return localStorage.getItem('nfc_theme') === 'light' ? 'light' : 'dark'
 }
 
+// Persists AND applies immediately (index.html applies it on first paint).
 export function saveTheme(theme) {
-  localStorage.setItem('nfc_theme', theme)
+  const t = theme === 'light' ? 'light' : 'dark'
+  localStorage.setItem('nfc_theme', t)
+  document.documentElement.dataset.theme = t
 }
 
 // ─── Company work rules (DB row → settings shape) ──────────────────────

@@ -1,13 +1,15 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { C, S } from '../lib/theme'
-import { saveTheme, settingsToCompany } from '../lib/settings'
+import { C, S, R } from '../lib/theme'
+import { saveTheme, loadTheme, settingsToCompany } from '../lib/settings'
+import { toast } from '../components/toast'
 import { Table, SectionLabel, Badge, SettingsRow } from '../components/ui'
 
+// Preview swatches are literal colors so each card always shows its own theme,
+// regardless of which theme is currently active.
 const THEMES = [
-  { key: 'blue',  label: 'Kék (Steam)', desc: 'Alapértelmezett, sötétkék' },
-  { key: 'dark',  label: 'Sötét',       desc: 'Fekete alapú, kontrasztos' },
-  { key: 'light', label: 'Világos',     desc: 'Fehér alapú, nappali' },
+  { key: 'dark',  label: 'Sötét',   desc: 'Alapértelmezett — sötét felület',  pv: { bg: '#0b0b0d', surface: '#131316', border: '#26262c', accent: '#818cf8' } },
+  { key: 'light', label: 'Világos', desc: 'Fehér alapú, nappali használatra', pv: { bg: '#f7f7f8', surface: '#ffffff', border: '#e4e4e9', accent: '#4f46e5' } },
 ]
 
 function Toggle({ on, onClick }) {
@@ -30,7 +32,9 @@ export function SettingsTab({ settings, companyId, me, onChange }) {
   const [autoCheckout,  setAutoCheckout]  = useState(settings.autoCheckoutHour)
   const [photoRequired, setPhotoRequired] = useState(settings.photoRequired ?? false)
   const [pinPhotoRequired, setPinPhotoRequired] = useState(settings.pinPhotoRequired ?? false)
-  const [theme,         setTheme]         = useState(settings.theme ?? 'blue')
+  // Read the theme from its real source (localStorage) — the App-level settings
+  // state isn't updated by the instant theme switch, so it can go stale.
+  const [theme,         setTheme]         = useState(() => loadTheme())
   const [saving,        setSaving]        = useState(false)
   const [saved,         setSaved]         = useState(false)
   const [error,         setError]         = useState('')
@@ -49,8 +53,8 @@ export function SettingsTab({ settings, companyId, me, onChange }) {
     }
     const { data, error } = await supabase.from('companies').update(settingsToCompany(next)).eq('id', companyId).select()
     setSaving(false)
-    if (error) { setError(error.message); return }
-    if (!data || data.length === 0) { setError('A mentés nem sikerült (jogosultság hiánya). Ellenőrizd, hogy manager/admin szerepkörrel vagy bejelentkezve.'); return }
+    if (error) { setError(error.message); toast('A beállítások mentése nem sikerült', 'error'); return }
+    if (!data || data.length === 0) { setError('A mentés nem sikerült (jogosultság hiánya). Ellenőrizd, hogy manager/admin szerepkörrel vagy bejelentkezve.'); toast('A beállítások mentése nem sikerült', 'error'); return }
 
     saveTheme(theme)
     onChange({
@@ -59,6 +63,7 @@ export function SettingsTab({ settings, companyId, me, onChange }) {
       photoRequired, pinPhotoRequired, theme,
     })
     setSaved(true)
+    toast('Beállítások elmentve')
     setTimeout(() => setSaved(false), 2000)
   }
 
@@ -72,11 +77,12 @@ export function SettingsTab({ settings, companyId, me, onChange }) {
         body: JSON.stringify({ company_id: companyId }),
       })
       const data = await res.json().catch(() => ({}))
-      if (!res.ok) setDigestMsg('Hiba: ' + (data.error ?? res.status))
-      else if (data.errors?.length) setDigestMsg(`Küldve: ${data.sent}. Resend válasz: ${data.errors[0]}`)
-      else setDigestMsg(`✓ Elküldve (${data.sent} email)`)
+      if (!res.ok) { setDigestMsg('Hiba: ' + (data.error ?? res.status)); toast('Az email küldése nem sikerült', 'error') }
+      else if (data.errors?.length) { setDigestMsg(`Küldve: ${data.sent}. Resend válasz: ${data.errors[0]}`); toast('Az email küldése részben sikertelen', 'error') }
+      else { setDigestMsg(`✓ Elküldve (${data.sent} email)`); toast(`Napi összesítő elküldve (${data.sent} email)`) }
     } catch (e) {
       setDigestMsg('Hálózati hiba: ' + e.message)
+      toast('Hálózati hiba az email küldésekor', 'error')
     } finally {
       setSending(false)
     }
@@ -138,22 +144,34 @@ export function SettingsTab({ settings, companyId, me, onChange }) {
 
       <div style={{ height: '1.5rem' }} />
       <SectionLabel color={C.accent}>Megjelenés</SectionLabel>
-      <Table>
-        <tbody>
-          {THEMES.map(t => (
-            <tr key={t.key} onClick={() => setTheme(t.key)} style={{ borderBottom: `1px solid ${C.border}`, cursor: 'pointer', background: theme === t.key ? C.bg2 : C.bg1 }}>
-              <td style={{ ...S.td, width: 24 }}>
-                <input type="radio" name="theme" value={t.key} checked={theme === t.key} onChange={() => setTheme(t.key)} style={{ accentColor: C.accent }} />
-              </td>
-              <td style={{ ...S.td, fontWeight: theme === t.key ? 700 : 400, color: theme === t.key ? C.text : C.muted }}>{t.label}</td>
-              <td style={{ ...S.td, fontSize: '0.75rem', color: C.muted }}>{t.desc}</td>
-              <td style={{ ...S.td, textAlign: 'right' }}>
-                {theme === t.key && <Badge color={C.accent}>aktív</Badge>}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </Table>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+        {THEMES.map(t => {
+          const active = theme === t.key
+          return (
+            // Theme is a per-device preference — applies and persists instantly
+            <button key={t.key} type="button" onClick={() => { setTheme(t.key); saveTheme(t.key) }} style={{
+              textAlign: 'left', cursor: 'pointer', padding: 0, overflow: 'hidden',
+              background: C.bg1, border: `2px solid ${active ? C.accent : C.border}`, borderRadius: R.lg,
+            }}>
+              {/* Mini theme preview */}
+              <div style={{ background: t.pv.bg, padding: '0.85rem', borderBottom: `1px solid ${t.pv.border}` }}>
+                <div style={{ background: t.pv.surface, border: `1px solid ${t.pv.border}`, borderRadius: 8, padding: '0.5rem 0.6rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <span style={{ width: 10, height: 10, borderRadius: '50%', background: t.pv.accent, flexShrink: 0 }} />
+                  <span style={{ height: 6, width: '55%', borderRadius: 3, background: t.pv.border }} />
+                </div>
+                <div style={{ height: 6, width: '70%', borderRadius: 3, background: t.pv.border, marginTop: '0.5rem' }} />
+              </div>
+              <div style={{ padding: '0.6rem 0.9rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+                <div>
+                  <div style={{ fontSize: '0.82rem', fontWeight: 600, color: C.text }}>{t.label}</div>
+                  <div style={{ fontSize: '0.7rem', color: C.muted }}>{t.desc}</div>
+                </div>
+                {active && <Badge color={C.accent}>aktív</Badge>}
+              </div>
+            </button>
+          )
+        })}
+      </div>
 
       <div style={{ height: '1.5rem' }} />
       <SectionLabel color={C.accent}>Értesítések</SectionLabel>
@@ -168,7 +186,7 @@ export function SettingsTab({ settings, companyId, me, onChange }) {
           </tr>
         </tbody>
       </Table>
-      {digestMsg && <div style={{ fontSize: '0.78rem', color: digestMsg.startsWith('✓') ? C.green : '#d97706', marginTop: '0.5rem', wordBreak: 'break-word' }}>{digestMsg}</div>}
+      {digestMsg && <div style={{ fontSize: '0.78rem', color: digestMsg.startsWith('✓') ? C.green : C.warn, marginTop: '0.5rem', wordBreak: 'break-word' }}>{digestMsg}</div>}
 
       <div style={{ height: '1.5rem' }} />
       <SectionLabel color={C.accent}>Fiók</SectionLabel>

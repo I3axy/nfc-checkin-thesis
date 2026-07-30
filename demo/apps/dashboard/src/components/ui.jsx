@@ -1,8 +1,8 @@
-import { C, S } from '../lib/theme'
+import { C, S, R, tint } from '../lib/theme'
 
 export function Table({ children }) {
   return (
-    <div style={{ border: `1px solid ${C.border}`, overflowX: 'auto' }}>
+    <div style={{ border: `1px solid ${C.border}`, overflowX: 'auto', borderRadius: R.lg, background: C.bg1 }}>
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>{children}</table>
     </div>
   )
@@ -10,7 +10,7 @@ export function Table({ children }) {
 
 export function Th({ children, sortable, onClick }) {
   return (
-    <th onClick={onClick} style={{ padding: '0.55rem 1rem', textAlign: 'left', fontSize: '0.68rem', fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.1em', cursor: sortable ? 'pointer' : 'default', userSelect: 'none', borderBottom: `1px solid ${C.border}` }}>
+    <th onClick={onClick} style={{ padding: '0.6rem 1rem', textAlign: 'left', fontSize: '0.68rem', fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.08em', cursor: sortable ? 'pointer' : 'default', userSelect: 'none', borderBottom: `1px solid ${C.border}`, background: C.bg2 }}>
       {children}
     </th>
   )
@@ -26,8 +26,8 @@ export function TableEmpty({ children, colSpan }) {
 
 export function SectionLabel({ children, color }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
-      <div style={{ width: 3, height: 14, background: color }} />
+    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+      <div style={{ width: 3, height: 14, background: color, borderRadius: 2 }} />
       <span style={{ fontSize: '0.7rem', fontWeight: 700, color, textTransform: 'uppercase', letterSpacing: '0.1em' }}>{children}</span>
     </div>
   )
@@ -35,7 +35,7 @@ export function SectionLabel({ children, color }) {
 
 export function Badge({ children, color }) {
   return (
-    <span style={{ display: 'inline-block', fontSize: '0.72rem', fontWeight: 700, padding: '0.15rem 0.5rem', background: color + '20', color, border: `1px solid ${color}40` }}>
+    <span style={{ display: 'inline-block', fontSize: '0.72rem', fontWeight: 600, padding: '0.15rem 0.55rem', background: tint(color, 13), color, border: `1px solid ${tint(color, 28)}`, borderRadius: 999 }}>
       {children}
     </span>
   )
@@ -44,7 +44,7 @@ export function Badge({ children, color }) {
 export function Field({ label, children }) {
   return (
     <div>
-      <label style={{ display: 'block', fontSize: '0.68rem', fontWeight: 700, color: C.muted, marginBottom: '0.3rem', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{label}</label>
+      <label style={{ display: 'block', fontSize: '0.68rem', fontWeight: 600, color: C.muted, marginBottom: '0.35rem', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{label}</label>
       {children}
     </div>
   )
@@ -63,16 +63,16 @@ export function Divider({ label }) {
 export function Modal({ title, onClose, children, wide, maxWidth }) {
   return (
     <div
-      style={{ position: 'fixed', inset: 0, zIndex: 200, background: '#000000bb', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}
+      style={{ position: 'fixed', inset: 0, zIndex: 200, background: C.overlay, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}
       onClick={e => e.target === e.currentTarget && onClose()}
     >
-      <div style={{ background: C.bg1, border: `1px solid ${C.border}`, width: '100%', maxWidth: maxWidth ?? (wide ? 760 : 460), maxHeight: '90dvh', overflowY: 'auto' }}>
-        <div style={{ background: C.bg2, borderBottom: `1px solid ${C.border}`, padding: '0.75rem 1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div style={{ background: C.bg1, border: `1px solid ${C.border}`, width: '100%', maxWidth: maxWidth ?? (wide ? 760 : 460), maxHeight: '90dvh', overflowY: 'auto', borderRadius: R.lg, boxShadow: C.shadow }}>
+        <div style={{ borderBottom: `1px solid ${C.border}`, padding: '0.8rem 1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, background: C.bg1, zIndex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <div style={{ width: 3, height: 16, background: C.accent }} />
+            <div style={{ width: 3, height: 16, background: C.accent, borderRadius: 2 }} />
             <span style={{ fontWeight: 700, fontSize: '0.9rem', color: C.text }}>{title}</span>
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', fontSize: '1.2rem', lineHeight: 1 }}>×</button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', fontSize: '1.2rem', lineHeight: 1, padding: '0.1rem 0.3rem', borderRadius: R.sm }}>×</button>
         </div>
         <div style={{ padding: '1.25rem' }}>{children}</div>
       </div>
@@ -93,5 +93,5 @@ export function SettingsRow({ label, hint, children }) {
 }
 
 export function EmptyState({ children }) {
-  return <div style={{ color: C.muted, padding: '3rem', textAlign: 'center', fontSize: '0.9rem', border: `1px solid ${C.border}` }}>{children}</div>
+  return <div style={{ color: C.muted, padding: '3rem', textAlign: 'center', fontSize: '0.9rem', border: `1px solid ${C.border}`, borderRadius: R.lg, background: C.bg1 }}>{children}</div>
 }

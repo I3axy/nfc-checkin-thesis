@@ -1,62 +1,88 @@
 <!doctype html>
-<html lang="en">
+<html lang="hu">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>InnoHub — Control Center</title>
+    <title>NFC Check-in — Dashboard</title>
     <link rel="manifest" href="/manifest.json" />
     <link rel="icon" href="/icon-192.png" type="image/png" />
-    <meta name="theme-color" content="#060c18" />
+    <meta name="theme-color" content="#0b0b0d" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=DM+Mono:ital,wght@0,400;0,500;1,400&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
     <style>
+      /* ==== Design tokens — keep in sync with apps/scanner and apps/worker ==== */
+      :root[data-theme='dark'] {
+        color-scheme: dark;
+        --bg: #0b0b0d;
+        --surface: #131316;
+        --surface-2: #1a1a1f;
+        --border: #26262c;
+        --text: #ececef;
+        --muted: #8f8f99;
+        --accent: #818cf8;
+        --accent-contrast: #0b0b0d;
+        --green: #34d399;
+        --red: #f87171;
+        --warn: #fbbf24;
+        --overlay: rgba(0, 0, 0, 0.65);
+        --shadow: 0 1px 2px rgba(0,0,0,.5), 0 12px 32px rgba(0,0,0,.35);
+        --cal-normal: #34d399;
+        --cal-late: #fb923c;
+        --cal-overtime: #38bdf8;
+        --cal-justified: #a78bfa;
+        --cal-unjustified: #f87171;
+      }
+      :root[data-theme='light'] {
+        color-scheme: light;
+        --bg: #f7f7f8;
+        --surface: #ffffff;
+        --surface-2: #f2f2f4;
+        --border: #e4e4e9;
+        --text: #1a1a1f;
+        --muted: #6e6e78;
+        --accent: #4f46e5;
+        --accent-contrast: #ffffff;
+        --green: #059669;
+        --red: #dc2626;
+        --warn: #b45309;
+        --overlay: rgba(23, 23, 28, 0.45);
+        --shadow: 0 1px 2px rgba(23,23,28,.06), 0 12px 32px rgba(23,23,28,.12);
+        --cal-normal: #059669;
+        --cal-late: #ea580c;
+        --cal-overtime: #0284c7;
+        --cal-justified: #7c3aed;
+        --cal-unjustified: #dc2626;
+      }
+
       *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
       html, body, #root { height: 100%; }
       body {
-        font-family: 'Outfit', sans-serif;
-        background: #060c18;
-        color: #e2e8f0;
+        font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+        background: var(--bg);
+        color: var(--text);
         -webkit-font-smoothing: antialiased;
+        font-feature-settings: 'tnum';
       }
-      ::-webkit-scrollbar { width: 4px; }
-      ::-webkit-scrollbar-track { background: #0d1524; }
-      ::-webkit-scrollbar-thumb { background: #1e3a5f; border-radius: 2px; }
+      input, select, textarea, button { font-family: inherit; }
 
-      @keyframes pulse-ring {
-        0%   { transform: scale(1);   opacity: 1; }
-        100% { transform: scale(2.5); opacity: 0; }
-      }
-      @keyframes glow-in {
-        from { box-shadow: 0 0 0px #10b98100; }
-        to   { box-shadow: 0 0 18px #10b98144; }
-      }
-      @keyframes slide-up {
-        from { opacity: 0; transform: translateY(12px); }
-        to   { opacity: 1; transform: translateY(0); }
-      }
-      @keyframes fade-in {
-        from { opacity: 0; }
-        to   { opacity: 1; }
-      }
-      .live-dot {
-        position: relative;
-        display: inline-block;
-        width: 8px; height: 8px;
-        border-radius: 50%;
-        background: #10b981;
-      }
-      .live-dot::after {
-        content: '';
-        position: absolute;
-        inset: 0;
-        border-radius: 50%;
-        background: #10b981;
-        animation: pulse-ring 1.8s ease-out infinite;
-      }
-      .card-in  { animation: glow-in 0.4s ease forwards; }
-      .slide-up { animation: slide-up 0.3s ease forwards; }
+      @keyframes toast-in  { from { opacity: 0; transform: translateX(16px); } to { opacity: 1; transform: none; } }
+      @keyframes toast-out { from { opacity: 1; } to { opacity: 0; transform: translateY(6px); } }
+      @keyframes shimmer   { 0% { opacity: 0.45; } 50% { opacity: 1; } 100% { opacity: 0.45; } }
+      @keyframes fade-up   { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+      /* Thin, unobtrusive scrollbars (nav keeps overflow hidden — see App.jsx) */
+      ::-webkit-scrollbar { width: 10px; height: 10px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 5px; border: 2px solid transparent; background-clip: content-box; }
+      * { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
     </style>
+    <script>
+      // Apply the saved theme before first paint (avoids a flash of wrong theme).
+      // 'blue' was the old default — migrate it to 'dark'.
+      document.documentElement.dataset.theme =
+        localStorage.getItem('nfc_theme') === 'light' ? 'light' : 'dark'
+    </script>
   </head>
   <body>
     <div id="root"></div>

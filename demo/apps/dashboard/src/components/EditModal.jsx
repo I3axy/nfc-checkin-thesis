@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { C, S } from '../lib/theme'
 import { normalizeUid, hashPin } from '../lib/utils'
 import { Modal, Field, Divider } from './ui'
+import { toast } from './toast'
 
 // ISO → datetime-local string (local time)
 function toLocalInput(iso) {
@@ -59,15 +60,16 @@ export function EditModal({ employee, onClose, onSaved }) {
     if (error) {
       const dupPin = error.code === '23505' && /pin/i.test(error.message)
       setError(dupPin ? 'Ez a PIN már foglalt a cégben, válassz másikat' : error.message)
+      toast('A mentés nem sikerült', 'error')
       setSaving(false)
-    } else onSaved()
+    } else { toast('Profil mentve'); onSaved() }
   }
 
   async function handleAddEvent() {
     setAddingEvent(true); setError('')
     const { error } = await supabase.from('events').insert({ company_id: employee.company_id, user_id: employee.id, type: addType, timestamp: new Date(addTs).toISOString(), is_manual: true, note: addNote.trim() || null })
-    if (error) setError(error.message)
-    else { setAddNote(''); onSaved() }
+    if (error) { setError(error.message); toast('Az esemény rögzítése nem sikerült', 'error') }
+    else { setAddNote(''); toast('Esemény rögzítve'); onSaved() }
     setAddingEvent(false)
   }
 

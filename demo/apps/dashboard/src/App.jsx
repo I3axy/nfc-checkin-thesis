@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from './lib/supabase'
-import { C, S } from './lib/theme'
+import { C, S, R, tint } from './lib/theme'
 import { DEFAULT_SETTINGS, loadTheme, companyToSettings } from './lib/settings'
 import { getDaySummary, calcRangeMinutes, countRangeEvents } from './lib/utils'
 import { Field } from './components/ui'
+import { ToastHost } from './components/toast'
 import { WorkersTab }  from './tabs/WorkersTab'
 import { StatusTab }   from './tabs/StatusTab'
 import { LogTab }      from './tabs/LogTab'
@@ -51,16 +52,13 @@ function Login() {
 
   return (
     <div style={{ minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: C.bg0, padding: '1rem', boxSizing: 'border-box' }}>
-      <div style={{ width: 'min(360px, 100%)' }}>
-        <div style={{ marginBottom: '2rem', textAlign: 'center' }}>
-          <div style={{ fontSize: '1.4rem', fontWeight: 800, color: C.text }}>NFC <span style={{ color: C.accent }}>Check-in</span></div>
-          <div style={{ fontSize: '0.78rem', color: C.muted, marginTop: '0.3rem' }}>Manager Dashboard</div>
+      <div style={{ width: 'min(380px, 100%)' }}>
+        <div style={{ marginBottom: '1.75rem', textAlign: 'center' }}>
+          <div style={{ width: 44, height: 44, borderRadius: 12, background: C.accent, color: C.accentContrast, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '1.05rem', marginBottom: '0.75rem' }}>N</div>
+          <div style={{ fontSize: '1.3rem', fontWeight: 700, color: C.text, letterSpacing: '-0.02em' }}>NFC Check-in</div>
+          <div style={{ fontSize: '0.8rem', color: C.muted, marginTop: '0.25rem' }}>Manager Dashboard</div>
         </div>
-        <div style={{ background: C.bg1, border: `1px solid ${C.border}` }}>
-          <div style={{ background: C.bg2, borderBottom: `1px solid ${C.border}`, padding: '0.75rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <div style={{ width: 3, height: 16, background: C.accent }} />
-            <span style={{ fontSize: '0.82rem', fontWeight: 700, color: C.text }}>Bejelentkezés</span>
-          </div>
+        <div style={{ background: C.bg1, border: `1px solid ${C.border}`, borderRadius: R.lg, boxShadow: C.shadow }}>
           <form onSubmit={handleSubmit} style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             <Field label="Email">
               <input type="email" value={email} onChange={e => setEmail(e.target.value)} required autoComplete="email" style={S.input} placeholder="you@example.com" />
@@ -159,9 +157,9 @@ function Dashboard() {
   }, [loadData])
 
   return (
-    <div style={{ height: '100dvh', display: 'flex', background: C.bg0, color: C.text, fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+    <div style={{ height: '100dvh', display: 'flex', background: C.bg0, color: C.text }}>
       <aside style={{
-        width: collapsed ? 48 : 220,
+        width: collapsed ? 52 : 224,
         flexShrink: 0,
         background: C.bg1,
         borderRight: `1px solid ${C.border}`,
@@ -174,20 +172,23 @@ function Dashboard() {
         {/* Header */}
         <div style={{ borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
           {collapsed ? (
-            <button onClick={toggleCollapsed} style={{ width: 48, height: 48, background: 'transparent', border: 'none', cursor: 'pointer', color: C.muted, fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              »
+            <button onClick={toggleCollapsed} title="Menü kinyitása" style={{ width: 52, height: 52, background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <span style={{ width: 28, height: 28, borderRadius: 8, background: C.accent, color: C.accentContrast, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '0.8rem' }}>N</span>
             </button>
           ) : (
-            <div style={{ padding: '1.1rem 1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-              <div>
-                <div style={{ fontSize: '1.05rem', fontWeight: 800, color: C.text, whiteSpace: 'nowrap' }}>NFC <span style={{ color: C.accent }}>Check-in</span></div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.3rem' }}>
-                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: C.green, display: 'inline-block' }} />
-                  <span style={{ fontSize: '0.65rem', color: C.green, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Live</span>
-                  {lastUpdate && <span style={{ fontSize: '0.6rem', color: C.muted }}>{lastUpdate.toLocaleTimeString()}</span>}
+            <div style={{ padding: '0.9rem 0.9rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', minWidth: 0 }}>
+                <span style={{ width: 28, height: 28, borderRadius: 8, background: C.accent, color: C.accentContrast, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '0.8rem', flexShrink: 0 }}>N</span>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: '0.9rem', fontWeight: 700, color: C.text, whiteSpace: 'nowrap', letterSpacing: '-0.01em' }}>NFC Check-in</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: C.green, display: 'inline-block' }} />
+                    <span style={{ fontSize: '0.62rem', color: C.green, textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 600 }}>Live</span>
+                    {lastUpdate && <span style={{ fontSize: '0.6rem', color: C.muted }}>{lastUpdate.toLocaleTimeString()}</span>}
+                  </div>
                 </div>
               </div>
-              <button onClick={toggleCollapsed} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: C.muted, fontSize: '0.9rem', padding: '0.1rem 0.2rem', marginTop: '0.1rem', flexShrink: 0 }}>
+              <button onClick={toggleCollapsed} title="Menü becsukása" style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: C.muted, fontSize: '0.9rem', padding: '0.2rem 0.3rem', flexShrink: 0, borderRadius: R.sm }}>
                 «
               </button>
             </div>
@@ -195,7 +196,7 @@ function Dashboard() {
         </div>
 
         {/* Nav */}
-        <nav style={{ flex: 1, padding: '0.4rem 0', overflowY: 'hidden' }}>
+        <nav style={{ flex: 1, padding: collapsed ? '0.4rem 0' : '0.5rem 0.55rem', overflowY: 'hidden' }}>
           {NAV_ITEMS.map(n => {
             const active = tab === n.key
             return collapsed ? (
@@ -205,12 +206,12 @@ function Dashboard() {
                 title={n.label}
                 style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  width: 48, height: 36,
+                  width: 36, height: 34, margin: '0.1rem 8px',
                   border: 'none', cursor: 'pointer',
-                  background: 'transparent',
+                  background: active ? tint(C.accent, 14) : 'transparent',
                   color: active ? C.accent : C.muted,
-                  fontSize: '0.72rem', fontWeight: active ? 800 : 500,
-                  boxSizing: 'border-box',
+                  fontSize: '0.72rem', fontWeight: active ? 700 : 500,
+                  boxSizing: 'border-box', borderRadius: R.md,
                 }}
               >
                 {n.short}
@@ -221,12 +222,12 @@ function Dashboard() {
                 onClick={() => setTab(n.key)}
                 style={{
                   display: 'block', width: '100%', textAlign: 'left',
-                  padding: '0.55rem 1rem', border: 'none', cursor: 'pointer',
-                  background: active ? C.bg2 : 'transparent',
-                  color: active ? C.text : C.muted,
-                  fontSize: '0.85rem', fontWeight: active ? 700 : 400,
-                  borderLeft: active ? `3px solid ${C.accent}` : '3px solid transparent',
-                  whiteSpace: 'nowrap',
+                  padding: '0.5rem 0.75rem', margin: '0.1rem 0',
+                  border: 'none', cursor: 'pointer',
+                  background: active ? tint(C.accent, 12) : 'transparent',
+                  color: active ? C.accent : C.muted,
+                  fontSize: '0.84rem', fontWeight: active ? 600 : 500,
+                  whiteSpace: 'nowrap', borderRadius: R.md,
                 }}
               >
                 {n.label}
@@ -241,7 +242,7 @@ function Dashboard() {
             <button
               onClick={() => supabase.auth.signOut()}
               title="Kilépés"
-              style={{ width: 48, height: 40, background: 'transparent', border: 'none', cursor: 'pointer', color: C.muted, fontSize: '0.7rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              style={{ width: 52, height: 40, background: 'transparent', border: 'none', cursor: 'pointer', color: C.muted, fontSize: '0.7rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
             >
               ↪
             </button>
@@ -274,6 +275,8 @@ function Dashboard() {
           {tab === 'settings' && <SettingsTab settings={settings} companyId={me?.company_id} me={me} onChange={setSettings} />}
         </div>
       </main>
+
+      <ToastHost />
     </div>
   )
 }

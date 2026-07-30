@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
-import { C, S, CAL } from '../lib/theme'
+import { C, S, CAL, tint } from '../lib/theme'
 import { calcDayMinutes, isWorkerLate, fmtMins, fmtClock, normalizeUid, hashPin } from '../lib/utils'
 import { Table, Th, TableEmpty, SectionLabel, Badge, Field } from '../components/ui'
+import { toast } from '../components/toast'
 
 const SHIFT_OPTIONS = ['Nappali', 'Éjszakai', 'C műszak', 'Rugalmas']
 const ABSENCE_LABELS = { vacation: 'Szabadság', sick: 'Betegszabadság', unjustified: 'Igazolatlan', other: 'Egyéb' }
@@ -60,9 +61,9 @@ export function WorkersTab({ employees, settings, onSaved }) {
                 flex: 1, padding: '0.25rem 0.4rem', fontSize: '0.72rem',
                 fontWeight: filter === key ? 700 : 400,
                 border: `1px solid ${filter === key ? C.accent : C.border}`,
-                background: filter === key ? C.accent + '18' : 'transparent',
+                background: filter === key ? tint(C.accent, 10) : 'transparent',
                 color: filter === key ? C.accent : C.muted,
-                cursor: 'pointer', borderRadius: 0,
+                cursor: 'pointer', borderRadius: 6,
               }}
             >
               {label}
@@ -196,9 +197,10 @@ function ProfilSubTab({ worker, onSaved }) {
     if (error) {
       const dupPin = error.code === '23505' && /pin/i.test(error.message)
       setSaveErr(dupPin ? 'Ez a PIN már foglalt a cégben, válassz másikat' : error.message)
+      toast('A profil mentése nem sikerült', 'error')
       setSaving(false)
     }
-    else { setSaving(false); setSaveOk(true); setPinValue(''); setClearPin(false); setTimeout(() => { setSaveOk(false); onSaved() }, 1200) }
+    else { setSaving(false); setSaveOk(true); setPinValue(''); setClearPin(false); toast('Profil mentve'); setTimeout(() => { setSaveOk(false); onSaved() }, 1200) }
   }
 
   return (
@@ -282,11 +284,14 @@ function NaptarSubTab({ worker, settings }) {
 
   async function handleAddEvent(type, timestamp) {
     const { error } = await supabase.from('events').insert({ company_id: worker.company_id, user_id: worker.id, type, timestamp, is_manual: true })
-    if (!error) reloadMonth()
+    if (error) toast('Az esemény rögzítése nem sikerült', 'error')
+    else { toast('Esemény rögzítve'); reloadMonth() }
   }
 
   async function deleteEvent(id) {
-    await supabase.from('events').delete().eq('id', id)
+    const { error } = await supabase.from('events').delete().eq('id', id)
+    if (error) { toast('A törlés nem sikerült', 'error'); return }
+    toast('Esemény törölve')
     setMonthEvents(prev => prev.filter(e => e.id !== id))
   }
 
@@ -338,14 +343,14 @@ function NaptarSubTab({ worker, settings }) {
                 <tr key={e.id} style={{ borderBottom: `1px solid ${C.border}` }}>
                   <td style={S.td}>
                     <Badge color={e.type === 'checkin' ? C.green : C.red}>{e.type === 'checkin' ? '↑ Be' : '↓ Ki'}</Badge>
-                    {e.is_manual && <span style={{ marginLeft: '0.4rem', fontSize: '0.62rem', color: C.accent, border: `1px solid ${C.accent}40`, padding: '0 0.3rem' }}>kézi</span>}
+                    {e.is_manual && <span style={{ marginLeft: '0.4rem', fontSize: '0.62rem', color: C.accent, border: `1px solid ${tint(C.accent, 28)}`, padding: '0 0.3rem' }}>kézi</span>}
                   </td>
                   <td style={{ ...S.td, fontFamily: 'monospace', fontSize: '0.82rem' }}>
                     {new Date(e.timestamp).toLocaleDateString('hu', { month: 'short', day: 'numeric' })} {fmtClock(e.timestamp)}
                   </td>
                   <td style={{ ...S.td, fontSize: '0.78rem', color: C.muted }}>{e.note ?? ''}</td>
                   <td style={{ ...S.td, textAlign: 'right' }}>
-                    <button onClick={() => deleteEvent(e.id)} style={{ ...S.btnIcon, color: C.red, borderColor: C.red + '40' }}>✕</button>
+                    <button onClick={() => deleteEvent(e.id)} style={{ ...S.btnIcon, color: C.red, borderColor: tint(C.red, 30) }}>✕</button>
                   </td>
                 </tr>
               ))
@@ -375,13 +380,15 @@ function HianyokSubTab({ worker }) {
   async function handleAdd(e) {
     e.preventDefault(); setSaving(true); setError('')
     const { error } = await supabase.from('absences').insert({ company_id: worker.company_id, user_id: worker.id, date, type, note: note.trim() || null })
-    if (error) setError(error.message)
-    else setNote('')
+    if (error) { setError(error.message); toast('A hiányzás rögzítése nem sikerült', 'error') }
+    else { setNote(''); toast('Hiányzás rögzítve') }
     setSaving(false)
   }
 
   async function del(id) {
-    await supabase.from('absences').delete().eq('id', id)
+    const { error } = await supabase.from('absences').delete().eq('id', id)
+    if (error) { toast('A törlés nem sikerült', 'error'); return }
+    toast('Hiányzás törölve')
     setAbsences(prev => prev.filter(a => a.id !== id))
   }
 
@@ -426,7 +433,7 @@ function HianyokSubTab({ worker }) {
                   </td>
                   <td style={{ ...S.td, color: C.muted, fontSize: '0.78rem' }}>{a.note ?? ''}</td>
                   <td style={{ ...S.td, textAlign: 'right' }}>
-                    <button onClick={() => del(a.id)} style={{ ...S.btnIcon, color: C.red, borderColor: C.red + '40' }}>✕</button>
+                    <button onClick={() => del(a.id)} style={{ ...S.btnIcon, color: C.red, borderColor: tint(C.red, 30) }}>✕</button>
                   </td>
                 </tr>
               ))
@@ -482,11 +489,11 @@ function DayPanel({ dateStr, workerId, events, onAdd, onDelete }) {
                   <span style={{ fontFamily: 'monospace', fontSize: '0.95rem', fontWeight: 700, color: C.text }}>
                     {fmtClock(ev.timestamp)}
                   </span>
-                  {ev.is_manual && <span style={{ fontSize: '0.6rem', color: C.accent, border: `1px solid ${C.accent}40`, padding: '0 0.3rem' }}>kézi</span>}
+                  {ev.is_manual && <span style={{ fontSize: '0.6rem', color: C.accent, border: `1px solid ${tint(C.accent, 28)}`, padding: '0 0.3rem' }}>kézi</span>}
                   <button
                     onClick={() => onDelete(ev.id)}
                     title="Törlés"
-                    style={{ ...S.btnIcon, color: C.red, borderColor: C.red + '40', marginLeft: 'auto', padding: '0.1rem 0.4rem' }}
+                    style={{ ...S.btnIcon, color: C.red, borderColor: tint(C.red, 30), marginLeft: 'auto', padding: '0.1rem 0.4rem' }}
                   >
                     ✕
                   </button>
@@ -572,7 +579,7 @@ function CalendarGrid({ days, events, absences, settings, selectedDay, onDayClic
       {/* Day-of-week headers */}
       <div style={{ display: 'grid', gridTemplateColumns: `repeat(7, ${CELL}px)`, gap: GAP, marginBottom: GAP }}>
         {['H','K','Sze','Cs','P','Szo','V'].map((d, i) => (
-          <div key={d} style={{ width: CELL, textAlign: 'center', fontSize: '0.62rem', fontWeight: 600, color: i === 6 ? '#f87171' : C.muted, paddingBottom: '0.2rem' }}>{d}</div>
+          <div key={d} style={{ width: CELL, textAlign: 'center', fontSize: '0.62rem', fontWeight: 600, color: i === 6 ? C.red : C.muted, paddingBottom: '0.2rem' }}>{d}</div>
         ))}
       </div>
 
@@ -606,13 +613,13 @@ function CalendarGrid({ days, events, absences, settings, selectedDay, onDayClic
           // Win11 style: today = solid accent fill, selected = semitransparent accent ring
           const circleBg =
             isToday ? C.accent :
-            isSel   ? C.accent + '22' : 'transparent'
+            isSel   ? tint(C.accent, 14) : 'transparent'
           const circleBorder =
             isToday ? 'none' :
             isSel   ? `2px solid ${C.accent}` : 'none'
           const numColor =
-            isToday             ? C.bg0 :
-            isSunday            ? '#f87171' :
+            isToday             ? C.accentContrast :
+            isSunday            ? C.red :
             isWeekend || isFuture ? C.border :
             C.text
 

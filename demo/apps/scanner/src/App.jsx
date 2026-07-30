@@ -301,7 +301,7 @@ export default function App() {
 
   // --- render -----------------------------------------------------------------
   if (!nfcSupported) return (
-    <Screen bg="#060c18">
+    <Screen bg="var(--bg)">
       <div style={S.emoji}>⚠️</div>
       <div style={S.title}>NFC not supported</div>
       <div style={S.sub}>Use Android Chrome</div>
@@ -309,7 +309,7 @@ export default function App() {
   )
 
   if (screen === 'idle') return (
-    <Screen bg="#060c18">
+    <Screen bg="var(--bg)">
       <StatusBadge online={online} pending={pending} syncing={syncingUi} />
       <div style={S.emoji}>📡</div>
       <div style={S.title}>NFC Scanner</div>
@@ -319,14 +319,14 @@ export default function App() {
   )
 
   if (screen === 'starting') return (
-    <Screen bg="#060c18">
+    <Screen bg="var(--bg)">
       <div style={S.emoji}>⏳</div>
       <div style={S.title}>Starting…</div>
     </Screen>
   )
 
   if (screen === 'camera') return (
-    <Screen bg="#060c18">
+    <Screen bg="var(--bg)">
       <StatusBadge online={online} pending={pending} syncing={syncingUi} />
       <div style={S.panel}>
         <div style={S.title}>Take a check-in photo</div>
@@ -349,14 +349,14 @@ export default function App() {
   )
 
   if (screen === 'uploading') return (
-    <Screen bg="#060c18">
+    <Screen bg="var(--bg)">
       <div style={S.emoji}>⏳</div>
       <div style={S.title}>Uploading…</div>
     </Screen>
   )
 
   if (screen === 'pin') return (
-    <Screen bg="#060c18">
+    <Screen bg="var(--bg)">
       <StatusBadge online={online} pending={pending} syncing={syncingUi} />
       <div style={S.panel}>
         <div style={S.title}>Enter PIN</div>
@@ -374,7 +374,7 @@ export default function App() {
     </Screen>
   )
 
-  const bg    = { ready: '#060c18', checkin: '#10b981', checkout: '#ef4444', unknown: '#f59e0b', expired: '#b45309', badpin: '#f59e0b', noconn: '#334155' }[screen] ?? '#060c18'
+  const bg    = { ready: 'var(--bg)', checkin: '#10b981', checkout: '#ef4444', unknown: '#f59e0b', expired: '#b45309', badpin: '#f59e0b', noconn: '#3f3f46' }[screen] ?? 'var(--bg)'
   const emoji = { ready: '📡', checkin: '✅', checkout: '🔴', unknown: '❓', expired: '⏰', badpin: '🔒', noconn: '📵' }[screen]
   const title = { ready: 'Tap your NFC card', checkin: 'CHECKED IN', checkout: 'CHECKED OUT', unknown: 'Card not registered', expired: 'Guest pass expired', badpin: 'Wrong PIN', noconn: 'No connection' }[screen]
 
@@ -406,8 +406,8 @@ export default function App() {
                 {entry.personName ? ` ${entry.personName}` : ''}
                 {entry.offline ? ' 💾' : ''}
               </span>
-              <span style={{ color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{entry.uid}</span>
-              <span style={{ color: '#475569', textAlign: 'right' }}>{entry.time}</span>
+              <span style={{ color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{entry.uid}</span>
+              <span style={{ color: '#5b5b66', textAlign: 'right' }}>{entry.time}</span>
             </div>
           ))}
         </div>
@@ -432,27 +432,29 @@ function Screen({ bg, children }) {
   return <div style={{ ...S.fullscreen, background: bg }}>{children}</div>
 }
 
+const MONO = "'JetBrains Mono', ui-monospace, monospace"
+
 const S = {
   fullscreen: { height: '100dvh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '1.25rem', userSelect: 'none', position: 'relative', color: '#fff', padding: '1rem', boxSizing: 'border-box', transition: 'background 0.2s' },
   panel:      { width: '100%', maxWidth: 760, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.9rem' },
   emoji:      { fontSize: 'clamp(4rem, 14vw, 7rem)', lineHeight: 1 },
-  title:      { fontSize: 'clamp(1.7rem, 7vw, 3rem)', fontWeight: 800, textAlign: 'center', padding: '0 1rem', maxWidth: 720 },
-  name:       { fontSize: 'clamp(1.35rem, 5.5vw, 2.2rem)', fontWeight: 600, opacity: 0.9, textAlign: 'center' },
+  title:      { fontSize: 'clamp(1.7rem, 7vw, 3rem)', fontWeight: 800, textAlign: 'center', padding: '0 1rem', maxWidth: 720, letterSpacing: '-0.02em' },
+  name:       { fontSize: 'clamp(1.35rem, 5.5vw, 2.2rem)', fontWeight: 600, opacity: 0.92, textAlign: 'center' },
   sub:        { fontSize: 'clamp(1rem, 3.6vw, 1.2rem)', opacity: 0.7, textAlign: 'center' },
-  offlineNote:{ fontSize: 'clamp(0.85rem, 3.4vw, 1.05rem)', fontWeight: 600, background: 'rgba(0,0,0,0.25)', padding: '0.4rem 0.9rem', borderRadius: '999px' },
-  startBtn:   { marginTop: '0.5rem', padding: '1rem clamp(1.6rem, 8vw, 3rem)', fontSize: 'clamp(1rem, 4.4vw, 1.3rem)', fontWeight: 800, background: '#1d4ed8', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', letterSpacing: '0.02em' },
-  cancelBtn:  { marginTop: '0.5rem', padding: '1rem clamp(1.6rem, 8vw, 3rem)', fontSize: 'clamp(1rem, 4.4vw, 1.3rem)', fontWeight: 700, background: 'transparent', color: '#fff', border: '2px solid rgba(255,255,255,0.35)', borderRadius: '4px', cursor: 'pointer', letterSpacing: '0.02em' },
-  errorBox:   { fontFamily: 'monospace', fontSize: '0.85rem', color: '#fca5a5', background: 'rgba(0,0,0,0.4)', padding: '0.5rem 1rem', borderRadius: '4px', textAlign: 'center', maxWidth: '80%' },
-  uidBox:     { fontFamily: 'monospace', fontSize: '0.95rem', background: 'rgba(0,0,0,0.3)', padding: '0.5rem 1rem', borderRadius: '4px', maxWidth: '92vw', wordBreak: 'break-all' },
-  logPanel:   { position: 'absolute', bottom: 0, left: 0, right: 0, padding: '0.75rem', background: 'rgba(0,0,0,0.55)', maxHeight: '34dvh', overflowY: 'auto' },
-  logRow:     { display: 'grid', gridTemplateColumns: '1.2fr 1fr auto', gap: '0.5rem', alignItems: 'center', fontSize: '0.75rem', padding: '0.15rem 0', fontFamily: 'monospace' },
-  cameraVideo:{ width: 'min(92vw, 480px)', aspectRatio: '3 / 4', objectFit: 'cover', borderRadius: '8px', background: '#000', transform: 'scaleX(-1)' },
-  badge:      { position: 'absolute', top: '0.75rem', left: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', fontWeight: 600, background: 'rgba(0,0,0,0.35)', padding: '0.35rem 0.7rem', borderRadius: '999px', letterSpacing: '0.02em' },
+  offlineNote:{ fontSize: 'clamp(0.85rem, 3.4vw, 1.05rem)', fontWeight: 600, background: 'rgba(0,0,0,0.3)', padding: '0.45rem 1rem', borderRadius: 999 },
+  startBtn:   { marginTop: '0.5rem', padding: '1rem clamp(1.6rem, 8vw, 3rem)', fontSize: 'clamp(1rem, 4.4vw, 1.3rem)', fontWeight: 700, background: 'var(--accent)', color: 'var(--accent-contrast)', border: 'none', borderRadius: 12, cursor: 'pointer', letterSpacing: '0.01em' },
+  cancelBtn:  { marginTop: '0.5rem', padding: '1rem clamp(1.6rem, 8vw, 3rem)', fontSize: 'clamp(1rem, 4.4vw, 1.3rem)', fontWeight: 600, background: 'transparent', color: '#fff', border: '1px solid rgba(255,255,255,0.3)', borderRadius: 12, cursor: 'pointer' },
+  errorBox:   { fontFamily: MONO, fontSize: '0.85rem', color: 'var(--red)', background: 'rgba(0,0,0,0.4)', padding: '0.5rem 1rem', borderRadius: 8, textAlign: 'center', maxWidth: '80%' },
+  uidBox:     { fontFamily: MONO, fontSize: '0.95rem', background: 'rgba(0,0,0,0.3)', padding: '0.5rem 1rem', borderRadius: 8, maxWidth: '92vw', wordBreak: 'break-all' },
+  logPanel:   { position: 'absolute', bottom: 0, left: 0, right: 0, padding: '0.75rem', background: 'rgba(8,8,10,0.72)', borderTop: '1px solid var(--border)', maxHeight: '34dvh', overflowY: 'auto', backdropFilter: 'blur(6px)' },
+  logRow:     { display: 'grid', gridTemplateColumns: '1.2fr 1fr auto', gap: '0.5rem', alignItems: 'center', fontSize: '0.75rem', padding: '0.15rem 0', fontFamily: MONO },
+  cameraVideo:{ width: 'min(92vw, 480px)', aspectRatio: '3 / 4', objectFit: 'cover', borderRadius: 16, background: '#000', transform: 'scaleX(-1)', border: '1px solid var(--border)' },
+  badge:      { position: 'absolute', top: '0.75rem', left: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.8rem', fontWeight: 600, background: 'rgba(8,8,10,0.55)', border: '1px solid rgba(255,255,255,0.12)', padding: '0.35rem 0.75rem', borderRadius: 999, letterSpacing: '0.01em', backdropFilter: 'blur(6px)' },
   badgeDot:   { width: 8, height: 8, borderRadius: '50%', display: 'inline-block' },
-  badgePending: { color: '#fcd34d' },
-  pinBtn:     { marginTop: '0.5rem', padding: '0.7rem 1.6rem', fontSize: 'clamp(0.95rem, 4vw, 1.15rem)', fontWeight: 700, background: 'rgba(255,255,255,0.08)', color: '#cbd5e1', border: '2px solid rgba(255,255,255,0.2)', borderRadius: '999px', cursor: 'pointer' },
-  pinDots:    { fontSize: '2.4rem', letterSpacing: '0.4rem', minHeight: '3rem', fontWeight: 700, color: '#e2e8f0' },
+  badgePending: { color: 'var(--warn)' },
+  pinBtn:     { marginTop: '0.5rem', padding: '0.7rem 1.6rem', fontSize: 'clamp(0.95rem, 4vw, 1.15rem)', fontWeight: 600, background: 'var(--surface-2)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 999, cursor: 'pointer' },
+  pinDots:    { fontSize: '2.4rem', letterSpacing: '0.4rem', minHeight: '3rem', fontWeight: 700, color: 'var(--text)', fontFamily: MONO },
   keypad:     { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.6rem', width: 'min(86vw, 320px)' },
-  key:        { padding: '1rem 0', fontSize: '1.5rem', fontWeight: 700, background: 'rgba(255,255,255,0.08)', color: '#fff', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', cursor: 'pointer' },
-  keyOk:      { background: '#10b981', border: 'none' },
+  key:        { padding: '1rem 0', fontSize: '1.4rem', fontWeight: 600, background: 'var(--surface-2)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 12, cursor: 'pointer', fontFamily: MONO },
+  keyOk:      { background: '#10b981', border: 'none', color: '#052e22' },
 }

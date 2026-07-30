@@ -130,20 +130,20 @@ export default function App() {
   // ---- screens ----
 
   if (!nfcSupported && !urlUid) return (
-    <FullScreen bg="#1b2838" emoji="⚠️" title="NFC not supported"
+    <FullScreen bg="var(--bg)" emoji="⚠️" title="NFC not supported"
       sub="Android Chrome required, or open via NFC link on iOS" />
   )
 
   if (state === 'idle') return (
-    <FullScreen bg="#1b2838" emoji="📱" title="Worker App" sub={nfcError || 'Tap to start'}>
+    <FullScreen bg="var(--bg)" emoji="📱" title="Worker App" sub={nfcError || 'Tap to start'}>
       <Btn onClick={startScan} accent>Start Scanning</Btn>
     </FullScreen>
   )
 
-  if (state === 'starting') return <FullScreen bg="#1b2838" emoji="⏳" title="Starting…" />
-  if (state === 'ready')    return <FullScreen bg="#1b2838" emoji="📱" title="Tap your card" sub="Hold card to phone" />
-  if (state === 'loading')  return <FullScreen bg="#1b2838" emoji="⏳" title="Loading…" />
-  if (state === 'unknown')  return <FullScreen bg="#1b2838" emoji="❓" title="Card not registered" sub={nfcError} onReset={reset} />
+  if (state === 'starting') return <FullScreen bg="var(--bg)" emoji="⏳" title="Starting…" />
+  if (state === 'ready')    return <FullScreen bg="var(--bg)" emoji="📱" title="Tap your card" sub="Hold card to phone" />
+  if (state === 'loading')  return <FullScreen bg="var(--bg)" emoji="⏳" title="Loading…" />
+  if (state === 'unknown')  return <FullScreen bg="var(--bg)" emoji="❓" title="Card not registered" sub={nfcError} onReset={reset} />
 
   if (state === 'manager') {
     const { allProfiles = [], recentEvents = [] } = managerData ?? {}
@@ -158,8 +158,8 @@ export default function App() {
     return (
       <Page>
         <PageHeader title="Manager View" right={
-          <span style={{ background: '#10b98120', color: '#10b981', border: '1px solid #10b98150', padding: '0.25rem 0.75rem', fontSize: '0.8rem', fontWeight: 700 }}>
-            {inside.length} bentvan
+          <span style={{ background: 'color-mix(in srgb, var(--green) 13%, transparent)', color: 'var(--green)', border: '1px solid color-mix(in srgb, var(--green) 30%, transparent)', padding: '0.25rem 0.75rem', fontSize: '0.8rem', fontWeight: 600, borderRadius: 999 }}>
+            {inside.length} bent van
           </span>
         } />
 
@@ -204,25 +204,26 @@ export default function App() {
 
   return (
     <Page>
-      <div style={{ background: isIn ? '#5ba32b' : '#c94f4f', padding: '1.25rem 1rem', textAlign: 'center' }}>
-        <div style={{ fontSize: 'clamp(1.4rem, 7vw, 2rem)', fontWeight: 800, color: '#c6d4df' }}>{profile.name}</div>
-        <div style={{ fontSize: '0.95rem', color: 'rgba(198,212,223,0.85)', marginTop: '0.2rem' }}>
+      {/* Status banner — vivid green/red in both themes, white text */}
+      <div style={{ background: isIn ? '#10b981' : '#ef4444', padding: '1.4rem 1rem', textAlign: 'center' }}>
+        <div style={{ fontSize: 'clamp(1.4rem, 7vw, 2rem)', fontWeight: 800, color: '#fff', letterSpacing: '-0.02em' }}>{profile.name}</div>
+        <div style={{ fontSize: '0.95rem', color: 'rgba(255,255,255,0.9)', marginTop: '0.2rem', fontWeight: 500 }}>
           {lastEvent ? (isIn ? '✅ Bent van' : '🔴 Nincs bent') : 'Még nincs esemény'}
         </div>
       </div>
 
       <Section label="Mai nap">
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr' }}>
-          <StatCell label="Belépés" value={todayCheckin ? fmt(todayCheckin.timestamp) : '—'} color="#5ba32b" />
-          <StatCell label="Kilépés" value={todayCheckout ? fmt(todayCheckout.timestamp) : '—'} color="#c94f4f" />
-          <StatCell label="Ledolgozva" value={fmtMins(todayMins)} color="#66c0f4" last />
+          <StatCell label="Belépés" value={todayCheckin ? fmt(todayCheckin.timestamp) : '—'} color="var(--green)" />
+          <StatCell label="Kilépés" value={todayCheckout ? fmt(todayCheckout.timestamp) : '—'} color="var(--red)" />
+          <StatCell label="Ledolgozva" value={fmtMins(todayMins)} color="var(--accent)" last />
         </div>
       </Section>
 
       <Section label="Heti összesítő">
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
-          <StatCell label="Ledolgozott idő" value={fmtMins(weekMins)} color="#66c0f4" />
-          <StatCell label="Munkanapok" value={String(workDays)} color="#c6d4df" last />
+          <StatCell label="Ledolgozott idő" value={fmtMins(weekMins)} color="var(--accent)" />
+          <StatCell label="Munkanapok" value={String(workDays)} color="var(--text)" last />
         </div>
       </Section>
 
@@ -232,17 +233,17 @@ export default function App() {
           : days.map((d, di) => {
             const mins = calcDayMins(d.evts)
             return (
-              <div key={di} style={{ borderBottom: '1px solid #3d4450', padding: '0.6rem 1rem' }}>
+              <div key={di} style={{ borderBottom: '1px solid var(--border)', padding: '0.6rem 1rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.3rem' }}>
-                  <span style={{ fontSize: '0.75rem', color: '#8f98a0', textTransform: 'uppercase', fontWeight: 700 }}>{d.label}</span>
-                  {mins > 0 && <span style={{ fontSize: '0.75rem', color: '#66c0f4', fontWeight: 700 }}>{fmtMins(mins)}</span>}
+                  <span style={{ fontSize: '0.75rem', color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 700 }}>{d.label}</span>
+                  {mins > 0 && <span style={{ fontSize: '0.75rem', color: 'var(--accent)', fontWeight: 700 }}>{fmtMins(mins)}</span>}
                 </div>
                 {d.evts.map((e, i) => (
                   <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', padding: '0.1rem 0' }}>
-                    <span style={{ color: e.type === 'checkin' ? '#5ba32b' : '#c94f4f', fontWeight: 600 }}>
+                    <span style={{ color: e.type === 'checkin' ? 'var(--green)' : 'var(--red)', fontWeight: 600 }}>
                       {e.type === 'checkin' ? '↑ Be' : '↓ Ki'}
                     </span>
-                    <span style={{ color: '#8f98a0' }}>{fmt(e.timestamp)}</span>
+                    <span style={{ color: 'var(--muted)' }}>{fmt(e.timestamp)}</span>
                   </div>
                 ))}
               </div>
@@ -257,15 +258,15 @@ export default function App() {
           : absences.map(a => {
             const isPast = new Date(a.date + 'T23:59:59') < new Date()
             return (
-              <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.55rem 1rem', borderBottom: '1px solid #3d4450', opacity: isPast ? 0.6 : 1 }}>
-                <span style={{ fontSize: '0.85rem', fontFamily: 'monospace', color: '#c6d4df' }}>{a.date}</span>
-                <span style={{ fontSize: '0.78rem', fontWeight: 700, color: a.type === 'unjustified' ? '#f87171' : '#a78bfa' }}>{ABSENCE_LABELS[a.type] ?? a.type}</span>
+              <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.55rem 1rem', borderBottom: '1px solid var(--border)', opacity: isPast ? 0.6 : 1 }}>
+                <span style={{ fontSize: '0.85rem', fontFamily: 'monospace', color: 'var(--text)' }}>{a.date}</span>
+                <span style={{ fontSize: '0.78rem', fontWeight: 700, color: a.type === 'unjustified' ? 'var(--red)' : 'var(--cal-justified)' }}>{ABSENCE_LABELS[a.type] ?? a.type}</span>
               </div>
             )
           })
         }
         {absStatus === 'ok' && (
-          <div style={{ padding: '0.6rem 1rem', color: '#5ba32b', fontSize: '0.85rem', fontWeight: 600 }}>✓ Rögzítve — a vezető látni fogja.</div>
+          <div style={{ padding: '0.6rem 1rem', color: 'var(--green)', fontSize: '0.85rem', fontWeight: 600 }}>✓ Rögzítve — a vezető látni fogja.</div>
         )}
         {!absOpen ? (
           <div style={{ padding: '0.75rem 1rem' }}>
@@ -283,7 +284,7 @@ export default function App() {
             </select>
             <label style={LBL}>Megjegyzés (opcionális)</label>
             <input value={absNote} onChange={e => setAbsNote(e.target.value)} placeholder="pl. Orvosi vizsgálat" style={INP} />
-            {absStatus === 'error' && <div style={{ color: '#c94f4f', fontSize: '0.82rem' }}>{absError}</div>}
+            {absStatus === 'error' && <div style={{ color: 'var(--red)', fontSize: '0.82rem' }}>{absError}</div>}
             <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.2rem' }}>
               <Btn onClick={() => setAbsOpen(false)}>Mégse</Btn>
               <Btn onClick={submitAbsence} accent>{absStatus === 'saving' ? 'Küldés…' : 'Beküldés'}</Btn>
@@ -323,12 +324,12 @@ function fmtMins(m) {
 }
 
 const ABSENCE_LABELS = { vacation: 'Szabadság', sick: 'Betegszabadság', unjustified: 'Igazolatlan', other: 'Egyéb' }
-const LBL = { fontSize: '0.7rem', color: '#8f98a0', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.05em' }
-const INP = { width: '100%', padding: '0.6rem', fontSize: '0.9rem', background: '#1b2838', border: '1px solid #3d4450', color: '#c6d4df', boxSizing: 'border-box', borderRadius: 2, outline: 'none' }
+const LBL = { fontSize: '0.7rem', color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.05em' }
+const INP = { width: '100%', padding: '0.6rem 0.7rem', fontSize: '0.9rem', background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text)', boxSizing: 'border-box', borderRadius: 10, outline: 'none' }
 
 function Page({ children }) {
   return (
-    <div style={{ minHeight: '100dvh', background: '#1b2838', color: '#c6d4df', fontFamily: 'system-ui, sans-serif' }}>
+    <div style={{ minHeight: '100dvh', background: 'var(--bg)', color: 'var(--text)', fontFamily: 'system-ui, sans-serif' }}>
       {children}
     </div>
   )
@@ -336,7 +337,7 @@ function Page({ children }) {
 
 function PageHeader({ title, right }) {
   return (
-    <div style={{ background: '#16202d', borderBottom: '1px solid #3d4450', padding: '0.9rem 1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <div style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)', padding: '0.9rem 1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
       <span style={{ fontWeight: 800, fontSize: '1.1rem' }}>{title}</span>
       {right}
     </div>
@@ -345,11 +346,11 @@ function PageHeader({ title, right }) {
 
 function Section({ label, children }) {
   return (
-    <div style={{ marginTop: '0.75rem' }}>
-      <div style={{ borderLeft: '3px solid #66c0f4', paddingLeft: '0.75rem', marginLeft: '1rem', marginBottom: '0.4rem', fontWeight: 700, fontSize: '0.8rem', color: '#8f98a0', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+    <div style={{ marginTop: '1rem', padding: '0 0.85rem' }}>
+      <div style={{ borderLeft: '3px solid var(--accent)', paddingLeft: '0.6rem', marginBottom: '0.45rem', fontWeight: 700, fontSize: '0.72rem', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
         {label}
       </div>
-      <div style={{ background: '#16202d', border: '1px solid #3d4450' }}>
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
         {children}
       </div>
     </div>
@@ -358,8 +359,8 @@ function Section({ label, children }) {
 
 function StatCell({ label, value, color, last }) {
   return (
-    <div style={{ padding: '0.75rem 1rem', borderRight: last ? 'none' : '1px solid #3d4450' }}>
-      <div style={{ fontSize: '0.7rem', color: '#8f98a0', textTransform: 'uppercase', fontWeight: 700 }}>{label}</div>
+    <div style={{ padding: '0.75rem 1rem', borderRight: last ? 'none' : '1px solid var(--border)' }}>
+      <div style={{ fontSize: '0.7rem', color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 700 }}>{label}</div>
       <div style={{ fontWeight: 800, fontSize: '1.15rem', color }}>{value}</div>
     </div>
   )
@@ -367,26 +368,26 @@ function StatCell({ label, value, color, last }) {
 
 function PersonRow({ person, status }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.6rem 1rem', borderBottom: '1px solid #3d4450' }}>
-      <div style={{ width: 8, height: 8, borderRadius: '50%', background: status === 'in' ? '#5ba32b' : '#3d4450', flexShrink: 0 }} />
+    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.6rem 1rem', borderBottom: '1px solid var(--border)' }}>
+      <div style={{ width: 8, height: 8, borderRadius: '50%', background: status === 'in' ? 'var(--green)' : 'var(--border)', flexShrink: 0 }} />
       <div>
         <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>{person.name}</div>
-        {person.department && <div style={{ fontSize: '0.75rem', color: '#8f98a0' }}>{person.department}</div>}
+        {person.department && <div style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>{person.department}</div>}
       </div>
     </div>
   )
 }
 
 function Empty({ children }) {
-  return <div style={{ color: '#8f98a0', padding: '1rem', textAlign: 'center', fontSize: '0.9rem' }}>{children}</div>
+  return <div style={{ color: 'var(--muted)', padding: '1rem', textAlign: 'center', fontSize: '0.9rem' }}>{children}</div>
 }
 
 function FullScreen({ bg, emoji, title, sub, onReset, children }) {
   return (
-    <div style={{ height: '100dvh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '1rem', background: bg, color: '#c6d4df', fontFamily: 'system-ui, sans-serif', textAlign: 'center', padding: '1.5rem', boxSizing: 'border-box' }}>
+    <div style={{ height: '100dvh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '1rem', background: bg, color: 'var(--text)', fontFamily: 'system-ui, sans-serif', textAlign: 'center', padding: '1.5rem', boxSizing: 'border-box' }}>
       <div style={{ fontSize: 'clamp(3rem, 16vw, 5rem)', lineHeight: 1 }}>{emoji}</div>
-      <div style={{ fontSize: 'clamp(1.5rem, 7vw, 2rem)', fontWeight: 800, color: '#c6d4df' }}>{title}</div>
-      {sub && <div style={{ fontSize: '0.95rem', color: '#8f98a0', maxWidth: 420 }}>{sub}</div>}
+      <div style={{ fontSize: 'clamp(1.5rem, 7vw, 2rem)', fontWeight: 800, color: 'var(--text)' }}>{title}</div>
+      {sub && <div style={{ fontSize: '0.95rem', color: 'var(--muted)', maxWidth: 420 }}>{sub}</div>}
       {children}
       {onReset && <Btn onClick={onReset}>Újra</Btn>}
     </div>
@@ -396,11 +397,11 @@ function FullScreen({ bg, emoji, title, sub, onReset, children }) {
 function Btn({ onClick, accent, children }) {
   return (
     <button onClick={onClick} style={{
-      padding: '0.8rem 1.5rem', fontSize: '0.95rem', fontWeight: 700,
-      background: accent ? '#66c0f4' : '#2a475e',
-      color: accent ? '#1b2838' : '#c6d4df',
-      border: '1px solid ' + (accent ? '#66c0f4' : '#3d4450'),
-      borderRadius: '2px', cursor: 'pointer', width: '100%',
+      padding: '0.8rem 1.5rem', fontSize: '0.95rem', fontWeight: 600,
+      background: accent ? 'var(--accent)' : 'var(--surface-2)',
+      color: accent ? 'var(--accent-contrast)' : 'var(--text)',
+      border: '1px solid ' + (accent ? 'var(--accent)' : 'var(--border)'),
+      borderRadius: 10, cursor: 'pointer', width: '100%',
     }}>
       {children}
     </button>

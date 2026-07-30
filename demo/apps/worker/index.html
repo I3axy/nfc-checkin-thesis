@@ -1,16 +1,59 @@
 <!doctype html>
-<html lang="en">
+<html lang="hu">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#1d4ed8" />
+    <meta name="theme-color" content="#0b0b0d" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="icon" href="/icon-192.png" type="image/png" />
     <title>Worker App</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
     <style>
+      /* ==== Design tokens — keep in sync with apps/dashboard and apps/scanner.
+             The worker app follows the phone's dark/light preference. ==== */
+      :root {
+        color-scheme: dark;
+        --bg: #0b0b0d;
+        --surface: #131316;
+        --surface-2: #1a1a1f;
+        --border: #26262c;
+        --text: #ececef;
+        --muted: #8f8f99;
+        --accent: #818cf8;
+        --accent-contrast: #0b0b0d;
+        --green: #34d399;
+        --red: #f87171;
+        --warn: #fbbf24;
+        --cal-justified: #a78bfa;
+      }
+      @media (prefers-color-scheme: light) {
+        :root {
+          color-scheme: light;
+          --bg: #f7f7f8;
+          --surface: #ffffff;
+          --surface-2: #f2f2f4;
+          --border: #e4e4e9;
+          --text: #1a1a1f;
+          --muted: #6e6e78;
+          --accent: #4f46e5;
+          --accent-contrast: #ffffff;
+          --green: #059669;
+          --red: #dc2626;
+          --warn: #b45309;
+          --cal-justified: #7c3aed;
+        }
+      }
       * { margin: 0; padding: 0; box-sizing: border-box; }
       html, body, #root { height: 100%; }
-      body { background: #1d4ed8; font-family: system-ui, -apple-system, sans-serif; }
+      body {
+        background: var(--bg);
+        color: var(--text);
+        font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      input, select, button { font-family: inherit; }
     </style>
   </head>
   <body>
@@ -18,10 +61,10 @@
     <script>
       window.addEventListener('error', function(e) {
         document.getElementById('root').innerHTML =
-          '<div style="height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#1e3a8a;color:#fff;font-family:monospace;padding:2rem;gap:1rem;text-align:center">'
+          '<div style="height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#0b0b0d;color:#fff;font-family:monospace;padding:2rem;gap:1rem;text-align:center">'
           + '<div style="font-size:2.5rem">💥</div>'
           + '<div style="font-weight:bold;font-size:1.1rem">JS Error</div>'
-          + '<div style="font-size:0.8rem;color:#bfdbfe;word-break:break-all">' + (e.message || 'Unknown error') + '</div>'
+          + '<div style="font-size:0.8rem;color:#8f8f99;word-break:break-all">' + (e.message || 'Unknown error') + '</div>'
           + '</div>'
       })
     </script>

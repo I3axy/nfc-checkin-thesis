@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
 import * as XLSX from 'xlsx'
 import { supabase } from '../lib/supabase'
-import { C, S } from '../lib/theme'
+import { C, S, tint } from '../lib/theme'
 import { fmtClock } from '../lib/utils'
 import { Table, Th, TableEmpty, Badge, Modal } from '../components/ui'
+import { toast } from '../components/toast'
 
 export function LogTab({ events, onSaved }) {
   const [nameFilter, setNameFilter] = useState('all')
@@ -18,7 +19,9 @@ export function LogTab({ events, onSaved }) {
 
   async function deleteEvent(id) {
     setDeleting(id)
-    await supabase.from('events').delete().eq('id', id)
+    const { error } = await supabase.from('events').delete().eq('id', id)
+    if (error) toast('A törlés nem sikerült', 'error')
+    else toast('Esemény törölve')
     onSaved(); setDeleting(null)
   }
 
@@ -62,13 +65,20 @@ export function LogTab({ events, onSaved }) {
             <tr key={e.id} style={{ borderBottom: `1px solid ${C.border}` }}>
               <td style={S.td}>
                 <span style={{ fontWeight: 600, color: C.text }}>{e.name}</span>
-                {e.is_manual && <span style={{ marginLeft: '0.4rem', fontSize: '0.65rem', color: C.accent, border: `1px solid ${C.accent}40`, padding: '0 0.3rem' }}>kézi</span>}
+                {e.is_manual && <span style={{ marginLeft: '0.4rem', fontSize: '0.65rem', color: C.accent, border: `1px solid ${tint(C.accent, 28)}`, padding: '0 0.3rem' }}>kézi</span>}
                 {e.note && <div style={{ fontSize: '0.72rem', color: C.muted }}>{e.note}</div>}
               </td>
               <td style={S.td}>
-                <Badge color={e.type === 'checkin' ? C.green : C.red}>{e.type === 'checkin' ? '↑ Be' : '↓ Ki'}</Badge>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}>
+                  <span style={{ width: 22, height: 22, borderRadius: '50%', background: tint(e.type === 'checkin' ? C.green : C.red, 15), color: e.type === 'checkin' ? C.green : C.red, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.72rem', fontWeight: 800, flexShrink: 0 }}>
+                    {e.type === 'checkin' ? '↑' : '↓'}
+                  </span>
+                  <span style={{ fontSize: '0.78rem', fontWeight: 600, color: e.type === 'checkin' ? C.green : C.red }}>
+                    {e.type === 'checkin' ? 'Belépés' : 'Kilépés'}
+                  </span>
+                </span>
                 {e.photo_url && (
-                  <button onClick={() => setPhotoView(e)} title="Fénykép megtekintése" style={{ ...S.btnIcon, marginLeft: '0.4rem', padding: '0.1rem 0.4rem' }}>📷</button>
+                  <button onClick={() => setPhotoView(e)} title="Fénykép megtekintése" style={{ ...S.btnIcon, marginLeft: '0.5rem', padding: '0.1rem 0.4rem' }}>📷</button>
                 )}
               </td>
               <td style={{ ...S.td, fontFamily: 'monospace', fontSize: '0.82rem' }}>
@@ -77,7 +87,7 @@ export function LogTab({ events, onSaved }) {
               </td>
               <td style={{ ...S.td, textAlign: 'right' }}>
                 {e.is_manual && (
-                  <button onClick={() => deleteEvent(e.id)} disabled={deleting === e.id} style={{ ...S.btnIcon, color: C.red, borderColor: C.red + '40' }}>
+                  <button onClick={() => deleteEvent(e.id)} disabled={deleting === e.id} style={{ ...S.btnIcon, color: C.red, borderColor: tint(C.red, 30) }}>
                     {deleting === e.id ? '…' : '✕'}
                   </button>
                 )}
