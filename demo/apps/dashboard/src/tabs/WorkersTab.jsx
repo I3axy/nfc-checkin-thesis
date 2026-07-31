@@ -63,7 +63,7 @@ export function WorkersTab({ employees, settings, onSaved }) {
                 border: `1px solid ${filter === key ? C.accent : C.border}`,
                 background: filter === key ? tint(C.accent, 10) : 'transparent',
                 color: filter === key ? C.accent : C.muted,
-                cursor: 'pointer', borderRadius: 6,
+                cursor: 'pointer', borderRadius: 0,
               }}
             >
               {label}
@@ -551,7 +551,7 @@ function getMonthDays(month) {
 const NAV_BTN = {
   background: 'transparent', border: 'none', color: C.muted,
   cursor: 'pointer', fontSize: '1rem', padding: '0.2rem 0.4rem',
-  lineHeight: 1, borderRadius: 4,
+  lineHeight: 1, borderRadius: 0,
 }
 
 function CalendarGrid({ days, events, absences, settings, selectedDay, onDayClick, calMonth, loading, onPrevMonth, onNextMonth, onPrevYear, onNextYear }) {

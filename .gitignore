@@ -16,3 +16,6 @@ build/
 # OS
 .DS_Store
 Thumbs.db
+
+# Personal notes / test plans (not part of the deliverable)
+TESZT-TERV.txt

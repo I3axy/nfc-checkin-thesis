@@ -36,7 +36,8 @@ export const CAL = {
   unjustified: { bar: 'var(--cal-unjustified)', text: 'var(--cal-unjustified)' },
 }
 
-export const R = { sm: 6, md: 8, lg: 12 }
+// Sharp, squared-off corners throughout — set these to re-introduce rounding.
+export const R = { sm: 0, md: 0, lg: 0 }
 
 export const S = {
   input: {

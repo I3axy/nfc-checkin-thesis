@@ -97,7 +97,10 @@ export function SettingsTab({ settings, companyId, me, onChange }) {
   }
 
   return (
-    <form onSubmit={handleSave} style={{ maxWidth: 560 }}>
+    // Two columns: editable company settings on the left, read-only /
+    // one-off actions (notifications, account) on the right.
+    <form onSubmit={handleSave} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))', gap: '2rem', alignItems: 'start', maxWidth: 1200 }}>
+      <div>
       <SectionLabel color={C.accent}>Munkaidő szabályok</SectionLabel>
       <Table>
         <tbody>
@@ -155,11 +158,11 @@ export function SettingsTab({ settings, companyId, me, onChange }) {
             }}>
               {/* Mini theme preview */}
               <div style={{ background: t.pv.bg, padding: '0.85rem', borderBottom: `1px solid ${t.pv.border}` }}>
-                <div style={{ background: t.pv.surface, border: `1px solid ${t.pv.border}`, borderRadius: 8, padding: '0.5rem 0.6rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                  <span style={{ width: 10, height: 10, borderRadius: '50%', background: t.pv.accent, flexShrink: 0 }} />
-                  <span style={{ height: 6, width: '55%', borderRadius: 3, background: t.pv.border }} />
+                <div style={{ background: t.pv.surface, border: `1px solid ${t.pv.border}`, padding: '0.5rem 0.6rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <span style={{ width: 10, height: 10, background: t.pv.accent, flexShrink: 0 }} />
+                  <span style={{ height: 6, width: '55%', background: t.pv.border }} />
                 </div>
-                <div style={{ height: 6, width: '70%', borderRadius: 3, background: t.pv.border, marginTop: '0.5rem' }} />
+                <div style={{ height: 6, width: '70%', background: t.pv.border, marginTop: '0.5rem' }} />
               </div>
               <div style={{ padding: '0.6rem 0.9rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
                 <div>
@@ -173,7 +176,17 @@ export function SettingsTab({ settings, companyId, me, onChange }) {
         })}
       </div>
 
-      <div style={{ height: '1.5rem' }} />
+      {error && <div style={{ ...S.errorBox, marginTop: '1rem' }}>{error}</div>}
+
+      <div style={{ marginTop: '1.25rem' }}>
+        <button type="submit" disabled={saving} style={{ ...S.btnPrimary, opacity: saving ? 0.6 : 1, background: saved ? C.green : C.accent }}>
+          {saving ? 'Mentés…' : saved ? '✓ Mentve' : 'Beállítások mentése'}
+        </button>
+      </div>
+      </div>
+
+      {/* ── Right column ─────────────────────────────────────────────── */}
+      <div>
       <SectionLabel color={C.accent}>Értesítések</SectionLabel>
       <Table>
         <tbody>
@@ -226,13 +239,6 @@ export function SettingsTab({ settings, companyId, me, onChange }) {
           </tr>
         </tbody>
       </Table>
-
-      {error && <div style={{ ...S.errorBox, marginTop: '1rem' }}>{error}</div>}
-
-      <div style={{ marginTop: '1.25rem' }}>
-        <button type="submit" disabled={saving} style={{ ...S.btnPrimary, opacity: saving ? 0.6 : 1, background: saved ? C.green : C.accent }}>
-          {saving ? 'Mentés…' : saved ? '✓ Mentve' : 'Beállítások mentése'}
-        </button>
       </div>
     </form>
   )

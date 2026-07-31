@@ -77,7 +77,7 @@ export function RegisterTab({ companyId, onSaved }) {
   }
 
   if (status === 'ok') return (
-    <div style={{ background: C.bg1, border: `1px solid ${C.border}`, padding: '2.5rem 2rem', textAlign: 'center', maxWidth: 420, borderRadius: R.lg }}>
+    <div style={{ background: C.bg1, border: `1px solid ${C.border}`, padding: '2.5rem 2rem', textAlign: 'center', maxWidth: 420, margin: '2.5rem auto 0', borderRadius: R.lg }}>
       <div style={{ width: 52, height: 52, borderRadius: '50%', background: tint(C.green, 15), color: C.green, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem', fontWeight: 800, marginBottom: '0.75rem' }}>✓</div>
       <div style={{ fontWeight: 700, color: C.text, fontSize: '1.05rem' }}>{okGuest ? 'Vendég regisztrálva' : 'Dolgozó regisztrálva'}</div>
       {okName && <div style={{ color: C.muted, fontSize: '0.85rem', marginTop: '0.25rem' }}>{okName}</div>}
@@ -86,19 +86,19 @@ export function RegisterTab({ companyId, onSaved }) {
   )
 
   return (
-    <div style={{ maxWidth: 520 }}>
+    <div style={{ maxWidth: 520, margin: '2.5rem auto 0' }}>
       <SectionLabel color={C.accent}>Új személy regisztrálása</SectionLabel>
       <div style={{ background: C.bg1, border: `1px solid ${C.border}`, borderRadius: R.lg, padding: '1.5rem' }}>
 
-        {/* Role segmented control */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 4, background: C.bg0, border: `1px solid ${C.border}`, borderRadius: R.md, padding: 4, marginBottom: '1.1rem' }}>
+        {/* Role selector — the active option is marked by weight/colour only */}
+        <div style={{ display: 'flex', gap: '1.5rem', marginBottom: '1.25rem' }}>
           {ROLES.map(r => (
             <button key={r.key} type="button" onClick={() => setRole(r.key)} style={{
-              padding: '0.45rem 0', fontSize: '0.8rem', fontWeight: role === r.key ? 600 : 500,
-              background: role === r.key ? C.bg1 : 'transparent',
+              padding: 0, fontSize: '0.86rem',
+              fontWeight: role === r.key ? 700 : 500,
+              background: 'transparent',
               color: role === r.key ? C.text : C.muted,
-              border: role === r.key ? `1px solid ${C.border}` : '1px solid transparent',
-              borderRadius: R.sm, cursor: 'pointer',
+              border: 'none', cursor: 'pointer',
             }}>
               {r.label}
             </button>

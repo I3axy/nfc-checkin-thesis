@@ -27,7 +27,7 @@ export function TableEmpty({ children, colSpan }) {
 export function SectionLabel({ children, color }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-      <div style={{ width: 3, height: 14, background: color, borderRadius: 2 }} />
+      <div style={{ width: 3, height: 14, background: color, borderRadius: 0 }} />
       <span style={{ fontSize: '0.7rem', fontWeight: 700, color, textTransform: 'uppercase', letterSpacing: '0.1em' }}>{children}</span>
     </div>
   )
@@ -35,7 +35,7 @@ export function SectionLabel({ children, color }) {
 
 export function Badge({ children, color }) {
   return (
-    <span style={{ display: 'inline-block', fontSize: '0.72rem', fontWeight: 600, padding: '0.15rem 0.55rem', background: tint(color, 13), color, border: `1px solid ${tint(color, 28)}`, borderRadius: 999 }}>
+    <span style={{ display: 'inline-block', fontSize: '0.72rem', fontWeight: 600, padding: '0.15rem 0.55rem', background: tint(color, 13), color, border: `1px solid ${tint(color, 28)}`, borderRadius: 0 }}>
       {children}
     </span>
   )
@@ -69,7 +69,7 @@ export function Modal({ title, onClose, children, wide, maxWidth }) {
       <div style={{ background: C.bg1, border: `1px solid ${C.border}`, width: '100%', maxWidth: maxWidth ?? (wide ? 760 : 460), maxHeight: '90dvh', overflowY: 'auto', borderRadius: R.lg, boxShadow: C.shadow }}>
         <div style={{ borderBottom: `1px solid ${C.border}`, padding: '0.8rem 1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, background: C.bg1, zIndex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <div style={{ width: 3, height: 16, background: C.accent, borderRadius: 2 }} />
+            <div style={{ width: 3, height: 16, background: C.accent, borderRadius: 0 }} />
             <span style={{ fontWeight: 700, fontSize: '0.9rem', color: C.text }}>{title}</span>
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', fontSize: '1.2rem', lineHeight: 1, padding: '0.1rem 0.3rem', borderRadius: R.sm }}>×</button>

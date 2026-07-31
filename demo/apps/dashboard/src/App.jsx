@@ -54,7 +54,7 @@ function Login() {
     <div style={{ minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: C.bg0, padding: '1rem', boxSizing: 'border-box' }}>
       <div style={{ width: 'min(380px, 100%)' }}>
         <div style={{ marginBottom: '1.75rem', textAlign: 'center' }}>
-          <div style={{ width: 44, height: 44, borderRadius: 12, background: C.accent, color: C.accentContrast, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '1.05rem', marginBottom: '0.75rem' }}>N</div>
+          <div style={{ width: 44, height: 44, background: C.accent, color: C.accentContrast, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '1.05rem', marginBottom: '0.75rem' }}>N</div>
           <div style={{ fontSize: '1.3rem', fontWeight: 700, color: C.text, letterSpacing: '-0.02em' }}>NFC Check-in</div>
           <div style={{ fontSize: '0.8rem', color: C.muted, marginTop: '0.25rem' }}>Manager Dashboard</div>
         </div>
@@ -89,7 +89,6 @@ const NAV_ITEMS = [
 function Dashboard() {
   const [employees, setEmployees]   = useState([])
   const [events, setEvents]         = useState([])
-  const [lastUpdate, setLastUpdate] = useState(null)
   const [tab, setTab]               = useState('status')
   const [settings, setSettings]     = useState(() => ({ ...DEFAULT_SETTINGS, theme: loadTheme() }))
   const [me, setMe]                 = useState(null)
@@ -145,13 +144,17 @@ function Dashboard() {
       const today = getDaySummary(ue)
       return { ...p, lastEvent: latestEvent[p.id] ?? null, todayMinutes: today.totalMinutes, todayCheckins: today.checkins, firstInToday: today.firstIn, lastOutToday: today.lastOut, weekMinutes: calcRangeMinutes(ue, 7), weekEvents: countRangeEvents(ue, 7) }
     }))
-    setEvents((allEvents ?? []).map(e => ({ ...e, name: profileMap[e.user_id]?.name ?? 'Ismeretlen' })))
+    setEvents((allEvents ?? []).map(e => ({
+      ...e,
+      name: profileMap[e.user_id]?.name ?? 'Ismeretlen',
+      department: profileMap[e.user_id]?.department ?? null,
+    })))
   }, [])
 
   useEffect(() => {
     loadData()
     const ch = supabase.channel('rt')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'events' }, () => { loadData(); setLastUpdate(new Date()) })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'events' }, () => loadData())
       .subscribe()
     return () => supabase.removeChannel(ch)
   }, [loadData])
@@ -172,22 +175,12 @@ function Dashboard() {
         {/* Header */}
         <div style={{ borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
           {collapsed ? (
-            <button onClick={toggleCollapsed} title="Menü kinyitása" style={{ width: 52, height: 52, background: 'transparent', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <span style={{ width: 28, height: 28, borderRadius: 8, background: C.accent, color: C.accentContrast, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '0.8rem' }}>N</span>
+            <button onClick={toggleCollapsed} title="Menü kinyitása" style={{ width: 52, height: 52, background: 'transparent', border: 'none', cursor: 'pointer', color: C.muted, fontSize: '0.9rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              »
             </button>
           ) : (
-            <div style={{ padding: '0.9rem 0.9rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', minWidth: 0 }}>
-                <span style={{ width: 28, height: 28, borderRadius: 8, background: C.accent, color: C.accentContrast, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '0.8rem', flexShrink: 0 }}>N</span>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: '0.9rem', fontWeight: 700, color: C.text, whiteSpace: 'nowrap', letterSpacing: '-0.01em' }}>NFC Check-in</div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: C.green, display: 'inline-block' }} />
-                    <span style={{ fontSize: '0.62rem', color: C.green, textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 600 }}>Live</span>
-                    {lastUpdate && <span style={{ fontSize: '0.6rem', color: C.muted }}>{lastUpdate.toLocaleTimeString()}</span>}
-                  </div>
-                </div>
-              </div>
+            <div style={{ padding: '0.9rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ fontSize: '0.9rem', fontWeight: 700, color: C.text, whiteSpace: 'nowrap', letterSpacing: '-0.01em' }}>NFC Check-in</div>
               <button onClick={toggleCollapsed} title="Menü becsukása" style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: C.muted, fontSize: '0.9rem', padding: '0.2rem 0.3rem', flexShrink: 0, borderRadius: R.sm }}>
                 «
               </button>
@@ -195,8 +188,9 @@ function Dashboard() {
           )}
         </div>
 
-        {/* Nav */}
-        <nav style={{ flex: 1, padding: collapsed ? '0.4rem 0' : '0.5rem 0.55rem', overflowY: 'hidden' }}>
+        {/* Nav — overflow hidden on BOTH axes: a horizontal scrollbar would
+            otherwise show up as a stray strip above the sign-out button */}
+        <nav style={{ flex: 1, padding: collapsed ? '0.4rem 0' : '0.5rem 0.55rem', overflow: 'hidden' }}>
           {NAV_ITEMS.map(n => {
             const active = tab === n.key
             return collapsed ? (
@@ -269,7 +263,7 @@ function Dashboard() {
         <div style={{ flex: 1, padding: '1.25rem 1.5rem', overflowY: 'auto' }}>
           {tab === 'status'   && <StatusTab   employees={employees} onSaved={loadData} settings={settings} />}
           {tab === 'workers'  && <WorkersTab  employees={employees} settings={settings} onSaved={loadData} />}
-          {tab === 'log'      && <LogTab      events={events} onSaved={loadData} />}
+          {tab === 'log'      && <LogTab      events={events} employees={employees} onSaved={loadData} />}
           {tab === 'insights' && <InsightsTab employees={employees} events={events} settings={settings} />}
           {tab === 'register' && <RegisterTab companyId={me?.company_id} onSaved={loadData} />}
           {tab === 'settings' && <SettingsTab settings={settings} companyId={me?.company_id} me={me} onChange={setSettings} />}

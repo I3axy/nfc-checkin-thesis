@@ -66,7 +66,7 @@ export function InsightsTab({ employees, settings }) {
 
   const periodLabel = PERIODS.find(p => p.days === period)?.label ?? `${period} nap`
 
-  // ── AI summary (placeholder generator — swap for an LLM Edge Function later)
+  // ── MI summary (placeholder generator — swap for an LLM Edge Function later)
   function openAi() {
     setAiOpen(true); setAiState('thinking')
     setTimeout(() => {
@@ -115,25 +115,24 @@ export function InsightsTab({ employees, settings }) {
           ))}
         </div>
 
-        {/* AI summary trigger */}
-        <button type="button" onClick={() => (aiOpen ? setAiOpen(false) : openAi())} title="AI összefoglaló" style={{
-          display: 'flex', alignItems: 'center', gap: '0.4rem',
-          padding: '0.45rem 0.95rem', fontSize: '0.8rem', fontWeight: 600,
-          background: aiOpen ? tint(C.accent, 18) : tint(C.accent, 10),
-          color: C.accent, border: `1px solid ${tint(C.accent, 30)}`,
-          borderRadius: 999, cursor: 'pointer',
+        {/* MI summary trigger */}
+        <button type="button" onClick={() => (aiOpen ? setAiOpen(false) : openAi())} title="MI összefoglaló" style={{
+          padding: '0.45rem 1.1rem', fontSize: '0.85rem', fontWeight: 700,
+          background: aiOpen ? tint(C.green, 18) : tint(C.green, 10),
+          color: C.green, border: `1px solid ${tint(C.green, 30)}`,
+          borderRadius: 0, cursor: 'pointer', letterSpacing: '0.02em',
         }}>
-          ✨ AI összefoglaló
+          MI
         </button>
       </div>
 
-      {/* ── AI panel ────────────────────────────────────────────────────── */}
+      {/* ── MI panel ────────────────────────────────────────────────────── */}
       {aiOpen && (
         <div style={{ background: tint(C.accent, 6), border: `1px solid ${tint(C.accent, 22)}`, borderRadius: R.lg, padding: '1rem 1.25rem', marginBottom: '1.25rem', animation: 'fade-up 0.25s ease' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.6rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <span style={{ fontSize: '0.95rem' }}>✨</span>
-              <span style={{ fontSize: '0.82rem', fontWeight: 700, color: C.accent }}>AI összefoglaló</span>
+              <span style={{ fontSize: '0.82rem', fontWeight: 700, color: C.accent }}>MI összefoglaló</span>
               <span style={{ fontSize: '0.72rem', color: C.muted }}>{sel.name} · utolsó {periodLabel}</span>
             </div>
             <button onClick={() => setAiOpen(false)} style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', fontSize: '1.05rem', lineHeight: 1 }}>×</button>
@@ -142,7 +141,7 @@ export function InsightsTab({ employees, settings }) {
           {aiState === 'thinking' ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
               {[92, 78, 60].map((w, i) => (
-                <div key={i} style={{ height: 10, width: `${w}%`, borderRadius: 5, background: tint(C.accent, 18), animation: `shimmer 1.2s ease ${i * 0.15}s infinite` }} />
+                <div key={i} style={{ height: 10, width: `${w}%`, background: tint(C.accent, 18), animation: `shimmer 1.2s ease ${i * 0.15}s infinite` }} />
               ))}
             </div>
           ) : (
@@ -173,13 +172,13 @@ export function InsightsTab({ employees, settings }) {
             <XAxis dataKey="name" tick={{ fill: C.muted, fontSize: 10 }} axisLine={false} tickLine={false} interval={chart.interval} />
             <YAxis tick={{ fill: C.muted, fontSize: 11 }} axisLine={false} tickLine={false} unit="h" width={30} />
             <Tooltip
-              contentStyle={{ background: C.bg2, border: `1px solid ${C.border}`, color: C.text, fontSize: '0.8rem', borderRadius: 8 }}
+              contentStyle={{ background: C.bg2, border: `1px solid ${C.border}`, color: C.text, fontSize: '0.8rem', borderRadius: 0 }}
               labelFormatter={(_, payload) => payload?.[0]?.payload?.full ?? ''}
               formatter={(v) => [`${v} óra`, 'Ledolgozott']}
               cursor={{ fill: C.bg2 }}
             />
             <ReferenceLine y={chart.refLine} stroke={C.border} strokeDasharray="4 3" label={{ value: `${chart.refLine}h`, fill: C.muted, fontSize: 10, position: 'insideTopRight' }} />
-            <Bar dataKey="hours" radius={[3, 3, 0, 0]}>
+            <Bar dataKey="hours" radius={0}>
               {chart.data.map((d, i) => <Cell key={i} fill={d.color} />)}
             </Bar>
           </BarChart>
@@ -187,7 +186,7 @@ export function InsightsTab({ employees, settings }) {
         <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', paddingTop: '0.35rem', flexWrap: 'wrap' }}>
           {[[C.accent, period === 90 ? '40h+/hét' : '8h+'], [C.green, period === 90 ? 'Normál hét' : '6–8h'], [CAL.late.bar, period === 90 ? 'Kevés' : '<6h'], [C.bg2, 'Nem volt']].map(([color, label]) => (
             <div key={label} style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-              <div style={{ width: 9, height: 9, borderRadius: 3, background: color, border: `1px solid ${C.border}` }} />
+              <div style={{ width: 9, height: 9, background: color, border: `1px solid ${C.border}` }} />
               <span style={{ fontSize: '0.65rem', color: C.muted }}>{label}</span>
             </div>
           ))}
