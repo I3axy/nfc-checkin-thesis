@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { C, S } from '../lib/theme'
 import { normalizeUid, hashPin } from '../lib/utils'
 import { Modal, Field, Divider } from './ui'
+import { PhoneInput } from './PhoneInput'
 import { toast } from './toast'
 
 // ISO → datetime-local string (local time)
@@ -13,7 +14,10 @@ function toLocalInput(iso) {
 }
 
 export function EditModal({ employee, onClose, onSaved }) {
-  const [name, setName]   = useState(employee.name)
+  const [firstName, setFirstName] = useState(employee.first_name ?? '')
+  const [lastName, setLastName]   = useState(employee.last_name ?? '')
+  const [email, setEmail] = useState(employee.email ?? '')
+  const [phone, setPhone] = useState(employee.phone ?? null)
   const [role, setRole]   = useState(employee.role)
   const [dept, setDept]   = useState(employee.department ?? '')
   const [uid, setUid]     = useState(employee.nfc_uid ?? '')
@@ -42,11 +46,16 @@ export function EditModal({ employee, onClose, onSaved }) {
 
   async function handleSave(e) {
     e.preventDefault()
+    if (!lastName.trim() || !firstName.trim()) { setError('A vezeték- és keresztnév kötelező'); return }
     if (!isGuest && pinValue && !/^\d{4,6}$/.test(pinValue)) { setError('A PIN 4–6 számjegy legyen'); return }
     setSaving(true); setError('')
 
+    // A `name` generált oszlop — a két összetevőből áll össze.
     const update = {
-      name: name.trim(),
+      first_name: firstName.trim(),
+      last_name: lastName.trim(),
+      email: email.trim() || null,
+      phone: phone || null,
       role,
       department: isGuest ? null : (dept.trim() || null),
       nfc_uid: normalizeUid(uid) || null,
@@ -76,7 +85,14 @@ export function EditModal({ employee, onClose, onSaved }) {
   return (
     <Modal title={`Szerkesztés — ${employee.name}`} onClose={onClose}>
       <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-        <Field label="Név"><input value={name} onChange={e => setName(e.target.value)} required style={S.input} /></Field>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
+          <Field label="Vezetéknév"><input value={lastName} onChange={e => setLastName(e.target.value)} required style={S.input} /></Field>
+          <Field label="Keresztnév"><input value={firstName} onChange={e => setFirstName(e.target.value)} required style={S.input} /></Field>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
+          <Field label="E-mail"><input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="—" style={S.input} /></Field>
+          <Field label="Telefonszám"><PhoneInput value={phone} onChange={setPhone} /></Field>
+        </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
           <Field label="Szerepkör">
             <select value={role} onChange={e => setRole(e.target.value)} style={S.input}>

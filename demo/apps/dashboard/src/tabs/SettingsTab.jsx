@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { C, S, R } from '../lib/theme'
 import { saveTheme, loadTheme, settingsToCompany } from '../lib/settings'
 import { toast } from '../components/toast'
+import { SelfPasswordChange } from '../components/SelfPasswordChange'
 import { Table, SectionLabel, Badge, SettingsRow } from '../components/ui'
 
 // Preview swatches are literal colors so each card always shows its own theme,
@@ -228,13 +229,19 @@ export function SettingsTab({ settings, companyId, me, onChange }) {
             </td>
           </tr>
           <tr style={{ borderBottom: `1px solid ${C.border}` }}>
-            <td style={{ ...S.td, color: C.muted }}>Jelszó</td>
-            <td style={{ ...S.td, fontSize: '0.78rem', color: C.muted }}>Küldünk egy linket a fiókhoz tartozó email-re</td>
-            <td style={{ ...S.td, textAlign: 'right' }}>
-              {pwSent
-                ? <span style={{ fontSize: '0.78rem', color: C.green }}>✓ Email elküldve</span>
-                : <button type="button" onClick={handlePasswordReset} style={S.btnSecondary}>Változtatás →</button>
-              }
+            <td style={{ ...S.td, color: C.muted, verticalAlign: 'top' }}>Jelszó</td>
+            <td style={{ ...S.td }} colSpan={2}>
+              {/* Csak a saját jelszó módosítható — más vezetőé sem itt,
+                  sem a szerveren (a manage-user függvény elutasítja). */}
+              <SelfPasswordChange />
+              <div style={{ marginTop: '0.6rem', fontSize: '0.75rem', color: C.muted }}>
+                Elfelejtetted? {pwSent
+                  ? <span style={{ color: C.green }}>✓ Visszaállító e-mail elküldve</span>
+                  : <button type="button" onClick={handlePasswordReset} style={{ background: 'none', border: 'none', color: C.accent, cursor: 'pointer', padding: 0, fontSize: '0.75rem', textDecoration: 'underline' }}>
+                      Küldünk egy linket a fiókhoz tartozó címre
+                    </button>
+                }
+              </div>
             </td>
           </tr>
         </tbody>

@@ -32,7 +32,13 @@ create table profiles (
   auth_user_id  uuid unique references auth.users on delete set null,  -- only login users (manager/admin); workers have none (NFC = identity)
   company_id    uuid not null references companies(id) on delete cascade,
   nfc_uid       text,
-  name          text not null,
+  first_name    text not null default '',
+  last_name     text not null default '',
+  -- Teljes név: mindig a két összetevőből származik, így nem tud eltérni tőlük.
+  -- Minden meglévő lekérdezés (scanner, worker app, e-mail, export) ezt olvassa.
+  name          text generated always as (trim(both ' ' from last_name || ' ' || first_name)) stored,
+  phone         text,                        -- E.164 alak, pl. +36301234567
+  email         text,                        -- manager/admin esetén a belépési cím
   role          text not null check (role in ('worker', 'manager', 'admin', 'guest')),
   department    text,                        -- optional group/shift (e.g. "A műszak")
   pin           text,                        -- PIN fallback: sha256(company_id || ':' || pin), company-salted for lookup
@@ -232,6 +238,7 @@ create policy "absences: manager delete"
 create index on profiles   (auth_user_id);
 create index on profiles   (company_id);
 create index on profiles   (company_id, nfc_uid);
+create index on profiles   (company_id, last_name, first_name);
 create index on events     (company_id, user_id, timestamp desc);
 create index on events     (company_id, timestamp desc);
 create index on absences   (company_id, user_id, date);

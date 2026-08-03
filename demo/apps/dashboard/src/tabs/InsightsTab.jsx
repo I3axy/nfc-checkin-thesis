@@ -46,14 +46,26 @@ function shiftPeriod(period, start, dir) {
   return new Date(start.getFullYear(), start.getMonth() + 3 * dir, 1)
 }
 
+// ISO 8601 hetsorszám (a hét hétfővel kezdődik, az 1. hét a január 4-ét
+// tartalmazó hét) — a vezetői gyakorlatban ez a megszokott hivatkozás.
+function isoWeek(d) {
+  const x = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()))
+  x.setUTCDate(x.getUTCDate() + 4 - (x.getUTCDay() || 7))
+  const yearStart = new Date(Date.UTC(x.getUTCFullYear(), 0, 1))
+  return Math.ceil(((x - yearStart) / 86400000 + 1) / 7)
+}
+
+// Egy hét megnevezése dátumtartománnyal. A korábbi "máj. 18. hete" alak
+// félreolvasható volt ("a május 18. hete"), ezért helyette a tartomány áll.
+function weekRange(start) {
+  const end = addDays(start, 6)
+  return start.getMonth() === end.getMonth()
+    ? `${HU_MONTHS[start.getMonth()]} ${start.getDate()}–${end.getDate()}.`
+    : `${HU_MONTHS[start.getMonth()]} ${start.getDate()}. – ${HU_MONTHS[end.getMonth()]} ${end.getDate()}.`
+}
+
 function periodLabel(period, start) {
-  if (period === 'week') {
-    const end = addDays(start, 6)
-    const sameMonth = start.getMonth() === end.getMonth()
-    return sameMonth
-      ? `${start.getFullYear()}. ${HU_MONTHS[start.getMonth()]} ${start.getDate()}–${end.getDate()}.`
-      : `${HU_MONTHS[start.getMonth()]} ${start.getDate()}. – ${HU_MONTHS[end.getMonth()]} ${end.getDate()}.`
-  }
+  if (period === 'week') return `${isoWeek(start)}. hét · ${weekRange(start)}`
   if (period === 'month') return `${start.getFullYear()}. ${HU_MONTHS[start.getMonth()]}`
   return `${start.getFullYear()}. ${Math.floor(start.getMonth() / 3) + 1}. negyedév`
 }
@@ -64,7 +76,9 @@ export function InsightsTab({ employees, settings }) {
   const [period, setPeriod] = useState('week')
   const [anchor, setAnchor] = useState(() => periodStart('week', new Date()))
   const [data, setData] = useState({ events: [], absences: [], loading: true })
-  const [selectedKey, setSelectedKey] = useState(null)     // kiválasztott nap (ymd) vagy hét-kezdet
+  // A kiválasztás típusát is tárolni kell: egy hét kulcsa a hétfő dátuma,
+  // ami egyben egy valódi nap kulcsa is — enélkül a kettő összekeveredne.
+  const [selection, setSelection] = useState(null)         // { type: 'day'|'week', key }
   const [aiOpen, setAiOpen] = useState(false)
 
   useEffect(() => { if (staff.length > 0 && !selectedId) setSelectedId(staff[0].id) }, [staff, selectedId])
@@ -74,7 +88,7 @@ export function InsightsTab({ employees, settings }) {
   function changePeriod(p) {
     setPeriod(p)
     setAnchor(periodStart(p, anchor))
-    setSelectedKey(null)
+    setSelection(null)
   }
 
   const start = anchor
@@ -141,8 +155,8 @@ export function InsightsTab({ employees, settings }) {
   const maxMins = Math.max(480, ...bars.map(b => b.mins))
   const hasData = stats.totalMins > 0 || days.some(d => d.events.length > 0)
 
-  const selectedDay = selectedKey ? days.find(d => d.key === selectedKey) : null
-  const selectedWeek = period === 'quarter' && selectedKey ? bars.find(b => b.key === selectedKey) : null
+  const selectedDay = selection?.type === 'day' ? days.find(d => d.key === selection.key) : null
+  const selectedWeek = selection?.type === 'week' ? bars.find(b => b.key === selection.key) : null
 
   if (staff.length === 0) return <EmptyState>Nincs dolgozó</EmptyState>
 
@@ -152,7 +166,7 @@ export function InsightsTab({ employees, settings }) {
     <div style={{ position: 'relative' }}>
       {/* ── Fejléc ─────────────────────────────────────────────────────── */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
-        <select value={selectedId} onChange={e => { setSelectedId(e.target.value); setSelectedKey(null) }} style={{ ...S.input, width: 'auto', minWidth: 190 }}>
+        <select value={selectedId} onChange={e => { setSelectedId(e.target.value); setSelection(null) }} style={{ ...S.input, width: 'auto', minWidth: 190 }}>
           {staff.map(emp => <option key={emp.id} value={emp.id}>{emp.name}</option>)}
         </select>
         <Badge color={isIn ? C.green : C.muted}>{isIn ? 'Bent' : 'Kint'}</Badge>
@@ -179,17 +193,17 @@ export function InsightsTab({ employees, settings }) {
 
       {/* ── Időszak-navigáció ──────────────────────────────────────────── */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
-        <button type="button" onClick={() => { setAnchor(a => shiftPeriod(period, a, -1)); setSelectedKey(null) }} style={S.btnIcon}>‹</button>
+        <button type="button" onClick={() => { setAnchor(a => shiftPeriod(period, a, -1)); setSelection(null) }} style={S.btnIcon}>‹</button>
         <span style={{ fontSize: '0.85rem', fontWeight: 600, color: C.text, minWidth: 210, textAlign: 'center' }}>
           {periodLabel(period, start)}
         </span>
         <button
           type="button"
-          onClick={() => { setAnchor(a => shiftPeriod(period, a, 1)); setSelectedKey(null) }}
+          onClick={() => { setAnchor(a => shiftPeriod(period, a, 1)); setSelection(null) }}
           disabled={end > new Date()}
           style={{ ...S.btnIcon, opacity: end > new Date() ? 0.35 : 1 }}
         >›</button>
-        <button type="button" onClick={() => { setAnchor(periodStart(period, new Date())); setSelectedKey(null) }} style={{ ...S.btnIcon, marginLeft: '0.25rem' }}>Ma</button>
+        <button type="button" onClick={() => { setAnchor(periodStart(period, new Date())); setSelection(null) }} style={{ ...S.btnIcon, marginLeft: '0.25rem' }}>Ma</button>
         {data.loading && <span style={{ fontSize: '0.75rem', color: C.muted }}>betöltés…</span>}
       </div>
 
@@ -200,7 +214,7 @@ export function InsightsTab({ employees, settings }) {
           subColor={trendPct === null ? C.muted : trendPct >= 0 ? C.green : C.red} />
         <Kpi label="Munkanapok" value={stats.workDays} color={C.text} sub={periodLabel(period, start)} />
         <Kpi label="Késések" value={stats.lateDays} color={stats.lateDays > 0 ? CAL.late.bar : C.muted}
-          sub={stats.workDays > 0 ? `${Math.round((stats.lateDays / stats.workDays) * 100)}% a munkanapokból` : '—'} />
+          sub={stats.attendedDays > 0 ? `${Math.round((stats.lateDays / stats.attendedDays) * 100)}% a ${stats.attendedDays} jelenléti napból` : '—'} />
         <Kpi label="Átl. érkezés" value={stats.avgArrival ?? '—'} color={C.accent} mono
           sub={`küszöb: ${String(settings.startHour).padStart(2, '0')}:${String(settings.startMinute).padStart(2, '0')}`} />
         <Kpi label="Szünet összesen" value={fmtMins(stats.breakMins)} color={C.muted} sub={`${stats.breakCount} alkalom`} />
@@ -222,15 +236,30 @@ export function InsightsTab({ employees, settings }) {
               Nincs rögzített esemény ebben az időszakban.
             </div>
           ) : (
-            <BarChart bars={bars} maxMins={maxMins} selectedKey={selectedKey} onSelect={setSelectedKey} settings={settings} />
+            <BarChart
+              bars={bars}
+              maxMins={maxMins}
+              selectedKey={selection?.key ?? null}
+              weekly={period === 'quarter'}
+              onSelect={key => setSelection(cur =>
+                cur?.key === key ? null : { type: period === 'quarter' ? 'week' : 'day', key }
+              )}
+            />
           )}
         </div>
 
         <div style={{ background: C.bg1, border: `1px solid ${C.border}`, padding: '1rem', minHeight: 260 }}>
           {selectedDay
-            ? <DayDetail day={selectedDay} settings={settings} />
+            ? <DayDetail
+                day={selectedDay}
+                // Negyedév nézetben egy napra a heti bontáson keresztül jutunk,
+                // ezért kell visszaút a hétre.
+                onBack={period === 'quarter'
+                  ? () => setSelection({ type: 'week', key: ymd(startOfWeek(selectedDay.date)) })
+                  : null}
+              />
             : selectedWeek
-              ? <WeekDetail week={selectedWeek} days={days} onPickDay={setSelectedKey} />
+              ? <WeekDetail week={selectedWeek} days={days} onPickDay={key => setSelection({ type: 'day', key })} />
               : <div style={{ color: C.muted, fontSize: '0.85rem', padding: '2.5rem 1rem', textAlign: 'center' }}>
                   Válassz egy {period === 'quarter' ? 'hetet' : 'napot'} a grafikonon a részletes aktivitás megtekintéséhez.
                 </div>
@@ -246,9 +275,24 @@ export function InsightsTab({ employees, settings }) {
   )
 }
 
+// A segédvonalak lépésköze a tényleges nagyságrendhez igazodik: napi
+// oszlopoknál néhány óra, heti összegeknél több tíz óra a skála.
+function gridSteps(maxMins) {
+  const maxH = maxMins / 60
+  const step = [1, 2, 4, 5, 10, 20, 25, 50].find(c => maxH / c <= 5) ?? 100
+  const out = []
+  for (let h = 0; h <= maxH + 0.001; h += step) out.push(h)
+  return out
+}
+
 // ─── Oszlopdiagram (saját, hogy a kattintás és a hétvége-jelölés kézben legyen)
-function BarChart({ bars, maxMins, selectedKey, onSelect, settings }) {
-  const gridHours = [0, 2, 4, 6, 8].filter(h => h * 60 <= maxMins + 60)
+function BarChart({ bars, maxMins, selectedKey, onSelect, weekly }) {
+  const gridHours = gridSteps(maxMins)
+  // Heti összegnél a teljes hét (40 óra) a viszonyítás, nem a 8 órás nap.
+  const fullMins = weekly ? 2400 : 480
+  const legend = weekly
+    ? [[C.accent, '40h+'], [C.green, 'részleges hét'], [CAL.justified.bar, 'hiányzás'], [C.bg2, 'nem volt']]
+    : [[C.accent, '8h+'], [C.green, 'normál'], [CAL.late.bar, 'késett'], [CAL.justified.bar, 'hiányzás'], [C.bg2, 'nem volt']]
   return (
     <div>
       <div style={{ display: 'flex', gap: 2, alignItems: 'flex-end', height: 170, position: 'relative', borderBottom: `1px solid ${C.border}`, paddingBottom: 2 }}>
@@ -261,10 +305,12 @@ function BarChart({ bars, maxMins, selectedKey, onSelect, settings }) {
         {bars.map(b => {
           const active = selectedKey === b.key
           const h = maxMins > 0 ? (b.mins / maxMins) * 100 : 0
+          // Heti oszlopnál a késés-jelölés félrevezető lenne (egy késett nap
+          // miatt egy teljes hét is narancs lenne), ezért ott csak a mennyiség számít.
           const color = b.absence ? (b.absence === 'unjustified' ? CAL.unjustified.bar : CAL.justified.bar)
             : b.mins === 0 ? C.bg2
-            : b.late ? CAL.late.bar
-            : b.mins >= 480 ? C.accent : C.green
+            : (!weekly && b.late) ? CAL.late.bar
+            : b.mins >= fullMins ? C.accent : C.green
           return (
             <button
               key={b.key}
@@ -290,7 +336,7 @@ function BarChart({ bars, maxMins, selectedKey, onSelect, settings }) {
         ))}
       </div>
       <div style={{ display: 'flex', gap: '0.8rem', justifyContent: 'center', flexWrap: 'wrap', marginTop: '0.8rem' }}>
-        {[[C.accent, '8h+'], [C.green, 'normál'], [CAL.late.bar, 'késett'], [CAL.justified.bar, 'hiányzás'], [C.bg2, 'nem volt']].map(([c, l]) => (
+        {legend.map(([c, l]) => (
           <span key={l} style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
             <span style={{ width: 9, height: 9, background: c, border: `1px solid ${C.border}` }} />
             <span style={{ fontSize: '0.62rem', color: C.muted }}>{l}</span>
@@ -302,13 +348,16 @@ function BarChart({ bars, maxMins, selectedKey, onSelect, settings }) {
 }
 
 // ─── Napi részletező: 0–24 órás idősáv + minden tapp + szünetek ───────────────
-function DayDetail({ day, settings }) {
+function DayDetail({ day, onBack }) {
   const segs = segments(day.events)
   const brs = breaks(segs)
   const mins = d => d.getHours() * 60 + d.getMinutes()
 
   return (
     <div>
+      {onBack && (
+        <button onClick={onBack} style={{ ...S.btnIcon, marginBottom: '0.6rem', padding: '0.25rem 0.6rem' }}>‹ vissza</button>
+      )}
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '0.75rem', gap: '0.5rem', flexWrap: 'wrap' }}>
         <span style={{ fontSize: '0.9rem', fontWeight: 700, color: C.text }}>
           {HU_DAYS_MON[(day.date.getDay() + 6) % 7]} · {HU_MONTHS[day.date.getMonth()]} {day.date.getDate()}.
@@ -384,28 +433,45 @@ function DayDetail({ day, settings }) {
 
 // ─── Heti részletező (negyedév nézetben) ─────────────────────────────────────
 function WeekDetail({ week, days, onPickDay }) {
-  const wDays = days.filter(d => d.key >= week.key && d.key < ymd(addDays(new Date(week.key), 7)))
+  // A hét napjai: a hétfő dátumától számított 7 nap (a kulcs helyi dátum,
+  // ezért nem Date-tel, hanem a napok saját dátumával szűrünk).
+  const wEnd = ymd(addDays(week.date, 7))
+  const wDays = days.filter(d => d.key >= week.key && d.key < wEnd)
+  const events = wDays.reduce((n, d) => n + d.events.length, 0)
+  const worked = wDays.filter(d => d.mins > 0).length
+
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '0.35rem', gap: '0.5rem', flexWrap: 'wrap' }}>
         <span style={{ fontSize: '0.9rem', fontWeight: 700, color: C.text }}>{week.full}</span>
         <span style={{ fontSize: '0.8rem', fontWeight: 700, color: C.green, fontFamily: MONO }}>{fmtMins(week.mins)}</span>
       </div>
-      <div style={{ fontSize: '0.7rem', color: C.muted, marginBottom: '0.5rem' }}>Kattints egy napra a részletes aktivitásért.</div>
-      {wDays.map(d => (
-        <button key={d.key} onClick={() => onPickDay(d.key)} style={{
-          display: 'flex', width: '100%', alignItems: 'center', justifyContent: 'space-between',
-          padding: '0.45rem 0.5rem', border: 'none', borderBottom: `1px solid ${C.border}`,
-          background: 'transparent', cursor: 'pointer', textAlign: 'left',
-        }}>
-          <span style={{ fontFamily: MONO, fontSize: '0.8rem', color: C.text }}>
-            {HU_DAYS_MON[(d.date.getDay() + 6) % 7]} {HU_MONTHS[d.date.getMonth()]} {d.date.getDate()}.
-          </span>
-          <span style={{ fontSize: '0.78rem', fontFamily: MONO, color: d.mins > 0 ? C.green : C.muted }}>
-            {d.mins > 0 ? fmtMins(d.mins) : '—'}{d.events.length > 0 ? ` · ${d.events.length} tapp` : ''}
-          </span>
-        </button>
-      ))}
+      <div style={{ fontSize: '0.72rem', color: C.muted, marginBottom: '0.8rem' }}>
+        {worked} munkanap · {events} esemény — kattints egy napra a részletes aktivitásért
+      </div>
+      {wDays.map(d => {
+        const weekend = [0, 6].includes(d.date.getDay())
+        return (
+          <button key={d.key} onClick={() => onPickDay(d.key)} disabled={d.events.length === 0} style={{
+            display: 'flex', width: '100%', alignItems: 'center', justifyContent: 'space-between',
+            padding: '0.5rem', border: 'none', borderBottom: `1px solid ${C.border}`,
+            background: 'transparent', cursor: d.events.length ? 'pointer' : 'default',
+            textAlign: 'left', opacity: weekend && d.events.length === 0 ? 0.45 : 1,
+          }}>
+            <span style={{ fontSize: '0.8rem', color: C.text }}>
+              <span style={{ color: C.muted, fontFamily: MONO }}>{HU_DAYS_MON[(d.date.getDay() + 6) % 7]}</span>
+              {' '}{HU_MONTHS[d.date.getMonth()]} {d.date.getDate()}.
+              {d.late && <span style={{ marginLeft: '0.4rem', fontSize: '0.65rem', color: CAL.late.bar, fontWeight: 700 }}>késett</span>}
+              {d.absence && <span style={{ marginLeft: '0.4rem', fontSize: '0.65rem', color: d.absence === 'unjustified' ? CAL.unjustified.bar : CAL.justified.bar, fontWeight: 700 }}>
+                {ABSENCE_LABELS[d.absence] ?? d.absence}
+              </span>}
+            </span>
+            <span style={{ fontSize: '0.78rem', fontFamily: MONO, color: d.mins > 0 ? C.green : C.muted }}>
+              {d.mins > 0 ? fmtMins(d.mins) : '—'}{d.events.length > 0 ? ` · ${d.events.length} tapp ›` : ''}
+            </span>
+          </button>
+        )
+      })}
     </div>
   )
 }
@@ -597,6 +663,10 @@ function summarize(days) {
   return {
     totalMins: days.reduce((s, d) => s + d.mins, 0),
     workDays: days.filter(d => d.mins > 0).length,
+    // A késési arány nevezője a MEGJELENT napok száma, nem a mért munkaidős
+    // napoké: egy nyitva maradt (kilépés nélküli) nap 0 percet ad, de a
+    // késés akkor is megtörtént — így jöhetne ki 100% fölötti arány.
+    attendedDays: days.filter(d => d.firstIn).length,
     lateDays: days.filter(d => d.late).length,
     avgArrival: avgMin !== null ? `${String(Math.floor(avgMin / 60)).padStart(2, '0')}:${String(avgMin % 60).padStart(2, '0')}` : null,
     justified: days.filter(d => d.absence && d.absence !== 'unjustified').length,
@@ -616,8 +686,8 @@ function groupByWeek(days) {
   }
   return [...map.values()].map(w => ({
     ...w,
-    label: `${w.date.getMonth() + 1}.${w.date.getDate()}.`,
-    full: `${HU_MONTHS[w.date.getMonth()]} ${w.date.getDate()}. hete`,
+    label: `${isoWeek(w.date)}.`,
+    full: `${isoWeek(w.date)}. hét · ${weekRange(w.date)}`,
   }))
 }
 

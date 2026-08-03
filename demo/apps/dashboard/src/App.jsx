@@ -128,7 +128,7 @@ function Dashboard() {
 
   const loadData = useCallback(async () => {
     const [{ data: profiles }, { data: allEvents }] = await Promise.all([
-      supabase.from('profiles').select('id, company_id, name, role, department, nfc_uid, pin, guest_expires_at').order('name'),
+      supabase.from('profiles').select('id, company_id, name, first_name, last_name, email, phone, role, department, nfc_uid, pin, guest_expires_at').order('last_name'),
       supabase.from('events').select('id, user_id, type, timestamp, is_manual, note, photo_url').order('timestamp', { ascending: false }).limit(500),
     ])
     const latestEvent  = {}
@@ -262,10 +262,11 @@ function Dashboard() {
       <main style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
         <div style={{ flex: 1, padding: '1.25rem 1.5rem', overflowY: 'auto' }}>
           {tab === 'status'   && <StatusTab   employees={employees} onSaved={loadData} settings={settings} />}
-          {tab === 'workers'  && <WorkersTab  employees={employees} settings={settings} onSaved={loadData} />}
+          {tab === 'workers'  && <WorkersTab  employees={employees} settings={settings} me={me} onSaved={loadData} />}
           {tab === 'log'      && <LogTab      events={events} employees={employees} onSaved={loadData} />}
           {tab === 'insights' && <InsightsTab employees={employees} events={events} settings={settings} />}
-          {tab === 'register' && <RegisterTab companyId={me?.company_id} onSaved={loadData} />}
+          {/* A cég a szerveren, a hívó profiljából derül ki — nem kliensről érkezik */}
+          {tab === 'register' && <RegisterTab onSaved={loadData} />}
           {tab === 'settings' && <SettingsTab settings={settings} companyId={me?.company_id} me={me} onChange={setSettings} />}
         </div>
       </main>

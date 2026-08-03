@@ -3,6 +3,8 @@ import { supabase } from '../lib/supabase'
 import { C, S, CAL, tint } from '../lib/theme'
 import { calcDayMinutes, isWorkerLate, fmtMins, fmtClock, normalizeUid, hashPin } from '../lib/utils'
 import { Table, Th, TableEmpty, SectionLabel, Badge, Field } from '../components/ui'
+import { PhoneInput } from '../components/PhoneInput'
+import { SelfPasswordChange } from '../components/SelfPasswordChange'
 import { toast } from '../components/toast'
 
 const SHIFT_OPTIONS = ['Nappali', 'Éjszakai', 'C műszak', 'Rugalmas']
@@ -15,7 +17,7 @@ const SUBTABS = [
 
 // ─── Master list ──────────────────────────────────────────────────────────────
 
-export function WorkersTab({ employees, settings, onSaved }) {
+export function WorkersTab({ employees, settings, me, onSaved }) {
   const [search,   setSearch]   = useState('')
   const [filter,   setFilter]   = useState('all')
   const [selected, setSelected] = useState(null)
@@ -118,7 +120,7 @@ export function WorkersTab({ employees, settings, onSaved }) {
       {/* ── Right: detail or placeholder ── */}
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
         {selected
-          ? <WorkerDetail key={selected.id} worker={selected} employees={employees} settings={settings} onClose={() => setSelected(null)} onSaved={onSaved} />
+          ? <WorkerDetail key={selected.id} worker={selected} employees={employees} settings={settings} me={me} onClose={() => setSelected(null)} onSaved={onSaved} />
           : <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.muted, fontSize: '0.85rem', border: `1px solid ${C.border}`, background: C.bg1 }}>
               Válassz ki egy dolgozót a listából
             </div>
@@ -130,7 +132,7 @@ export function WorkersTab({ employees, settings, onSaved }) {
 
 // ─── Detail panel with sub-tabs ───────────────────────────────────────────────
 
-function WorkerDetail({ worker, employees, settings, onClose, onSaved }) {
+function WorkerDetail({ worker, employees, settings, me, onClose, onSaved }) {
   const [subTab, setSubTab] = useState('profil')
 
   return (
@@ -162,7 +164,7 @@ function WorkerDetail({ worker, employees, settings, onClose, onSaved }) {
 
       {/* Sub-tab content */}
       <div style={{ flex: 1, overflowY: 'auto', background: C.bg0, border: `1px solid ${C.border}`, borderTop: 'none', padding: '1.25rem', minHeight: 0 }}>
-        {subTab === 'profil'  && <ProfilSubTab  worker={worker} onSaved={onSaved} />}
+        {subTab === 'profil'  && <ProfilSubTab  worker={worker} onSaved={onSaved} isSelf={me?.id === worker.id} />}
         {subTab === 'naptar'  && <NaptarSubTab  worker={worker} settings={settings} />}
         {subTab === 'hianyok' && <HianyokSubTab worker={worker} />}
       </div>
@@ -172,8 +174,11 @@ function WorkerDetail({ worker, employees, settings, onClose, onSaved }) {
 
 // ─── Profil sub-tab ───────────────────────────────────────────────────────────
 
-function ProfilSubTab({ worker, onSaved }) {
-  const [name,    setName]    = useState(worker.name)
+function ProfilSubTab({ worker, onSaved, isSelf }) {
+  const [firstName, setFirstName] = useState(worker.first_name ?? '')
+  const [lastName, setLastName] = useState(worker.last_name ?? '')
+  const [email,   setEmail]   = useState(worker.email ?? '')
+  const [phone,   setPhone]   = useState(worker.phone ?? null)
   const [role,    setRole]    = useState(worker.role)
   const [dept,    setDept]    = useState(worker.department ?? '')
   const [uid,     setUid]     = useState(worker.nfc_uid ?? '')
@@ -183,12 +188,24 @@ function ProfilSubTab({ worker, onSaved }) {
   const [saveErr, setSaveErr] = useState('')
   const [saveOk,  setSaveOk]  = useState(false)
 
+  const isManager = role === 'manager' || role === 'admin'
+
   async function handleSave(e) {
     e.preventDefault()
+    if (!lastName.trim() || !firstName.trim()) { setSaveErr('A vezeték- és keresztnév kötelező'); return }
     if (pinValue && !/^\d{4,6}$/.test(pinValue)) { setSaveErr('A PIN 4–6 számjegy legyen'); return }
     setSaving(true); setSaveErr(''); setSaveOk(false)
 
-    const update = { name: name.trim(), role, department: dept.trim() || null, nfc_uid: normalizeUid(uid) || null }
+    // A `name` generált oszlop — a két összetevőt írjuk, az áll össze belőle.
+    const update = {
+      first_name: firstName.trim(),
+      last_name: lastName.trim(),
+      email: email.trim() || null,
+      phone: phone || null,
+      role,
+      department: dept.trim() || null,
+      nfc_uid: normalizeUid(uid) || null,
+    }
     // PIN: only touch it when explicitly set or cleared (it's stored hashed)
     if (clearPin) update.pin = null
     else if (pinValue) update.pin = await hashPin(worker.company_id, pinValue)
@@ -204,10 +221,26 @@ function ProfilSubTab({ worker, onSaved }) {
   }
 
   return (
-    <div style={{ maxWidth: 380 }}>
+    <div style={{ maxWidth: 420 }}>
       <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-        <Field label="Teljes név">
-          <input value={name} onChange={e => setName(e.target.value)} required style={S.input} />
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
+          <Field label="Vezetéknév">
+            <input value={lastName} onChange={e => setLastName(e.target.value)} required style={S.input} />
+          </Field>
+          <Field label="Keresztnév">
+            <input value={firstName} onChange={e => setFirstName(e.target.value)} required style={S.input} />
+          </Field>
+        </div>
+        <Field label="E-mail">
+          <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="—" style={S.input} />
+          {isManager && (
+            <div style={{ fontSize: '0.72rem', color: C.muted, marginTop: '0.3rem' }}>
+              Ez a kapcsolattartási cím. A belépéshez használt cím módosítása a Supabase felületén történik.
+            </div>
+          )}
+        </Field>
+        <Field label="Telefonszám">
+          <PhoneInput value={phone} onChange={setPhone} />
         </Field>
         <Field label="NFC UID">
           <input value={uid} onChange={e => setUid(e.target.value)} style={{ ...S.input, fontFamily: 'monospace' }} placeholder="pl. 04:A3:B2:C1" />
@@ -246,6 +279,22 @@ function ProfilSubTab({ worker, onSaved }) {
           {saving ? 'Mentés…' : saveOk ? '✓ Mentve' : 'Profil mentése'}
         </button>
       </form>
+
+      {/* Jelszó: idegen vezető jelszavát senki nem módosíthatja — sem itt,
+          sem a szerveren (a manage-user függvény is elutasítja). */}
+      {isManager && (
+        <div style={{ marginTop: '1.25rem', paddingTop: '1rem', borderTop: `1px solid ${C.border}` }}>
+          <Field label="Jelszó">
+            {isSelf
+              ? <SelfPasswordChange />
+              : <div style={{ fontSize: '0.78rem', color: C.muted, lineHeight: 1.5 }}>
+                  Más vezető jelszava nem módosítható. A jelszavát csak ő maga
+                  tudja megváltoztatni a saját profilján vagy a Beállítások lapon.
+                </div>
+            }
+          </Field>
+        </div>
+      )}
     </div>
   )
 }
