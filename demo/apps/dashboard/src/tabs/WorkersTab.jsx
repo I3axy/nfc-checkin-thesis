@@ -413,53 +413,156 @@ function NaptarSubTab({ worker, settings }) {
 
 // ─── Hiányzások sub-tab ───────────────────────────────────────────────────────
 
+// 'YYYY-MM-DD' -> helyi Date. A new Date('2026-05-18') UTC-t értene, ami
+// negatív időeltolású zónában előző napot adna.
+const parseYmd = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d) }
+const toYmd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+const MAX_RANGE_DAYS = 366
+
+// Az adatbázisban naponként egy sor áll (egyediségi megkötés a napra), ezért a
+// tartomány napokra bontva kerül rögzítésre. Így a naptár, a havi összesítő és
+// a dolgozói alkalmazás változtatás nélkül működik tovább.
+function expandRange(from, to, skipWeekends) {
+  const out = []
+  const end = parseYmd(to)
+  for (let d = parseYmd(from); d <= end; d.setDate(d.getDate() + 1)) {
+    if (skipWeekends && [0, 6].includes(d.getDay())) continue
+    out.push(toYmd(d))
+  }
+  return out
+}
+
+// Két nap akkor is egybefüggőnek számít, ha csak hétvége van közöttük — a
+// péntek és a rákövetkező hétfő ugyanannak a szabadságnak a része.
+function continuesFrom(prevYmd, nextYmd) {
+  const d = parseYmd(prevYmd)
+  const end = parseYmd(nextYmd)
+  d.setDate(d.getDate() + 1)
+  while (d < end) {
+    if (![0, 6].includes(d.getDay())) return false   // munkanap a résben: külön tétel
+    d.setDate(d.getDate() + 1)
+  }
+  return d.getTime() === end.getTime()
+}
+
+// Az egymást követő, azonos típusú és megjegyzésű napokat egy tételként
+// mutatjuk — különben egy kéthetes szabadság tíz sorként jelenne meg.
+function groupRuns(list) {
+  const sorted = [...list].sort((a, b) => a.date.localeCompare(b.date))
+  const runs = []
+  for (const a of sorted) {
+    const last = runs[runs.length - 1]
+    const follows = last && continuesFrom(last.to, a.date)
+    if (last && follows && last.type === a.type && (last.note ?? '') === (a.note ?? '')) {
+      last.to = a.date; last.ids.push(a.id); last.days++
+    } else {
+      runs.push({ from: a.date, to: a.date, type: a.type, note: a.note, ids: [a.id], days: 1 })
+    }
+  }
+  return runs.reverse()
+}
+
 function HianyokSubTab({ worker }) {
   const [absences, setAbsences] = useState([])
-  const [date,     setDate]     = useState(() => new Date().toISOString().slice(0, 10))
+  const [from,     setFrom]     = useState(() => toYmd(new Date()))
+  const [to,       setTo]       = useState(() => toYmd(new Date()))
+  const [skipWeekends, setSkipWeekends] = useState(true)
   const [type,     setType]     = useState('vacation')
   const [note,     setNote]     = useState('')
   const [saving,   setSaving]   = useState(false)
+  const [reload,   setReload]   = useState(0)
   const [error,    setError]    = useState('')
 
   useEffect(() => {
-    supabase.from('absences').select('id, date, type, note').eq('user_id', worker.id).order('date', { ascending: false }).limit(100)
+    supabase.from('absences').select('id, date, type, note').eq('user_id', worker.id).order('date', { ascending: false }).limit(400)
       .then(({ data }) => setAbsences(data ?? []))
-  }, [worker.id, saving])
+  }, [worker.id, reload])
+
+  const runs = groupRuns(absences)
+  const previewDays = (from && to && from <= to) ? expandRange(from, to, skipWeekends).length : 0
+
+  // A kezdő dátum sosem lehet a záró után
+  function changeFrom(v) { setFrom(v); if (to < v) setTo(v) }
 
   async function handleAdd(e) {
-    e.preventDefault(); setSaving(true); setError('')
-    const { error } = await supabase.from('absences').insert({ company_id: worker.company_id, user_id: worker.id, date, type, note: note.trim() || null })
-    if (error) { setError(error.message); toast('A hiányzás rögzítése nem sikerült', 'error') }
-    else { setNote(''); toast('Hiányzás rögzítve') }
+    e.preventDefault(); setError('')
+    if (to < from) { setError('A záró dátum nem lehet korábbi a kezdőnél'); return }
+    const dates = expandRange(from, to, skipWeekends)
+    if (dates.length === 0) { setError('A megadott időszakban nincs egyetlen munkanap sem'); return }
+    if (dates.length > MAX_RANGE_DAYS) { setError(`Legfeljebb ${MAX_RANGE_DAYS} nap rögzíthető egyszerre`); return }
+
+    setSaving(true)
+    const rows = dates.map(d => ({
+      company_id: worker.company_id, user_id: worker.id, date: d, type, note: note.trim() || null,
+    }))
+    // A már rögzített napokat átlépjük, nem hibázunk el miattuk az egészet
+    const { data, error } = await supabase
+      .from('absences')
+      .upsert(rows, { onConflict: 'company_id,user_id,date', ignoreDuplicates: true })
+      .select('id')
+
     setSaving(false)
+    if (error) { setError(error.message); toast('A hiányzás rögzítése nem sikerült', 'error'); return }
+
+    const added = data?.length ?? 0
+    const skipped = rows.length - added
+    setNote('')
+    setReload(r => r + 1)
+    if (added === 0) toast('Ezekre a napokra már volt rögzítve hiányzás', 'error')
+    else toast(`${added} nap rögzítve${skipped > 0 ? ` · ${skipped} nap már létezett` : ''}`)
   }
 
-  async function del(id) {
-    const { error } = await supabase.from('absences').delete().eq('id', id)
+  async function delRun(ids) {
+    const { error } = await supabase.from('absences').delete().in('id', ids)
     if (error) { toast('A törlés nem sikerült', 'error'); return }
-    toast('Hiányzás törölve')
-    setAbsences(prev => prev.filter(a => a.id !== id))
+    toast(ids.length > 1 ? `${ids.length} nap törölve` : 'Hiányzás törölve')
+    setAbsences(prev => prev.filter(a => !ids.includes(a.id)))
   }
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,320px) minmax(0,1fr)', gap: '1.5rem' }}>
-      <div>
+    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,360px) minmax(0,1fr)', gap: '1.5rem' }}>
+      <div style={{ minWidth: 0 }}>
         <SectionLabel color={C.accent}>Hiányzás rögzítése</SectionLabel>
         <div style={{ background: C.bg1, border: `1px solid ${C.border}`, padding: '1.25rem' }}>
           <form onSubmit={handleAdd} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-              <Field label="Dátum"><input type="date" value={date} onChange={e => setDate(e.target.value)} style={S.input} /></Field>
-              <Field label="Típus">
-                <select value={type} onChange={e => setType(e.target.value)} style={S.input}>
-                  {Object.entries(ABSENCE_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-                </select>
-              </Field>
+            {/* minWidth:0 kell, különben a natív dátummező nem tud a saját
+                minimális szélessége alá zsugorodni, és kilóg a szomszéd oszlopba */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr)', gap: '0.5rem' }}>
+              <div style={{ minWidth: 0 }}>
+                <Field label="Kezdő dátum">
+                  <input type="date" value={from} onChange={e => changeFrom(e.target.value)} style={{ ...S.input, minWidth: 0 }} />
+                </Field>
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <Field label="Záró dátum">
+                  <input type="date" value={to} min={from} onChange={e => setTo(e.target.value)} style={{ ...S.input, minWidth: 0 }} />
+                </Field>
+              </div>
             </div>
+
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.78rem', color: C.muted, cursor: 'pointer' }}>
+              <input type="checkbox" checked={skipWeekends} onChange={e => setSkipWeekends(e.target.checked)} style={{ accentColor: C.accent }} />
+              Hétvégék kihagyása
+            </label>
+
+            <Field label="Típus">
+              <select value={type} onChange={e => setType(e.target.value)} style={S.input}>
+                {Object.entries(ABSENCE_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              </select>
+            </Field>
+
             <Field label="Megjegyzés">
               <input value={note} onChange={e => setNote(e.target.value)} placeholder="Opcionális" style={S.input} />
             </Field>
+
+            <div style={{ fontSize: '0.78rem', color: previewDays > 0 ? C.text : C.muted, background: C.bg0, border: `1px solid ${C.border}`, padding: '0.5rem 0.7rem' }}>
+              {previewDays > 0
+                ? <>Rögzítendő: <strong style={{ color: C.accent }}>{previewDays} nap</strong>{skipWeekends ? ' (hétvégék nélkül)' : ''}</>
+                : 'A megadott időszakban nincs rögzíthető nap'}
+            </div>
+
             {error && <div style={S.errorBox}>{error}</div>}
-            <button type="submit" disabled={saving} style={{ ...S.btnPrimary, opacity: saving ? 0.6 : 1 }}>
+            <button type="submit" disabled={saving || previewDays === 0} style={{ ...S.btnPrimary, opacity: saving || previewDays === 0 ? 0.6 : 1 }}>
               {saving ? 'Mentés…' : '+ Rögzítés'}
             </button>
           </form>
@@ -470,19 +573,29 @@ function HianyokSubTab({ worker }) {
         <SectionLabel color={C.muted}>Rögzített hiányzások</SectionLabel>
         <Table>
           <tbody>
-            {absences.length === 0
+            {runs.length === 0
               ? <TableEmpty>Nincs rögzített hiányzás</TableEmpty>
-              : absences.map(a => (
-                <tr key={a.id} style={{ borderBottom: `1px solid ${C.border}` }}>
-                  <td style={{ ...S.td, fontFamily: 'monospace', fontSize: '0.8rem', color: C.muted }}>{a.date}</td>
+              : runs.map(r => (
+                <tr key={r.ids[0]} style={{ borderBottom: `1px solid ${C.border}` }}>
+                  <td style={{ ...S.td, fontFamily: 'monospace', fontSize: '0.8rem', color: C.muted, whiteSpace: 'nowrap' }}>
+                    {r.from}
+                    {r.days > 1 && <> – {r.to}</>}
+                  </td>
+                  <td style={{ ...S.td, fontSize: '0.78rem', color: r.days > 1 ? C.text : C.muted, whiteSpace: 'nowrap' }}>
+                    {r.days} nap
+                  </td>
                   <td style={S.td}>
-                    <Badge color={a.type === 'unjustified' ? CAL.unjustified.bar : CAL.justified.bar}>
-                      {ABSENCE_LABELS[a.type]}
+                    <Badge color={r.type === 'unjustified' ? CAL.unjustified.bar : CAL.justified.bar}>
+                      {ABSENCE_LABELS[r.type]}
                     </Badge>
                   </td>
-                  <td style={{ ...S.td, color: C.muted, fontSize: '0.78rem' }}>{a.note ?? ''}</td>
+                  <td style={{ ...S.td, color: C.muted, fontSize: '0.78rem' }}>{r.note ?? ''}</td>
                   <td style={{ ...S.td, textAlign: 'right' }}>
-                    <button onClick={() => del(a.id)} style={{ ...S.btnIcon, color: C.red, borderColor: tint(C.red, 30) }}>✕</button>
+                    <button
+                      onClick={() => delRun(r.ids)}
+                      title={r.days > 1 ? `Mind a(z) ${r.days} nap törlése` : 'Törlés'}
+                      style={{ ...S.btnIcon, color: C.red, borderColor: tint(C.red, 30) }}
+                    >✕</button>
                   </td>
                 </tr>
               ))
