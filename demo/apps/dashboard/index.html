@@ -27,6 +27,9 @@
         --warn: #fbbf24;
         --overlay: rgba(0, 0, 0, 0.65);
         --shadow: 0 1px 2px rgba(0,0,0,.5), 0 12px 32px rgba(0,0,0,.35);
+        /* Lebegő "üveg" réteg. Sötét témában a felületnél sötétebb árnyalat
+           kell, hogy a mögötte lévő világos tartalom átderengjen. */
+        --glass: rgba(16, 16, 20, 0.55);
         --cal-normal: #34d399;
         --cal-late: #fb923c;
         --cal-overtime: #38bdf8;
@@ -48,6 +51,9 @@
         --warn: #b45309;
         --overlay: rgba(23, 23, 28, 0.45);
         --shadow: 0 1px 2px rgba(23,23,28,.06), 0 12px 32px rgba(23,23,28,.12);
+        /* Világos témában a fehér felület fehér háttéren nem tud átlátszónak
+           látszani, ezért hűvös szürke árnyalatú, erősen áttetsző réteg. */
+        --glass: rgba(226, 231, 240, 0.62);
         --cal-normal: #059669;
         --cal-late: #ea580c;
         --cal-overtime: #0284c7;
@@ -70,6 +76,7 @@
       @keyframes toast-out { from { opacity: 1; } to { opacity: 0; transform: translateY(6px); } }
       @keyframes shimmer   { 0% { opacity: 0.45; } 50% { opacity: 1; } 100% { opacity: 0.45; } }
       @keyframes fade-up   { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+      @keyframes spin      { to { transform: rotate(360deg); } }
 
       /* Thin, unobtrusive scrollbars (nav keeps overflow hidden — see App.jsx) */
       ::-webkit-scrollbar { width: 10px; height: 10px; }

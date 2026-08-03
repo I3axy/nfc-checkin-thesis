@@ -21,6 +21,7 @@ export const C = {
   warn:   'var(--warn)',
   overlay:'var(--overlay)',
   shadow: 'var(--shadow)',
+  glass:  'var(--glass)',   // lebegő, áttetsző panelek háttere (témánként hangolt)
 }
 
 // Translucent tint of a token color (replaces the old `C.red + '40'` hex-alpha

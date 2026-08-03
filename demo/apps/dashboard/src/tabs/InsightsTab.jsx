@@ -1,308 +1,629 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import * as XLSX from 'xlsx'
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ReferenceLine, ResponsiveContainer, Cell } from 'recharts'
 import { supabase } from '../lib/supabase'
 import { C, S, CAL, R, tint } from '../lib/theme'
 import { calcDayMinutes, isWorkerLate, fmtMins, fmtClock, HU_DAYS, HU_MONTHS } from '../lib/utils'
 import { Table, Th, TableEmpty, SectionLabel, Badge, EmptyState } from '../components/ui'
 
 const MONO = "'JetBrains Mono', monospace"
+const HU_DAYS_MON = ['H', 'K', 'Sze', 'Cs', 'P', 'Szo', 'V']   // hétfővel kezdve
+
+// ─── Naptári periódusok ───────────────────────────────────────────────────────
+// A gördülő "utolsó N nap" helyett naptári egységekkel dolgozunk: így a hét
+// természetesen hétfőn kezdődik, és vissza lehet lépni korábbi időszakokra.
 const PERIODS = [
-  { days: 7,  label: '7 nap' },
-  { days: 30, label: '30 nap' },
-  { days: 90, label: '3 hónap' },
+  { key: 'week', label: 'Hét' },
+  { key: 'month', label: 'Hónap' },
+  { key: 'quarter', label: 'Negyedév' },
 ]
 
 const ymd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+const midnight = d => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x }
+const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x }
+
+// A hét hétfővel kezdődik (JS-ben a vasárnap a 0, ezért az eltolás)
+function startOfWeek(d) {
+  const x = midnight(d)
+  x.setDate(x.getDate() - ((x.getDay() + 6) % 7))
+  return x
+}
+
+function periodStart(period, d) {
+  if (period === 'week') return startOfWeek(d)
+  if (period === 'month') return new Date(d.getFullYear(), d.getMonth(), 1)
+  return new Date(d.getFullYear(), Math.floor(d.getMonth() / 3) * 3, 1)   // negyedév
+}
+
+function periodEnd(period, start) {
+  if (period === 'week') return addDays(start, 7)
+  if (period === 'month') return new Date(start.getFullYear(), start.getMonth() + 1, 1)
+  return new Date(start.getFullYear(), start.getMonth() + 3, 1)
+}
+
+function shiftPeriod(period, start, dir) {
+  if (period === 'week') return addDays(start, 7 * dir)
+  if (period === 'month') return new Date(start.getFullYear(), start.getMonth() + dir, 1)
+  return new Date(start.getFullYear(), start.getMonth() + 3 * dir, 1)
+}
+
+function periodLabel(period, start) {
+  if (period === 'week') {
+    const end = addDays(start, 6)
+    const sameMonth = start.getMonth() === end.getMonth()
+    return sameMonth
+      ? `${start.getFullYear()}. ${HU_MONTHS[start.getMonth()]} ${start.getDate()}–${end.getDate()}.`
+      : `${HU_MONTHS[start.getMonth()]} ${start.getDate()}. – ${HU_MONTHS[end.getMonth()]} ${end.getDate()}.`
+  }
+  if (period === 'month') return `${start.getFullYear()}. ${HU_MONTHS[start.getMonth()]}`
+  return `${start.getFullYear()}. ${Math.floor(start.getMonth() / 3) + 1}. negyedév`
+}
 
 export function InsightsTab({ employees, settings }) {
   const staff = useMemo(() => employees.filter(e => e.role !== 'guest'), [employees])
   const [selectedId, setSelectedId] = useState('')
-  const [period, setPeriod] = useState(7)
-  const [range, setRange] = useState({ events: [], absences: [], loading: true })
+  const [period, setPeriod] = useState('week')
+  const [anchor, setAnchor] = useState(() => periodStart('week', new Date()))
+  const [data, setData] = useState({ events: [], absences: [], loading: true })
+  const [selectedKey, setSelectedKey] = useState(null)     // kiválasztott nap (ymd) vagy hét-kezdet
   const [aiOpen, setAiOpen] = useState(false)
-  const [aiState, setAiState] = useState('idle')   // idle | thinking | done
-  const [aiText, setAiText] = useState('')
 
   useEffect(() => { if (staff.length > 0 && !selectedId) setSelectedId(staff[0].id) }, [staff, selectedId])
   const sel = staff.find(e => e.id === selectedId) ?? staff[0]
 
-  // Fetch 2× the window for the selected worker: current period + the one
-  // before it (the previous period feeds the trend comparison).
+  // Periódusváltáskor az aktuális dátumhoz igazodó kezdet
+  function changePeriod(p) {
+    setPeriod(p)
+    setAnchor(periodStart(p, anchor))
+    setSelectedKey(null)
+  }
+
+  const start = anchor
+  const end = periodEnd(period, start)
+  const prevStart = shiftPeriod(period, start, -1)
+
+  // Az előző periódust is lekérjük, mert abból számoljuk a trendet
   useEffect(() => {
     if (!sel?.id) return
     let alive = true
-    setRange(r => ({ ...r, loading: true }))
-    const from = new Date(); from.setHours(0, 0, 0, 0); from.setDate(from.getDate() - (2 * period - 1))
+    setData(d => ({ ...d, loading: true }))
     Promise.all([
-      supabase.from('events').select('type, timestamp').eq('user_id', sel.id).gte('timestamp', from.toISOString()).order('timestamp', { ascending: true }),
-      supabase.from('absences').select('date, type').eq('user_id', sel.id).gte('date', ymd(from)),
+      supabase.from('events')
+        .select('id, type, timestamp, is_manual, note, photo_url')
+        .eq('user_id', sel.id)
+        .gte('timestamp', prevStart.toISOString())
+        .lt('timestamp', end.toISOString())
+        .order('timestamp', { ascending: true }),
+      supabase.from('absences')
+        .select('date, type, note')
+        .eq('user_id', sel.id)
+        .gte('date', ymd(prevStart))
+        .lt('date', ymd(end)),
     ]).then(([{ data: evts }, { data: abs }]) => {
-      if (alive) setRange({ events: evts ?? [], absences: abs ?? [], loading: false })
+      if (alive) setData({ events: evts ?? [], absences: abs ?? [], loading: false })
     })
     return () => { alive = false }
-  }, [sel?.id, period])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sel?.id, period, start.getTime()])
 
-  // Per-day stats for a window ending `endOffset` days before today
-  const buildDays = (endOffset) => Array.from({ length: period }, (_, i) => {
-    const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - (period - 1 - i) - endOffset)
-    const dateKey = d.toDateString()
-    const dayEvts = range.events.filter(e => new Date(e.timestamp).toDateString() === dateKey)
-    const firstIn = dayEvts.find(e => e.type === 'checkin')?.timestamp ?? null
-    const lastOut = [...dayEvts].reverse().find(e => e.type === 'checkout')?.timestamp ?? null
-    return {
-      date: d, mins: calcDayMinutes(dayEvts), firstIn, lastOut,
-      late: firstIn ? isWorkerLate(firstIn, settings) : false,
-      absence: range.absences.find(a => a.date === ymd(d))?.type ?? null,
+  // ── Napi bontás egy tetszőleges [from, to) intervallumra ──────────────────
+  const buildDays = (from, to) => {
+    const out = []
+    for (let d = new Date(from); d < to; d = addDays(d, 1)) {
+      const key = ymd(d)
+      const dayEvts = data.events.filter(e => ymd(new Date(e.timestamp)) === key)
+      const firstIn = dayEvts.find(e => e.type === 'checkin')?.timestamp ?? null
+      out.push({
+        key, date: new Date(d), events: dayEvts,
+        mins: calcDayMinutes(dayEvts),
+        firstIn,
+        lastOut: [...dayEvts].reverse().find(e => e.type === 'checkout')?.timestamp ?? null,
+        late: firstIn ? isWorkerLate(firstIn, settings) : false,
+        absence: data.absences.find(a => a.date === key)?.type ?? null,
+      })
     }
-  })
+    return out
+  }
 
-  const days     = useMemo(buildDays.bind(null, 0),      [range, period, settings])       // current window
-  const prevDays = useMemo(buildDays.bind(null, period), [range, period, settings])       // previous window
+  const days = useMemo(() => buildDays(start, end), [data, start, end, settings])
+  const prevDays = useMemo(() => buildDays(prevStart, start), [data, prevStart, start, settings])
 
   const stats = useMemo(() => summarize(days), [days])
-  const prev  = useMemo(() => summarize(prevDays), [prevDays])
+  const prev = useMemo(() => summarize(prevDays), [prevDays])
   const trendPct = prev.totalMins > 0 ? Math.round(((stats.totalMins - prev.totalMins) / prev.totalMins) * 100) : null
 
-  const periodLabel = PERIODS.find(p => p.days === period)?.label ?? `${period} nap`
+  // Negyedévnél heti oszlopok, egyébként napi
+  const bars = useMemo(() => period === 'quarter' ? groupByWeek(days) : days.map(d => ({
+    key: d.key, label: period === 'week' ? HU_DAYS_MON[(d.date.getDay() + 6) % 7] : String(d.date.getDate()),
+    full: `${HU_MONTHS[d.date.getMonth()]} ${d.date.getDate()}.`,
+    mins: d.mins, weekend: [0, 6].includes(d.date.getDay()), absence: d.absence, late: d.late,
+  })), [days, period])
 
-  // ── MI summary (placeholder generator — swap for an LLM Edge Function later)
-  function openAi() {
-    setAiOpen(true); setAiState('thinking')
-    setTimeout(() => {
-      setAiText(buildAiSummary(sel?.name ?? '', periodLabel, stats, trendPct))
-      setAiState('done')
-    }, 900)
-  }
-  useEffect(() => {
-    if (!aiOpen) return
-    setAiState('thinking')
-    const t = setTimeout(() => {
-      setAiText(buildAiSummary(sel?.name ?? '', periodLabel, stats, trendPct))
-      setAiState('done')
-    }, 700)
-    return () => clearTimeout(t)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedId, period, range])
+  const maxMins = Math.max(480, ...bars.map(b => b.mins))
+  const hasData = stats.totalMins > 0 || days.some(d => d.events.length > 0)
+
+  const selectedDay = selectedKey ? days.find(d => d.key === selectedKey) : null
+  const selectedWeek = period === 'quarter' && selectedKey ? bars.find(b => b.key === selectedKey) : null
 
   if (staff.length === 0) return <EmptyState>Nincs dolgozó</EmptyState>
 
   const isIn = sel.lastEvent?.type === 'checkin'
-  const chart = period === 90 ? weeklyChart(days) : dailyChart(days, period)
 
   return (
-    <>
-      {/* ── Header controls ─────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.25rem', flexWrap: 'wrap' }}>
-        <select value={selectedId} onChange={e => setSelectedId(e.target.value)} style={{ ...S.input, width: 'auto', minWidth: 200 }}>
+    <div style={{ position: 'relative' }}>
+      {/* ── Fejléc ─────────────────────────────────────────────────────── */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+        <select value={selectedId} onChange={e => { setSelectedId(e.target.value); setSelectedKey(null) }} style={{ ...S.input, width: 'auto', minWidth: 190 }}>
           {staff.map(emp => <option key={emp.id} value={emp.id}>{emp.name}</option>)}
         </select>
         <Badge color={isIn ? C.green : C.muted}>{isIn ? 'Bent' : 'Kint'}</Badge>
         {sel.department && <span style={{ fontSize: '0.78rem', color: C.muted }}>{sel.department}</span>}
         <div style={{ flex: 1 }} />
 
-        {/* Period segmented control */}
-        <div style={{ display: 'flex', gap: 4, background: C.bg1, border: `1px solid ${C.border}`, borderRadius: R.md, padding: 4 }}>
+        <div style={{ display: 'flex', gap: 4, background: C.bg1, border: `1px solid ${C.border}`, padding: 4 }}>
           {PERIODS.map(p => (
-            <button key={p.days} type="button" onClick={() => setPeriod(p.days)} style={{
-              padding: '0.35rem 0.8rem', fontSize: '0.78rem', fontWeight: period === p.days ? 600 : 500,
-              background: period === p.days ? tint(C.accent, 12) : 'transparent',
-              color: period === p.days ? C.accent : C.muted,
-              border: 'none', borderRadius: R.sm, cursor: 'pointer',
-            }}>
-              {p.label}
-            </button>
+            <button key={p.key} type="button" onClick={() => changePeriod(p.key)} style={{
+              padding: '0.35rem 0.85rem', fontSize: '0.78rem', fontWeight: period === p.key ? 600 : 500,
+              background: period === p.key ? tint(C.accent, 12) : 'transparent',
+              color: period === p.key ? C.accent : C.muted, border: 'none', cursor: 'pointer',
+            }}>{p.label}</button>
           ))}
         </div>
 
-        {/* MI summary trigger */}
-        <button type="button" onClick={() => (aiOpen ? setAiOpen(false) : openAi())} title="MI összefoglaló" style={{
+        <button type="button" onClick={() => setAiOpen(o => !o)} title="MI összefoglaló" style={{
           padding: '0.45rem 1.1rem', fontSize: '0.85rem', fontWeight: 700,
           background: aiOpen ? tint(C.green, 18) : tint(C.green, 10),
           color: C.green, border: `1px solid ${tint(C.green, 30)}`,
-          borderRadius: 0, cursor: 'pointer', letterSpacing: '0.02em',
-        }}>
-          MI
-        </button>
+          cursor: 'pointer', letterSpacing: '0.02em',
+        }}>MI</button>
       </div>
 
-      {/* ── MI panel ────────────────────────────────────────────────────── */}
-      {aiOpen && (
-        <div style={{ background: tint(C.accent, 6), border: `1px solid ${tint(C.accent, 22)}`, borderRadius: R.lg, padding: '1rem 1.25rem', marginBottom: '1.25rem', animation: 'fade-up 0.25s ease' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.6rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <span style={{ fontSize: '0.95rem' }}>✨</span>
-              <span style={{ fontSize: '0.82rem', fontWeight: 700, color: C.accent }}>MI összefoglaló</span>
-              <span style={{ fontSize: '0.72rem', color: C.muted }}>{sel.name} · utolsó {periodLabel}</span>
-            </div>
-            <button onClick={() => setAiOpen(false)} style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', fontSize: '1.05rem', lineHeight: 1 }}>×</button>
+      {/* ── Időszak-navigáció ──────────────────────────────────────────── */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+        <button type="button" onClick={() => { setAnchor(a => shiftPeriod(period, a, -1)); setSelectedKey(null) }} style={S.btnIcon}>‹</button>
+        <span style={{ fontSize: '0.85rem', fontWeight: 600, color: C.text, minWidth: 210, textAlign: 'center' }}>
+          {periodLabel(period, start)}
+        </span>
+        <button
+          type="button"
+          onClick={() => { setAnchor(a => shiftPeriod(period, a, 1)); setSelectedKey(null) }}
+          disabled={end > new Date()}
+          style={{ ...S.btnIcon, opacity: end > new Date() ? 0.35 : 1 }}
+        >›</button>
+        <button type="button" onClick={() => { setAnchor(periodStart(period, new Date())); setSelectedKey(null) }} style={{ ...S.btnIcon, marginLeft: '0.25rem' }}>Ma</button>
+        {data.loading && <span style={{ fontSize: '0.75rem', color: C.muted }}>betöltés…</span>}
+      </div>
+
+      {/* ── KPI kártyák ────────────────────────────────────────────────── */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '0.75rem', marginBottom: '1.25rem' }}>
+        <Kpi label="Ledolgozott idő" value={fmtMins(stats.totalMins)} color={C.green}
+          sub={trendPct !== null ? `${trendPct >= 0 ? '▲' : '▼'} ${Math.abs(trendPct)}% az előző időszakhoz` : 'nincs összehasonlítás'}
+          subColor={trendPct === null ? C.muted : trendPct >= 0 ? C.green : C.red} />
+        <Kpi label="Munkanapok" value={stats.workDays} color={C.text} sub={periodLabel(period, start)} />
+        <Kpi label="Késések" value={stats.lateDays} color={stats.lateDays > 0 ? CAL.late.bar : C.muted}
+          sub={stats.workDays > 0 ? `${Math.round((stats.lateDays / stats.workDays) * 100)}% a munkanapokból` : '—'} />
+        <Kpi label="Átl. érkezés" value={stats.avgArrival ?? '—'} color={C.accent} mono
+          sub={`küszöb: ${String(settings.startHour).padStart(2, '0')}:${String(settings.startMinute).padStart(2, '0')}`} />
+        <Kpi label="Szünet összesen" value={fmtMins(stats.breakMins)} color={C.muted} sub={`${stats.breakCount} alkalom`} />
+      </div>
+
+      {/* ── Grafikon + részletező ──────────────────────────────────────── */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '1rem', alignItems: 'start' }}>
+
+        <div style={{ background: C.bg1, border: `1px solid ${C.border}`, padding: '1rem' }}>
+          <div style={{ fontSize: '0.7rem', fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.85rem' }}>
+            {period === 'quarter' ? 'Heti bontás' : 'Napi bontás'}
+            <span style={{ textTransform: 'none', letterSpacing: 0, fontWeight: 400, marginLeft: '0.5rem' }}>
+              — kattints egy oszlopra a részletekért
+            </span>
           </div>
 
-          {aiState === 'thinking' ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
-              {[92, 78, 60].map((w, i) => (
-                <div key={i} style={{ height: 10, width: `${w}%`, background: tint(C.accent, 18), animation: `shimmer 1.2s ease ${i * 0.15}s infinite` }} />
-              ))}
+          {!hasData && !data.loading ? (
+            <div style={{ padding: '2.5rem 1rem', textAlign: 'center', color: C.muted, fontSize: '0.85rem' }}>
+              Nincs rögzített esemény ebben az időszakban.
             </div>
           ) : (
-            <p style={{ fontSize: '0.86rem', color: C.text, lineHeight: 1.65, margin: 0 }}>{aiText}</p>
+            <BarChart bars={bars} maxMins={maxMins} selectedKey={selectedKey} onSelect={setSelectedKey} settings={settings} />
           )}
-
-          <div style={{ fontSize: '0.68rem', color: C.muted, marginTop: '0.7rem' }}>
-            Automatikusan generált összefoglaló a rögzített jelenléti adatok alapján.
-          </div>
         </div>
-      )}
 
-      {/* ── KPI cards ───────────────────────────────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '0.75rem', marginBottom: '1.25rem' }}>
-        <Kpi label="Ledolgozott idő" value={range.loading ? '…' : fmtMins(stats.totalMins)} color={C.green}
-             sub={trendPct !== null ? `${trendPct >= 0 ? '▲' : '▼'} ${Math.abs(trendPct)}% az előző időszakhoz képest` : 'nincs korábbi adat'}
-             subColor={trendPct === null ? C.muted : trendPct >= 0 ? C.green : C.red} />
-        <Kpi label="Munkanapok" value={range.loading ? '…' : stats.workDays} color={C.text} sub={`${periodLabel} alatt`} />
-        <Kpi label="Késések" value={range.loading ? '…' : stats.lateDays} color={stats.lateDays > 0 ? CAL.late.bar : C.muted} sub={stats.workDays > 0 ? `${Math.round((stats.lateDays / stats.workDays) * 100)}% a munkanapokból` : '—'} />
-        <Kpi label="Átl. érkezés" value={range.loading ? '…' : (stats.avgArrival ?? '—')} color={C.accent} mono sub={`küszöb: ${String(settings.startHour).padStart(2, '0')}:${String(settings.startMinute).padStart(2, '0')}`} />
-        <Kpi label="Hiányzás" value={range.loading ? '…' : stats.justified + stats.unjustified} color={stats.unjustified > 0 ? CAL.unjustified.bar : C.muted} sub={`${stats.justified} igazolt · ${stats.unjustified} igazolatlan`} />
-      </div>
-
-      {/* ── Chart card ──────────────────────────────────────────────────── */}
-      <div style={{ background: C.bg1, border: `1px solid ${C.border}`, borderRadius: R.lg, padding: '1rem 0.75rem 0.6rem', marginBottom: '1.25rem' }}>
-        <ResponsiveContainer width="100%" height={190}>
-          <BarChart data={chart.data} barSize={chart.barSize} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
-            <XAxis dataKey="name" tick={{ fill: C.muted, fontSize: 10 }} axisLine={false} tickLine={false} interval={chart.interval} />
-            <YAxis tick={{ fill: C.muted, fontSize: 11 }} axisLine={false} tickLine={false} unit="h" width={30} />
-            <Tooltip
-              contentStyle={{ background: C.bg2, border: `1px solid ${C.border}`, color: C.text, fontSize: '0.8rem', borderRadius: 0 }}
-              labelFormatter={(_, payload) => payload?.[0]?.payload?.full ?? ''}
-              formatter={(v) => [`${v} óra`, 'Ledolgozott']}
-              cursor={{ fill: C.bg2 }}
-            />
-            <ReferenceLine y={chart.refLine} stroke={C.border} strokeDasharray="4 3" label={{ value: `${chart.refLine}h`, fill: C.muted, fontSize: 10, position: 'insideTopRight' }} />
-            <Bar dataKey="hours" radius={0}>
-              {chart.data.map((d, i) => <Cell key={i} fill={d.color} />)}
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
-        <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', paddingTop: '0.35rem', flexWrap: 'wrap' }}>
-          {[[C.accent, period === 90 ? '40h+/hét' : '8h+'], [C.green, period === 90 ? 'Normál hét' : '6–8h'], [CAL.late.bar, period === 90 ? 'Kevés' : '<6h'], [C.bg2, 'Nem volt']].map(([color, label]) => (
-            <div key={label} style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-              <div style={{ width: 9, height: 9, background: color, border: `1px solid ${C.border}` }} />
-              <span style={{ fontSize: '0.65rem', color: C.muted }}>{label}</span>
-            </div>
-          ))}
+        <div style={{ background: C.bg1, border: `1px solid ${C.border}`, padding: '1rem', minHeight: 260 }}>
+          {selectedDay
+            ? <DayDetail day={selectedDay} settings={settings} />
+            : selectedWeek
+              ? <WeekDetail week={selectedWeek} days={days} onPickDay={setSelectedKey} />
+              : <div style={{ color: C.muted, fontSize: '0.85rem', padding: '2.5rem 1rem', textAlign: 'center' }}>
+                  Válassz egy {period === 'quarter' ? 'hetet' : 'napot'} a grafikonon a részletes aktivitás megtekintéséhez.
+                </div>
+          }
         </div>
       </div>
 
-      {/* ── Daily detail (7-day view only) ──────────────────────────────── */}
-      {period === 7 && (
-        <Table>
-          <thead>
-            <tr>
-              <Th>Nap</Th><Th>Belépés</Th><Th>Kilépés</Th><Th>Ledolgozott</Th>
-            </tr>
-          </thead>
-          <tbody>
-            {days.map(({ date, mins, firstIn, lastOut, late, absence }) => {
-              const isToday   = date.toDateString() === new Date().toDateString()
-              const isWeekend = date.getDay() === 0 || date.getDay() === 6
-              return (
-                <tr key={date.toISOString()} style={{ borderBottom: `1px solid ${C.border}`, opacity: isWeekend && mins === 0 ? 0.45 : 1 }}>
-                  <td style={{ ...S.td, fontFamily: MONO, fontSize: '0.82rem' }}>
-                    <span style={{ color: C.muted }}>{HU_DAYS[date.getDay()]} </span>
-                    <span style={{ color: isToday ? C.accent : C.text }}>{HU_MONTHS[date.getMonth()]} {date.getDate()}.</span>
-                    {isToday && <span style={{ marginLeft: '0.4rem', fontSize: '0.65rem', color: C.accent, fontWeight: 700 }}>ma</span>}
-                    {absence && <span style={{ marginLeft: '0.5rem', fontSize: '0.65rem', color: absence === 'unjustified' ? CAL.unjustified.bar : CAL.justified.bar, fontWeight: 700 }}>hiányzás</span>}
-                  </td>
-                  <td style={{ ...S.td, fontFamily: MONO, color: firstIn ? (late ? CAL.late.bar : C.text) : C.border }}>
-                    {firstIn ? fmtClock(firstIn) : '—'}{late && ' ⚠'}
-                  </td>
-                  <td style={{ ...S.td, fontFamily: MONO, color: lastOut ? C.text : C.border }}>{lastOut ? fmtClock(lastOut) : '—'}</td>
-                  <td style={{ ...S.td, fontFamily: MONO, fontWeight: mins > 0 ? 700 : 400, color: mins > 480 ? C.accent : mins > 0 ? C.green : C.border }}>
-                    {fmtMins(mins)}
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </Table>
-      )}
+      {aiOpen && <AiPanel worker={sel} periodText={periodLabel(period, start)} stats={stats} trendPct={trendPct} onClose={() => setAiOpen(false)} />}
 
       <div style={{ height: '2rem' }} />
       <MonthlySummary employees={employees} settings={settings} />
-    </>
+    </div>
   )
 }
 
-// ── stats helpers ─────────────────────────────────────────────────────────────
+// ─── Oszlopdiagram (saját, hogy a kattintás és a hétvége-jelölés kézben legyen)
+function BarChart({ bars, maxMins, selectedKey, onSelect, settings }) {
+  const gridHours = [0, 2, 4, 6, 8].filter(h => h * 60 <= maxMins + 60)
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: 2, alignItems: 'flex-end', height: 170, position: 'relative', borderBottom: `1px solid ${C.border}`, paddingBottom: 2 }}>
+        {/* vízszintes segédvonalak */}
+        {gridHours.map(h => (
+          <div key={h} style={{ position: 'absolute', left: 0, right: 0, bottom: (h * 60 / maxMins) * 100 + '%', borderTop: `1px dashed ${C.border}`, opacity: 0.5 }}>
+            <span style={{ position: 'absolute', left: 0, top: -14, fontSize: '0.6rem', color: C.muted }}>{h}h</span>
+          </div>
+        ))}
+        {bars.map(b => {
+          const active = selectedKey === b.key
+          const h = maxMins > 0 ? (b.mins / maxMins) * 100 : 0
+          const color = b.absence ? (b.absence === 'unjustified' ? CAL.unjustified.bar : CAL.justified.bar)
+            : b.mins === 0 ? C.bg2
+            : b.late ? CAL.late.bar
+            : b.mins >= 480 ? C.accent : C.green
+          return (
+            <button
+              key={b.key}
+              onClick={() => onSelect(active ? null : b.key)}
+              title={`${b.full} — ${fmtMins(b.mins)}`}
+              style={{
+                flex: 1, minWidth: 0, height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
+                background: active ? tint(C.accent, 10) : b.weekend ? tint(C.muted, 6) : 'transparent',
+                border: 'none', borderBottom: active ? `2px solid ${C.accent}` : '2px solid transparent',
+                cursor: 'pointer', padding: 0,
+              }}
+            >
+              <div style={{ height: `${Math.max(h, b.mins > 0 ? 2 : 0)}%`, background: color, opacity: active ? 1 : 0.85, transition: 'height 0.2s' }} />
+            </button>
+          )
+        })}
+      </div>
+      <div style={{ display: 'flex', gap: 2, marginTop: '0.3rem' }}>
+        {bars.map(b => (
+          <div key={b.key} style={{ flex: 1, minWidth: 0, textAlign: 'center', fontSize: '0.6rem', color: selectedKey === b.key ? C.accent : C.muted, fontWeight: selectedKey === b.key ? 700 : 400, overflow: 'hidden', whiteSpace: 'nowrap' }}>
+            {b.label}
+          </div>
+        ))}
+      </div>
+      <div style={{ display: 'flex', gap: '0.8rem', justifyContent: 'center', flexWrap: 'wrap', marginTop: '0.8rem' }}>
+        {[[C.accent, '8h+'], [C.green, 'normál'], [CAL.late.bar, 'késett'], [CAL.justified.bar, 'hiányzás'], [C.bg2, 'nem volt']].map(([c, l]) => (
+          <span key={l} style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+            <span style={{ width: 9, height: 9, background: c, border: `1px solid ${C.border}` }} />
+            <span style={{ fontSize: '0.62rem', color: C.muted }}>{l}</span>
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ─── Napi részletező: 0–24 órás idősáv + minden tapp + szünetek ───────────────
+function DayDetail({ day, settings }) {
+  const segs = segments(day.events)
+  const brs = breaks(segs)
+  const mins = d => d.getHours() * 60 + d.getMinutes()
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '0.75rem', gap: '0.5rem', flexWrap: 'wrap' }}>
+        <span style={{ fontSize: '0.9rem', fontWeight: 700, color: C.text }}>
+          {HU_DAYS_MON[(day.date.getDay() + 6) % 7]} · {HU_MONTHS[day.date.getMonth()]} {day.date.getDate()}.
+        </span>
+        <span style={{ fontSize: '0.8rem', fontWeight: 700, color: C.green, fontFamily: MONO }}>{fmtMins(day.mins)}</span>
+      </div>
+
+      {day.absence && (
+        <div style={{ fontSize: '0.78rem', color: day.absence === 'unjustified' ? CAL.unjustified.bar : CAL.justified.bar, marginBottom: '0.6rem', fontWeight: 600 }}>
+          Rögzített hiányzás: {ABSENCE_LABELS[day.absence] ?? day.absence}
+        </div>
+      )}
+
+      {/* 0–24 órás sáv */}
+      <div style={{ position: 'relative', height: 26, background: C.bg0, border: `1px solid ${C.border}`, marginBottom: '0.3rem' }}>
+        {[6, 12, 18].map(h => (
+          <div key={h} style={{ position: 'absolute', left: `${(h / 24) * 100}%`, top: 0, bottom: 0, borderLeft: `1px dashed ${C.border}` }} />
+        ))}
+        {segs.map((s, i) => (
+          <div key={i} title={`${fmtClock(s.from)} – ${fmtClock(s.to)}`} style={{
+            position: 'absolute', top: 3, bottom: 3,
+            left: `${(mins(s.from) / 1440) * 100}%`,
+            width: `${Math.max(((mins(s.to) - mins(s.from)) / 1440) * 100, 0.6)}%`,
+            background: s.open ? tint(C.green, 45) : C.green,
+          }} />
+        ))}
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.58rem', color: C.muted, marginBottom: '0.9rem' }}>
+        <span>0h</span><span>6h</span><span>12h</span><span>18h</span><span>24h</span>
+      </div>
+
+      {/* Összesítő */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.5rem', marginBottom: '0.9rem' }}>
+        <MiniStat label="Érkezés" value={day.firstIn ? fmtClock(day.firstIn) : '—'} color={day.late ? CAL.late.bar : C.text} />
+        <MiniStat label="Távozás" value={day.lastOut ? fmtClock(day.lastOut) : '—'} color={C.text} />
+        <MiniStat label="Szünet" value={brs.length ? fmtMins(brs.reduce((s, b) => s + b.mins, 0)) : '—'} color={C.muted} />
+      </div>
+
+      {/* Minden tapp időrendben */}
+      <div style={{ fontSize: '0.66rem', fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.4rem' }}>
+        Aktivitás ({day.events.length} esemény)
+      </div>
+      {day.events.length === 0
+        ? <div style={{ fontSize: '0.8rem', color: C.muted, padding: '0.5rem 0' }}>Nincs esemény ezen a napon.</div>
+        : <div style={{ maxHeight: 220, overflowY: 'auto' }}>
+            {day.events.map((e, i) => {
+              const br = brs.find(b => b.afterIndex === i)
+              return (
+                <div key={e.id}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.3rem 0', borderBottom: `1px solid ${C.border}` }}>
+                    <span style={{ width: 20, height: 20, background: tint(e.type === 'checkin' ? C.green : C.red, 15), color: e.type === 'checkin' ? C.green : C.red, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.68rem', fontWeight: 800, flexShrink: 0 }}>
+                      {e.type === 'checkin' ? '↑' : '↓'}
+                    </span>
+                    <span style={{ fontFamily: MONO, fontSize: '0.82rem', color: C.text }}>{fmtClock(e.timestamp)}</span>
+                    <span style={{ fontSize: '0.76rem', color: C.muted }}>{e.type === 'checkin' ? 'belépés' : 'kilépés'}</span>
+                    {e.is_manual && <span style={{ fontSize: '0.6rem', color: C.accent, border: `1px solid ${tint(C.accent, 28)}`, padding: '0 0.3rem' }}>kézi</span>}
+                    {e.photo_url && <span title="fényképpel" style={{ fontSize: '0.72rem' }}>📷</span>}
+                    {e.note && <span style={{ fontSize: '0.68rem', color: C.muted, marginLeft: 'auto' }}>{e.note}</span>}
+                  </div>
+                  {br && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.2rem 0 0.2rem 1.6rem', fontSize: '0.7rem', color: CAL.late.bar }}>
+                      ⏸ szünet — {fmtMins(br.mins)}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+      }
+    </div>
+  )
+}
+
+// ─── Heti részletező (negyedév nézetben) ─────────────────────────────────────
+function WeekDetail({ week, days, onPickDay }) {
+  const wDays = days.filter(d => d.key >= week.key && d.key < ymd(addDays(new Date(week.key), 7)))
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+        <span style={{ fontSize: '0.9rem', fontWeight: 700, color: C.text }}>{week.full}</span>
+        <span style={{ fontSize: '0.8rem', fontWeight: 700, color: C.green, fontFamily: MONO }}>{fmtMins(week.mins)}</span>
+      </div>
+      <div style={{ fontSize: '0.7rem', color: C.muted, marginBottom: '0.5rem' }}>Kattints egy napra a részletes aktivitásért.</div>
+      {wDays.map(d => (
+        <button key={d.key} onClick={() => onPickDay(d.key)} style={{
+          display: 'flex', width: '100%', alignItems: 'center', justifyContent: 'space-between',
+          padding: '0.45rem 0.5rem', border: 'none', borderBottom: `1px solid ${C.border}`,
+          background: 'transparent', cursor: 'pointer', textAlign: 'left',
+        }}>
+          <span style={{ fontFamily: MONO, fontSize: '0.8rem', color: C.text }}>
+            {HU_DAYS_MON[(d.date.getDay() + 6) % 7]} {HU_MONTHS[d.date.getMonth()]} {d.date.getDate()}.
+          </span>
+          <span style={{ fontSize: '0.78rem', fontFamily: MONO, color: d.mins > 0 ? C.green : C.muted }}>
+            {d.mins > 0 ? fmtMins(d.mins) : '—'}{d.events.length > 0 ? ` · ${d.events.length} tapp` : ''}
+          </span>
+        </button>
+      ))}
+    </div>
+  )
+}
+
+// ─── MI panel — lebegő réteg, nem tolja el a tartalmat ───────────────────────
+const LOADING_STEPS = [
+  'Jelenléti adatok betöltése…',
+  'Munkaidő-szakaszok elemzése…',
+  'Késések és szünetek összevetése…',
+  'Összefoglaló megfogalmazása…',
+]
+
+// A hibakódok emberi jelentése — a valódi API bekötése után ezek élesednek.
+const ERROR_MEANINGS = {
+  TIMEOUT: 'Az összefoglaló elkészítése túllépte a 30 másodperces időkorlátot.',
+  NETWORK: 'Nem sikerült elérni a szolgáltatást. Ellenőrizd az internetkapcsolatot.',
+  401: 'Hitelesítési hiba — az API kulcs hiányzik vagy érvénytelen.',
+  429: 'Túl sok kérés rövid idő alatt. Próbáld újra egy perc múlva.',
+  500: 'A szolgáltatás belső hibája.',
+  503: 'A szolgáltatás átmenetileg nem elérhető.',
+}
+
+const AI_TIMEOUT_MS = 30000
+
+function AiPanel({ worker, periodText, stats, trendPct, onClose }) {
+  const [state, setState] = useState('loading')   // loading | done | error
+  const [text, setText] = useState('')
+  const [error, setError] = useState(null)        // { code, message }
+  const [step, setStep] = useState(0)
+  const abortRef = useRef(null)
+
+  // Esc-re zárás
+  useEffect(() => {
+    const onKey = e => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  // Váltakozó töltőszöveg
+  useEffect(() => {
+    if (state !== 'loading') return
+    const t = setInterval(() => setStep(s => (s + 1) % LOADING_STEPS.length), 1100)
+    return () => clearInterval(t)
+  }, [state])
+
+  useEffect(() => {
+    let alive = true
+    setState('loading'); setError(null); setStep(0)
+
+    const ctrl = new AbortController()
+    abortRef.current = ctrl
+    const timer = setTimeout(() => ctrl.abort('TIMEOUT'), AI_TIMEOUT_MS)
+
+    requestSummary({ worker, periodText, stats, trendPct, signal: ctrl.signal })
+      .then(res => { if (alive) { setText(res); setState('done') } })
+      .catch(err => {
+        if (!alive) return
+        const code = err?.code ?? (ctrl.signal.aborted ? 'TIMEOUT' : 'NETWORK')
+        setError({ code, message: ERROR_MEANINGS[code] ?? (err?.message || 'Ismeretlen hiba.') })
+        setState('error')
+      })
+      .finally(() => clearTimeout(timer))
+
+    return () => { alive = false; clearTimeout(timer); ctrl.abort() }
+  }, [worker?.id, periodText, stats.totalMins, trendPct])
+
+  return (
+    <div style={{
+      position: 'absolute', top: 46, right: 0, zIndex: 120, width: 'min(560px, 100%)',
+      // Az áttetsző réteg színe témánként külön hangolt (--glass): fehér
+      // felület fehér háttéren nem tudna átlátszónak látszani.
+      background: C.glass,
+      backdropFilter: 'blur(22px) saturate(140%)', WebkitBackdropFilter: 'blur(22px) saturate(140%)',
+      border: `1px solid ${tint(C.green, 30)}`, boxShadow: C.shadow,
+      padding: '1rem 1.15rem', animation: 'fade-up 0.18s ease',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.7rem', gap: '0.5rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0 }}>
+          <span style={{ fontSize: '0.82rem', fontWeight: 700, color: C.green, letterSpacing: '0.02em' }}>MI</span>
+          <span style={{ fontSize: '0.72rem', color: C.muted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {worker?.name} · {periodText}
+          </span>
+        </div>
+        <button onClick={onClose} style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', fontSize: '1.05rem', lineHeight: 1, flexShrink: 0 }}>×</button>
+      </div>
+
+      {state === 'loading' && (
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.7rem' }}>
+            <span style={{ width: 12, height: 12, border: `2px solid ${tint(C.green, 30)}`, borderTopColor: C.green, borderRadius: '50%', animation: 'spin 0.8s linear infinite', flexShrink: 0 }} />
+            <span style={{ fontSize: '0.8rem', color: C.text }}>{LOADING_STEPS[step]}</span>
+          </div>
+          {[92, 78, 60].map((w, i) => (
+            <div key={i} style={{ height: 9, width: `${w}%`, background: tint(C.green, 16), marginBottom: 6, animation: `shimmer 1.2s ease ${i * 0.15}s infinite` }} />
+          ))}
+        </div>
+      )}
+
+      {state === 'error' && (
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
+            <span style={{ width: 18, height: 18, background: tint(C.red, 15), color: C.red, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem', fontWeight: 800 }}>!</span>
+            <span style={{ fontSize: '0.82rem', fontWeight: 700, color: C.red }}>Az összefoglaló nem készült el</span>
+          </div>
+          <div style={{ fontSize: '0.8rem', color: C.text, marginBottom: '0.4rem' }}>{error?.message}</div>
+          <div style={{ fontSize: '0.72rem', color: C.muted, fontFamily: MONO }}>Hibakód: {error?.code}</div>
+        </div>
+      )}
+
+      {state === 'done' && (
+        <p style={{ fontSize: '0.86rem', color: C.text, lineHeight: 1.65, margin: 0 }}>{text}</p>
+      )}
+
+      <div style={{ fontSize: '0.66rem', color: C.muted, marginTop: '0.8rem' }}>
+        A rögzített jelenléti adatokból generált összefoglaló.
+      </div>
+    </div>
+  )
+}
+
+// A tényleges szöveg-előállítás. Jelenleg helyi generátor; a valódi API-hívás
+// ide kerül (Edge Function -> Claude), a signal/hibakód szerződés változatlanul.
+function requestSummary({ worker, periodText, stats, trendPct, signal }) {
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(() => resolve(buildSummary(worker?.name ?? '', periodText, stats, trendPct)), 900)
+    signal?.addEventListener('abort', () => {
+      clearTimeout(t)
+      const err = new Error('aborted'); err.code = signal.reason === 'TIMEOUT' ? 'TIMEOUT' : 'NETWORK'
+      reject(err)
+    })
+  })
+}
+
+function buildSummary(name, periodText, s, trendPct) {
+  const parts = []
+  const avg = s.workDays > 0 ? Math.round(s.totalMins / s.workDays) : 0
+  if (s.workDays === 0) return `${name} nevű dolgozónak a vizsgált időszakban (${periodText}) nincs rögzített munkaideje.`
+  parts.push(`${name} a(z) ${periodText} időszakban ${fmtMins(s.totalMins)} munkaidőt teljesített ${s.workDays} munkanapon, ami napi átlagban ${fmtMins(avg)}.`)
+  if (s.avgArrival) parts.push(`Átlagos érkezési ideje ${s.avgArrival}${s.lateDays > 0 ? `, ebből ${s.lateDays} alkalommal késett` : ', késés nélkül'}.`)
+  if (s.breakCount > 0) parts.push(`Az időszak alatt ${s.breakCount} alkalommal hagyta el a munkaterületet, összesen ${fmtMins(s.breakMins)} időtartamra.`)
+  if (s.justified + s.unjustified > 0) parts.push(`${s.justified} igazolt és ${s.unjustified} igazolatlan hiányzás került rögzítésre.`)
+  if (trendPct !== null && Math.abs(trendPct) >= 3) parts.push(`Az előző időszakhoz képest a ledolgozott idő ${trendPct >= 0 ? 'nőtt' : 'csökkent'} ${Math.abs(trendPct)}%-kal.`)
+  const lateRatio = s.workDays > 0 ? s.lateDays / s.workDays : 0
+  if (s.unjustified > 0) parts.push('Az igazolatlan hiányzások kiemelt figyelmet igényelnek.')
+  else if (lateRatio > 0.3) parts.push('A jelenlét stabil, a pontosságon azonban érdemes javítani.')
+  else parts.push('Összességében megbízható, kiegyensúlyozott teljesítmény.')
+  return parts.join(' ')
+}
+
+// ─── Segédfüggvények ─────────────────────────────────────────────────────────
+const ABSENCE_LABELS = { vacation: 'Szabadság', sick: 'Betegszabadság', unjustified: 'Igazolatlan', other: 'Egyéb' }
+
+// Jelenléti szakaszok: belépés -> kilépés párok. A nyitott szakasz (még bent
+// van) a nap végéig, illetve a mai napon a jelenlegi időpontig tart.
+function segments(events) {
+  const out = []
+  let open = null
+  for (const e of events) {
+    if (e.type === 'checkin') open = new Date(e.timestamp)
+    else if (e.type === 'checkout' && open) { out.push({ from: open, to: new Date(e.timestamp), open: false }); open = null }
+  }
+  if (open) {
+    const today = new Date()
+    const sameDay = open.toDateString() === today.toDateString()
+    const end = sameDay ? today : new Date(open.getFullYear(), open.getMonth(), open.getDate(), 23, 59)
+    out.push({ from: open, to: end, open: true })
+  }
+  return out
+}
+
+// A szakaszok közti rések = szünetek (pl. ebéd, dohányzás — a kártyát az
+// ajtónyitáshoz is használják, ezért ezek valós kilépésként jelennek meg).
+function breaks(segs) {
+  const out = []
+  for (let i = 1; i < segs.length; i++) {
+    const mins = Math.round((segs[i].from - segs[i - 1].to) / 60000)
+    if (mins > 0) out.push({ mins, afterIndex: 2 * i - 1 })
+  }
+  return out
+}
 
 function summarize(days) {
-  const worked = days.filter(d => d.mins > 0)
   const arrivals = days.filter(d => d.firstIn).map(d => { const t = new Date(d.firstIn); return t.getHours() * 60 + t.getMinutes() })
   const avgMin = arrivals.length ? Math.round(arrivals.reduce((s, m) => s + m, 0) / arrivals.length) : null
+  let breakMins = 0, breakCount = 0
+  for (const d of days) {
+    for (const b of breaks(segments(d.events))) { breakMins += b.mins; breakCount++ }
+  }
   return {
     totalMins: days.reduce((s, d) => s + d.mins, 0),
-    workDays: worked.length,
+    workDays: days.filter(d => d.mins > 0).length,
     lateDays: days.filter(d => d.late).length,
     avgArrival: avgMin !== null ? `${String(Math.floor(avgMin / 60)).padStart(2, '0')}:${String(avgMin % 60).padStart(2, '0')}` : null,
     justified: days.filter(d => d.absence && d.absence !== 'unjustified').length,
     unjustified: days.filter(d => d.absence === 'unjustified').length,
+    breakMins, breakCount,
   }
 }
 
-function dailyChart(days, period) {
-  return {
-    barSize: period === 7 ? 32 : 12,
-    interval: period === 7 ? 0 : 4,
-    refLine: 8,
-    data: days.map(({ date, mins }) => ({
-      name: period === 7 ? HU_DAYS[date.getDay()] : `${date.getMonth() + 1}.${date.getDate()}.`,
-      full: `${HU_MONTHS[date.getMonth()]} ${date.getDate()}.`,
-      hours: +(mins / 60).toFixed(1),
-      color: mins === 0 ? 'var(--surface-2)' : mins >= 480 ? 'var(--accent)' : mins >= 360 ? 'var(--green)' : 'var(--cal-late)',
-    })),
+function groupByWeek(days) {
+  const map = new Map()
+  for (const d of days) {
+    const wk = ymd(startOfWeek(d.date))
+    if (!map.has(wk)) map.set(wk, { key: wk, mins: 0, weekend: false, absence: null, late: false, date: startOfWeek(d.date) })
+    const w = map.get(wk)
+    w.mins += d.mins
+    if (d.late) w.late = true
   }
-}
-
-function weeklyChart(days) {
-  const weeks = []
-  for (let i = 0; i < days.length; i += 7) weeks.push(days.slice(i, i + 7))
-  return {
-    barSize: 20,
-    interval: 0,
-    refLine: 40,
-    data: weeks.map(w => {
-      const mins = w.reduce((s, d) => s + d.mins, 0)
-      const start = w[0].date
-      return {
-        name: `${start.getMonth() + 1}.${start.getDate()}.`,
-        full: `${HU_MONTHS[start.getMonth()]} ${start.getDate()}. hete`,
-        hours: +(mins / 60).toFixed(1),
-        color: mins === 0 ? 'var(--surface-2)' : mins >= 2400 ? 'var(--accent)' : mins >= 1500 ? 'var(--green)' : 'var(--cal-late)',
-      }
-    }),
-  }
-}
-
-// Placeholder text generator — replace with an LLM Edge Function call later;
-// the UI (panel, loading state, regenerate-on-change) is already wired for it.
-function buildAiSummary(name, periodLabel, s, trendPct) {
-  const parts = []
-  const avg = s.workDays > 0 ? Math.round(s.totalMins / s.workDays) : 0
-  parts.push(`${name} az elmúlt ${periodLabel} során ${fmtMins(s.totalMins)} munkaidőt teljesített ${s.workDays} munkanapon${avg ? ` (napi átlag ${fmtMins(avg)})` : ''}.`)
-  if (s.avgArrival) parts.push(`Átlagos érkezési ideje ${s.avgArrival}${s.lateDays > 0 ? `, ebből ${s.lateDays} alkalommal késett` : ', késés nélkül'}.`)
-  if (s.justified + s.unjustified > 0) parts.push(`Az időszakban ${s.justified} igazolt és ${s.unjustified} igazolatlan hiányzása volt.`)
-  else parts.push('Hiányzása nem volt az időszakban.')
-  if (trendPct !== null && Math.abs(trendPct) >= 3) parts.push(`Az előző azonos hosszúságú időszakhoz képest a ledolgozott idő ${trendPct >= 0 ? 'nőtt' : 'csökkent'} ${Math.abs(trendPct)}%-kal.`)
-  const lateRatio = s.workDays > 0 ? s.lateDays / s.workDays : 0
-  if (s.unjustified > 0) parts.push('Az igazolatlan hiányzások kiemelt figyelmet igényelnek.')
-  else if (lateRatio > 0.3) parts.push('Összességében stabil jelenlét, de a pontosságon érdemes javítani.')
-  else if (s.workDays > 0) parts.push('Összességében megbízható, kiegyensúlyozott teljesítmény.')
-  return parts.join(' ')
+  return [...map.values()].map(w => ({
+    ...w,
+    label: `${w.date.getMonth() + 1}.${w.date.getDate()}.`,
+    full: `${HU_MONTHS[w.date.getMonth()]} ${w.date.getDate()}. hete`,
+  }))
 }
 
 function Kpi({ label, value, color, sub, subColor, mono }) {
   return (
-    <div style={{ background: C.bg1, border: `1px solid ${C.border}`, borderRadius: R.lg, padding: '0.85rem 1rem' }}>
+    <div style={{ background: C.bg1, border: `1px solid ${C.border}`, padding: '0.85rem 1rem' }}>
       <div style={{ fontSize: '0.66rem', fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{label}</div>
       <div style={{ fontSize: '1.5rem', fontWeight: 800, color, lineHeight: 1.3, letterSpacing: '-0.02em', fontFamily: mono ? MONO : 'inherit' }}>{value}</div>
       {sub && <div style={{ fontSize: '0.68rem', color: subColor ?? C.muted, marginTop: '0.1rem' }}>{sub}</div>}
@@ -310,11 +631,20 @@ function Kpi({ label, value, color, sub, subColor, mono }) {
   )
 }
 
-// ─── Company-wide monthly summary + Excel export ──────────────────────────────
+function MiniStat({ label, value, color }) {
+  return (
+    <div style={{ background: C.bg0, border: `1px solid ${C.border}`, padding: '0.4rem 0.55rem' }}>
+      <div style={{ fontSize: '0.6rem', color: C.muted, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</div>
+      <div style={{ fontSize: '0.92rem', fontWeight: 700, color, fontFamily: MONO }}>{value}</div>
+    </div>
+  )
+}
+
+// ─── Havi összesítő + Excel export (változatlan) ─────────────────────────────
 
 function MonthlySummary({ employees, settings }) {
-  const [month,   setMonth]   = useState(() => { const n = new Date(); return new Date(n.getFullYear(), n.getMonth(), 1) })
-  const [events,  setEvents]  = useState([])
+  const [month, setMonth] = useState(() => { const n = new Date(); return new Date(n.getFullYear(), n.getMonth(), 1) })
+  const [events, setEvents] = useState([])
   const [absences, setAbsences] = useState([])
   const [loading, setLoading] = useState(false)
 
@@ -322,17 +652,15 @@ function MonthlySummary({ employees, settings }) {
 
   useEffect(() => {
     setLoading(true)
-    const from  = month.toISOString()
-    const to    = new Date(month.getFullYear(), month.getMonth() + 1, 1).toISOString()
-    const fromD = month.toISOString().slice(0, 10)
-    const toD   = new Date(month.getFullYear(), month.getMonth() + 1, 0).toISOString().slice(0, 10)
+    const from = month.toISOString()
+    const to = new Date(month.getFullYear(), month.getMonth() + 1, 1).toISOString()
+    const fromD = ymd(month)
+    const toD = ymd(new Date(month.getFullYear(), month.getMonth() + 1, 0))
     Promise.all([
       supabase.from('events').select('user_id, type, timestamp').gte('timestamp', from).lt('timestamp', to).order('timestamp', { ascending: true }),
       supabase.from('absences').select('user_id, type').gte('date', fromD).lte('date', toD),
     ]).then(([{ data: evts }, { data: abs }]) => {
-      setEvents(evts ?? [])
-      setAbsences(abs ?? [])
-      setLoading(false)
+      setEvents(evts ?? []); setAbsences(abs ?? []); setLoading(false)
     })
   }, [month])
 
@@ -348,11 +676,12 @@ function MonthlySummary({ employees, settings }) {
       const firstIn = dayEvts.find(e => e.type === 'checkin')?.timestamp
       if (firstIn && isWorkerLate(firstIn, settings)) lateDays++
     }
-    const wAbs        = absences.filter(a => a.user_id === w.id)
-    const justified   = wAbs.filter(a => a.type !== 'unjustified').length
-    const unjustified = wAbs.filter(a => a.type === 'unjustified').length
-
-    return { name: w.name, department: w.department ?? '', totalMins, workDays, lateDays, justified, unjustified }
+    const wAbs = absences.filter(a => a.user_id === w.id)
+    return {
+      name: w.name, department: w.department ?? '', totalMins, workDays, lateDays,
+      justified: wAbs.filter(a => a.type !== 'unjustified').length,
+      unjustified: wAbs.filter(a => a.type === 'unjustified').length,
+    }
   }), [workers, events, absences, settings])
 
   function exportExcel() {
