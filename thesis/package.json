@@ -1,0 +1,13 @@
+{
+  "name": "szakdolgozat",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "node build.mjs",
+    "words": "node build.mjs --words"
+  },
+  "dependencies": {
+    "jszip": "^3.10.1"
+  }
+}

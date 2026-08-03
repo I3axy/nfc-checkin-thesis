@@ -19,3 +19,9 @@ Thumbs.db
 
 # Personal notes / test plans (not part of the deliverable)
 TESZT-TERV.txt
+
+# A hivatalos sablon nem a mi anyagunk, nem verziózzuk
+sablon/
+
+# A dolgozatból csak a generált .docx marad ki — a Markdown forrás verziózott
+thesis/out/
