@@ -1,73 +1,226 @@
 <!-- ===========================================================================
      2. SZAKIRODALMI ÁTTEKINTÉS
      Előírás: a teljes szöveg 20–30%-a  ->  cél kb. 2000–2800 szó.
-     FONTOS: ez NEM a saját munkád bemutatása, hanem mások megoldásainak
-     áttekintése és elemzése. Minden állítás mellé hivatkozás kell: [1], [2]...
-     A hivatkozások számozása a SZÖVEGBELI megjelenés sorrendjében megy, és
-     ugyanez a sorrend az Irodalom fejezetben.
-     Legalább EGY valódi szakkönyvnek szerepelnie kell a forrásjegyzékben!
+     Ez NEM a saját munka bemutatása, hanem mások megoldásainak áttekintése.
+     A hivatkozások számozása a SZÖVEGBELI megjelenés sorrendjében megy.
      =========================================================================== -->
 
 # Szakirodalmi áttekintés
 
-<!-- ~150 szó bevezető: mit tekint át ez a fejezet és milyen sorrendben.
-     A sablon három kérdést vár meg:
-       - Mit végeztek mások ugyanezen vagy hasonló probléma kapcsán?
-       - Mi a jelenlegi helyzet a probléma megoldásában?
-       - Egy hasonló megoldás gyakorlati példája. -->
+A munkaidő-nyilvántartás automatizálása több évtizedes múltra tekint vissza, a
+megoldások mégis folyamatosan változnak, ahogy az azonosítási technológiák és a
+szoftverarchitektúrák fejlődnek. Ebben a fejezetben azok az elméleti alapok és
+létező megoldások kerülnek bemutatásra, amelyek a dolgozat tárgyát képező
+rendszer megértéséhez szükségesek. Először az azonosítási technológiák
+összehasonlítása történik meg, majd részletesen tárgyalásra kerül a választott
+NFC technológia. Ezt követi a jelenlévő piaci és kutatási megoldások áttekintése,
+a webalkalmazás-architektúrák vizsgálata, végül a mesterséges intelligencia
+vezetői kimutatásokban betöltött szerepének bemutatása.
 
 ## Az azonosítási technológiák áttekintése
 
-<!-- ~500 szó. Tartalom-javaslat:
-       - vonalkód és QR-kód: olcsó, de másolható
-       - mágneskártya: kopás, alacsony biztonság
-       - RFID és NFC viszonya: az NFC az RFID 13,56 MHz-es alesete
-       - biometria: ujjlenyomat, arcfelismerés — pontosság vs. adatvédelem (GDPR)
-     Táblázat ide kívánkozik (a felirat a táblázat FÖLÉ kerül):
-     @@TABLE Az azonosítási technológiák összehasonlítása
-     ...majd a Word-táblázatot kézzel illeszted be a generált dokumentumba. -->
+Minden jelenléti rendszer alapkérdése, hogy miként azonosítja a belépő személyt.
+Az azonosítás módja határozza meg a rendszer megbízhatóságát, költségét és a
+visszaélésekkel szembeni ellenálló képességét, ezért a technológia
+megválasztása az egyik legfontosabb tervezési döntés.
+
+A legegyszerűbb megoldást a **vonalkód** és a **QR-kód** jelenti. Előállításuk
+gyakorlatilag ingyenes, egy nyomtatott kártya vagy egy telefon képernyője is
+elegendő hozzájuk. Éppen ez az egyszerűség jelenti a legnagyobb gyengeségüket
+is: a kód egyetlen fényképpel lemásolható, majd tetszőleges számú példányban
+felhasználható. Jelenléti rendszerben ez azt jelenti, hogy egy dolgozó a
+kollégájának átküldheti a saját kódját, aki így helyette is jelenlétet
+regisztrálhat.
+
+A **mágnescsíkos kártyák** a bankkártyák elterjedésével váltak ismertté. Az
+adathordozó fizikai érintkezést igényel az olvasóval, ami mechanikai kopáshoz és
+az élettartam csökkenéséhez vezet. Biztonsági szempontból szintén korlátozottak,
+mivel a mágnescsík tartalma viszonylag egyszerű eszközökkel kiolvasható és
+átírható.
+
+A **rádiófrekvenciás azonosítás** (RFID) érintés nélküli működést tesz lehetővé,
+így megszünteti a mechanikai kopás problémáját. Az RFID gyűjtőfogalom, amely
+több frekvenciasávot és szabványcsaládot foglal magában; a hozzáférés-vezérlésben
+elsősorban a 13,56 MHz-es sáv terjedt el [1]. Az ebbe a sávba tartozó **NFC**
+(Near Field Communication) technológia a rövid hatótávolsága miatt kifejezetten
+alkalmas beléptetési feladatokra, mivel a kártyát tudatosan az olvasóhoz kell
+érinteni.
+
+A **biometrikus azonosítás** — ujjlenyomat, arcfelismerés vagy íriszvizsgálat —
+elvi előnye, hogy az azonosító nem adható át másnak, így a helyettesítéssel
+elkövetett visszaélés kizárható. Alkalmazását ugyanakkor jelentős adatvédelmi
+megfontolások korlátozzák: a biometrikus adat az Európai Unió általános
+adatvédelmi rendelete értelmében a személyes adatok különleges kategóriájába
+tartozik, kezeléséhez szigorúbb feltételek teljesülése szükséges. Ehhez járul a
+magasabb hardverköltség, valamint a téves elutasítás és a téves elfogadás
+kockázata, amely ipari környezetben — szennyezett kéz, védőkesztyű mellett —
+számottevően romolhat.
+
+@@TABLE Az azonosítási technológiák összehasonlítása
+
+<!-- A táblázat vázát Wordben kell beilleszteni, Normal figure-table stílussal.
+     Javasolt oszlopok: Technológia | Költség | Másolhatóság | Kopás |
+     Adatvédelmi kockázat. Sorok: vonalkód/QR, mágnescsík, NFC, biometria. -->
+
+Az áttekintésből látható, hogy egyetlen technológia sem jelent minden
+szempontból optimális megoldást. Az NFC azért képez kedvező kompromisszumot,
+mert érintésmentes, mechanikailag nem kopik, hardverköltsége alacsony, és a
+mai mobiltelefonok jelentős része beépített olvasóval rendelkezik. Az a
+gyengesége, hogy az azonosító önmagában nem titkos, kiegészítő intézkedésekkel
+mérsékelhető — ezt a kérdéskört a 2.2. alfejezet tárgyalja részletesen.
 
 ## Az NFC technológia
 
-<!-- ~500 szó:
-       - működési elv, 13,56 MHz, ISO/IEC 14443, ~4 cm hatótáv
-       - a három működési mód: olvasó/író, kártyaemuláció, peer-to-peer
-       - kártyatípusok (MIFARE Classic / Ultralight / DESFire) és az UID szerepe
-       - biztonsági korlátok: az UID önmagában nem titok, klónozható
-         -> ez indokolja a dolgozatban a fényképes ellenőrzést
-       - Web NFC API: böngészőből elérhető, jelenleg Android/Chrome korlát -->
+Az NFC a 13,56 MHz-es frekvencián működő, rövid hatótávolságú kommunikációs
+technológia, amely az RFID induktív csatolású változatából fejlődött ki [1]. A
+két eszköz közötti adatátvitel elektromágneses indukcióval valósul meg: az
+olvasó váltakozó mágneses teret hoz létre, amely a kártya antennájában feszültséget
+indukál. Ennek köszönhetően a passzív kártyáknak nincs szükségük saját
+energiaforrásra, ami rendkívül hosszú élettartamot és alacsony előállítási
+költséget eredményez.
+
+Az elméleti hatótávolság mintegy tíz centiméter, a gyakorlatban azonban
+jellemzően négy centiméter alatt marad. Ez a korlát jelenléti rendszerben nem
+hátrány, hanem előny: a rövid hatótávolság biztosítja, hogy a regisztráció
+kizárólag szándékos művelet eredménye lehessen, szemben a nagyobb hatótávolságú
+UHF-es RFID megoldásokkal, ahol egy elhaladó személy kártyája akaratlanul is
+kiolvasásra kerülhet.
+
+A technológia szabványosítása két fő dokumentumcsaládra épül. Az érintés nélküli
+közelségi kártyák fizikai és átviteli rétegét az ISO/IEC 14443 szabvány
+határozza meg [2], míg az eszközök közötti kommunikáció felületét az ISO/IEC
+18092 szabvány írja le [3]. Az adatátviteli sebesség 106, 212 vagy 424 kbit/s
+lehet — ez a jelenléti adatok továbbításához bőségesen elegendő, hiszen
+mindössze néhány bájtnyi azonosító átviteléről van szó.
+
+Az NFC-eszközök három üzemmódban működhetnek. **Olvasó/író módban** az eszköz
+passzív címkéket olvas ki vagy ír; ezt a módot alkalmazza a dolgozat tárgyát
+képező rendszer is. **Kártyaemulációs módban** maga az eszköz viselkedik
+kártyaként, ezen alapulnak a mobilfizetési megoldások. A **pont-pont módban**
+két aktív eszköz cserél adatot egymással.
+
+A gyakorlatban használt kártyatípusok közül a MIFARE család terjedt el a
+legszélesebb körben. Fontos ugyanakkor megjegyezni, hogy a MIFARE Classic
+kártyákban alkalmazott Crypto-1 titkosítási eljárást a kutatók visszafejtették,
+és gyakorlatban is kivitelezhető támadásokat mutattak be ellene [4]. Ebből
+következően a kártya azonosítója (UID) **nem tekinthető titkos információnak**:
+megfelelő eszközzel kiolvasható, és üres kártyára másolható.
+
+Ez a megállapítás közvetlen tervezési következménnyel jár. Amennyiben a rendszer
+kizárólag az UID-re alapozza az azonosítást, a kártya lemásolásával a jelenlét
+meghamisítható. A kockázat több módon mérsékelhető: titkosított kölcsönös
+hitelesítést támogató kártyatípus alkalmazásával, második azonosítási tényező
+bevezetésével, vagy a belépés pillanatában készített fénykép rögzítésével.
+Az utóbbi megoldás előnye, hogy nem igényel drágább hardvert, és utólagos
+ellenőrzést tesz lehetővé.
+
+A webes alkalmazások szempontjából lényeges fejlemény a **Web NFC** felület,
+amely lehetővé teszi, hogy a böngészőben futó alkalmazás közvetlenül hozzáférjen
+az eszköz NFC-olvasójához [5]. A felület jelentősége abban áll, hogy natív
+alkalmazás fejlesztése és telepítése nélkül készíthető beléptető megoldás.
+Korlátja, hogy jelenleg kizárólag a Chromium alapú böngészők Android
+rendszeren futó változatai támogatják, továbbá a felület csak biztonságos
+környezetben (HTTPS protokollon keresztül) érhető el.
 
 ## Jelenléti nyilvántartó rendszerek
 
-<!-- ~600 szó:
-       - kereskedelmi megoldások áttekintése és korlátaik
-       - önálló terminál vs. mobileszköz-alapú megközelítés
-       - visszaélési minták: buddy punching (más helyett bélyegzés) és
-         a védekezés módjai (fénykép, GPS, biometria)
-       - munkajogi/adatvédelmi vonatkozások, adatminimalizálás -->
+A munkaidő rögzítésének legrégebbi módszere a papíralapú jelenléti ív, amely
+máig jelen van a kisebb vállalkozásoknál. Előnye a nulla bevezetési költség,
+hátránya viszont számottevő: az adatok utólagos feldolgozása kézi munkát
+igényel, a bejegyzések visszamenőleg módosíthatók, és a bérszámfejtéshez
+szükséges összesítés hibalehetőségekkel terhelt.
+
+Az elektronikus megoldások két nagy csoportra oszthatók. Az **önálló terminálok**
+saját hardverrel, beépített olvasóval és megjelenítővel rendelkeznek. Előnyük a
+megbízhatóság és a zárt működés, hátrányuk a magas beszerzési ár, valamint az,
+hogy az adatok kinyerése gyakran a gyártó saját szoftverén keresztül lehetséges.
+A **mobileszköz-alapú megoldások** ezzel szemben meglévő okostelefonokat vagy
+táblagépeket használnak olvasóként, így a hardverköltség jelentősen csökken, a
+rendszer pedig rugalmasabban telepíthető.
+
+A kereskedelmi forgalomban elérhető rendszerek jellemzően előfizetéses
+konstrukcióban, zárt forráskóddal érhetők el. Ez több szempontból is korlátozó:
+a felhasználó nem ellenőrizheti az adatkezelés módját, a rendszer testreszabása
+a gyártó közreműködésétől függ, a szolgáltatás megszűnése esetén pedig az
+adatok hordozhatósága kérdéses.
+
+A jelenléti rendszerek visszatérő problémája a szakirodalomban *buddy punching*
+néven ismert visszaélés, amelynek során az egyik dolgozó a távollévő kollégája
+helyett regisztrálja a jelenlétet. A jelenség azért nehezen kezelhető, mert nem
+a rendszer technikai hibájából, hanem az azonosító átruházhatóságából fakad. A
+védekezés lehetséges irányai a biometrikus azonosítás, a helymeghatározás
+alapú ellenőrzés, valamint a belépéskor készített fényképfelvétel. Az utolsó
+megoldás sajátossága, hogy önmagában nem akadályozza meg a visszaélést, hanem
+utólag ellenőrizhetővé és ezáltal kockázatossá teszi azt.
+
+Az adatkezelés jogi kereteit az általános adatvédelmi rendelet határozza meg,
+amelynek egyik alapelve az **adattakarékosság**: kizárólag a célhoz feltétlenül
+szükséges adatok kezelhetők. Jelenléti rendszer esetében ez azt jelenti, hogy a
+be- és kilépés időpontjának rögzítése indokolt, a dolgozó folyamatos
+helymeghatározása vagy tevékenységének megfigyelése azonban már nem. Ez a
+szempont a rendszer tervezésekor is figyelembe veendő, például úgy, hogy a
+fényképfelvétel kizárólag a regisztráció pillanatában készül, és zárt
+tárolóban, korlátozott hozzáféréssel kerül elhelyezésre.
 
 ## Webalkalmazás-architektúrák
 
-<!-- ~600 szó:
-       - PWA: telepíthetőség, service worker, offline működés
-       - offline-first tervezés: helyi tároló (IndexedDB), műveleti sor,
-         idempotens szinkronizáció, eventual consistency
-       - BaaS/szerver nélküli megközelítés (Supabase, Firebase): mit vált ki
-       - multi-tenant adatmodellek: külön adatbázis / külön séma / közös tábla
-         sorszintű szűréssel — előnyök és kockázatok
-       - sorszintű biztonság (Row Level Security) mint izolációs eszköz -->
+A webes technológiák fejlődésével a böngészőben futó alkalmazások képességei
+megközelítették a natív alkalmazásokét. A **progresszív webalkalmazás** (PWA)
+fogalma olyan webalkalmazást jelöl, amely telepíthető az eszközre, teljes
+képernyőn futtatható, és hálózati kapcsolat nélkül is működőképes marad. Ennek
+technikai alapját a *service worker* képezi: egy háttérben futó szkript, amely
+elfogadja az alkalmazás hálózati kéréseit, és eldönti, hogy azokat a hálózatról
+vagy a helyi gyorsítótárból szolgálja ki [6].
+
+A **hálózatfüggetlen (offline-first) tervezés** ennél tovább megy: nem
+kivételes állapotként kezeli a kapcsolat hiányát, hanem alapértelmezésként. Az
+ilyen alkalmazás először mindig a helyi tárolóval dolgozik, és a szerverrel való
+egyeztetés a háttérben, alkalomadtán történik meg. A böngészőben erre a célra az
+**IndexedDB** áll rendelkezésre, amely strukturált adatok tárolására és
+indexelésére alkalmas beágyazott adatbázis.
+
+A megközelítés központi kérdése a **szinkronizáció helyessége**. Amennyiben a
+kapcsolat helyreállása után az elmentett műveletek visszajátszásra kerülnek, két
+hibalehetőséggel kell számolni. Egyrészt a válasz elveszhet azután, hogy a
+szerver már feldolgozta a kérést; az ismételt küldés ilyenkor duplikált
+bejegyzést hozna létre. Ez **idempotens** művelettel előzhető meg, azaz úgy, hogy
+ugyanazon művelet többszöri végrehajtása is egyetlen eredményt hoz létre — a
+gyakorlatban a kliens által előállított egyedi azonosítóval és az adatbázis
+oldalán érvényesített egyediségi megkötéssel. Másrészt az események sorrendje
+felborulhat, ezért az eredeti időbélyeget a kliensnek kell rögzítenie és
+továbbítania, nem pedig a szervernek a feldolgozás pillanatában. Az így
+kialakuló, átmenetileg eltérő, majd fokozatosan egyező állapotot a szakirodalom
+**eventual consistency** néven tárgyalja [7].
+
+A háttérrendszerek területén az utóbbi években elterjedt a **BaaS**
+(*Backend as a Service*) modell, amely kész szolgáltatásként kínálja az
+adatbázist, a hitelesítést, a fájltárolást és a szerveroldali függvények
+futtatását. Előnye a lényegesen rövidebb fejlesztési idő, hátránya a
+szolgáltatóhoz való kötődés.
+
+Több cég egyidejű kiszolgálása esetén a **több bérlős** (multi-tenant)
+adatmodell kialakítása külön mérlegelést igényel. Három bevett minta létezik:
+bérlőnként külön adatbázis, közös adatbázison belül külön séma, illetve közös
+táblák bérlőazonosítóval megkülönböztetett sorokkal [8]. Az első a legerősebb
+elkülönítést adja, de a legdrágább üzemeltetni; a harmadik a
+leggazdaságosabb, viszont a legnagyobb figyelmet igényli, mivel egyetlen
+hiányzó szűrőfeltétel adatszivárgáshoz vezethet.
+
+Ez utóbbi kockázat csökkenthető a **sorszintű biztonság** (Row Level Security)
+alkalmazásával, amelyet a PostgreSQL adatbázis-kezelő is támogat. Ennek lényege,
+hogy a szűrési szabály nem az alkalmazás kódjában, hanem az adatbázisban kerül
+meghatározásra, így akkor is érvényesül, ha a lekérdezésből véletlenül kimarad a
+feltétel [9]. A védelem ezáltal a rendszer olyan rétegébe kerül, amely a
+fejlesztői hibától függetlenül hat.
 
 ## Mesterséges intelligencia alkalmazása vezetői kimutatásokban
 
 <!-- ~400 szó:
-       - nagy nyelvi modellek (LLM) szerepe strukturált adatok
-         természetes nyelvű összefoglalásában
-       - miért hasznos ez a vezetőnek: gyors értelmezés a nyers számok helyett
-       - korlátok: hallucináció, adatvédelem (mit küldünk ki a modellnek),
-         költség és késleltetés
-     Ez alapozza meg a 3. fejezet MI-összefoglaló alfejezetét. -->
+       - nagy nyelvi modellek szerepe strukturált adatok összefoglalásában
+       - miért hasznos a vezetőnek
+       - korlátok: hallucináció, adatvédelem, költség, késleltetés -->
 
 ## Következtetések az áttekintésből
 
 <!-- ~200 szó: mi hiányzik a meglévő megoldásokból, és ez hogyan vezet át
-     a saját megoldás követelményeihez. Ez köti össze a 2. és 3. fejezetet. -->
+     a saját megoldás követelményeihez. -->
