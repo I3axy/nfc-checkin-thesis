@@ -215,12 +215,76 @@ fejlesztői hibától függetlenül hat.
 
 ## Mesterséges intelligencia alkalmazása vezetői kimutatásokban
 
-<!-- ~400 szó:
-       - nagy nyelvi modellek szerepe strukturált adatok összefoglalásában
-       - miért hasznos a vezetőnek
-       - korlátok: hallucináció, adatvédelem, költség, késleltetés -->
+A jelenléti rendszerek hagyományosan táblázatokban és diagramokon jelenítik meg
+az összegyűjtött adatokat. Ez a megjelenítési forma pontos, ugyanakkor a
+következtetés levonását teljes egészében a felhasználóra hárítja: a vezetőnek
+kell felismernie, hogy egy adott érték szokatlan-e, és hogy a különböző mutatók
+együttesen milyen képet rajzolnak ki.
+
+A **nagy nyelvi modellek** (Large Language Model, LLM) megjelenése ezen a
+ponton kínál új lehetőséget. Ezek a modellek nagy mennyiségű szövegen tanított,
+transzformer architektúrájú neurális hálózatok, amelyek képesek úgynevezett
+*few-shot* módon, azaz kifejezetten az adott feladatra irányuló betanítás nélkül
+is elfogadható eredményt adni, pusztán a bemenetben megfogalmazott utasítás
+alapján [10]. A gyakorlati jelentőség abban áll, hogy egy strukturált
+adathalmaz természetes nyelvű összefoglalásához nem szükséges saját modellt
+tanítani; elegendő az adatokat és az elvárt kimenet leírását a modellnek
+átadni.
+
+Vezetői kimutatások esetében ez a képesség két területen hasznosítható. Az
+**adatösszefoglalás** során a modell a számokból folyó szöveget állít elő, ami
+csökkenti a kimutatás értelmezéséhez szükséges időt. Az **eltérések
+kiemelésével** pedig felhívható a figyelem azokra a mutatókra, amelyek az
+előző időszakhoz képest számottevően megváltoztak. A megközelítés különösen ott
+értékes, ahol a vezető nem rendszeresen, hanem alkalomszerűen tekinti át az
+adatokat, és nincs meg benne az az összehasonlítási alap, amelyhez a látott
+értékeket viszonyíthatná.
+
+Az alkalmazásnak ugyanakkor több lényeges korlátja van, amelyeket a tervezés
+során figyelembe kell venni.
+
+A legsúlyosabb kockázatot a **konfabuláció** — a szakirodalomban gyakran
+*hallucináció* néven tárgyalt jelenség — jelenti: a modell olyan állítást is
+megfogalmazhat, amely nyelvileg meggyőző, tartalmilag viszont nem támasztja alá
+a bemenet [11]. Munkaidő-nyilvántartásban ez közvetlen kárt okozhat, hiszen egy
+kitalált adat munkajogi következménnyel járó döntés alapjául szolgálhat. A
+kockázat mérséklésének bevett módja, hogy a modell kizárólag a ténylegesen
+átadott adatokra támaszkodhat, és az utasítás kifejezetten megtiltja a
+kiegészítést vagy a becslést.
+
+A második korlát **adatvédelmi** természetű. A modell működtetése jellemzően
+külső szolgáltatónál történik, így minden elküldött adat elhagyja a rendszer
+határát. Az adattakarékosság elve ezért itt is érvényes: amennyiben a feladat
+összesített értékekből is elvégezhető, személyazonosításra alkalmas adatot nem
+indokolt továbbítani.
+
+Harmadrészt a modellhívás **költséggel és késleltetéssel** jár. A válaszidő
+jellemzően több másodperc, ami a felhasználói felület tervezését is
+befolyásolja: az összefoglaló nem képezheti az oldal betöltésének feltételét,
+hanem külön, a felhasználó által kezdeményezett műveletként célszerű
+megvalósítani. Ehhez járul, hogy a szolgáltatás átmenetileg elérhetetlenné
+válhat, ezért a rendszer működőképességét nem szabad tőle függővé tenni.
 
 ## Következtetések az áttekintésből
 
-<!-- ~200 szó: mi hiányzik a meglévő megoldásokból, és ez hogyan vezet át
-     a saját megoldás követelményeihez. -->
+Az áttekintésből több olyan hiányosság rajzolódik ki, amely a saját megoldás
+követelményeit meghatározza.
+
+Az azonosítási technológiák közül az NFC kedvező kompromisszumot képez, a
+kártyaazonosító azonban nem titkos, ezért önmagában nem elegendő. A meglévő
+jelenléti rendszerek jellemzően zárt forráskódú, előfizetéses termékek,
+amelyek gyakran saját hardvert igényelnek, és az adatkezelés módja kívülről nem
+ellenőrizhető. A *buddy punching* jelensége ellen a legtöbb megfizethető
+megoldás nem nyújt védelmet.
+
+Külön figyelmet érdemel, hogy a piaci rendszerek a hálózati kapcsolat meglétét
+rendszerint adottnak tekintik. Ipari környezetben — csarnokban, telephely
+bejáratánál — ez az előfeltevés nem tartható, a beléptetés viszont
+kapcsolathiány esetén sem szüneteltethető.
+
+Ezekből a megállapításokból három követelmény vezethető le, amelyek a
+következő fejezetben kidolgozott rendszer tervezését irányították: az
+azonosítást kiegészítő, olcsó ellenőrzési lehetőség biztosítása; a hálózati
+kapcsolattól független működés; valamint az adatok cégek közötti megbízható
+elkülönítése olyan módon, hogy az ne egyetlen alkalmazásréteg helyességén
+múljon.

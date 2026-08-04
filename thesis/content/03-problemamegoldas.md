@@ -9,30 +9,146 @@
 
 # Problémamegoldás
 
-<!-- ~200 szó: a fejezet felépítésének felvezetése. -->
+Ebben a fejezetben a megvalósított rendszer bemutatása következik, a
+követelmények meghatározásától a tesztelés eredményeinek értékeléséig. A
+tárgyalás a tervezés természetes sorrendjét követi: először a rendszerrel
+szemben támasztott elvárások kerülnek rögzítésre, majd az ezekből következő
+architekturális döntések, ezt követően az adatmodell, végül az egyes
+alkalmazások működése.
+
+A bemutatás során nem csupán az elkészült megoldás leírására törekszem, hanem a
+mögötte álló döntések indoklására is. Ahol a fejlesztés közben derült ki, hogy
+egy korábbi elképzelés nem tartható, ott ez a körülmény külön jelzésre kerül,
+mivel a tervezési döntések felülvizsgálata a fejlesztési folyamat szerves része.
+A programkód terjedelmi okokból a Mellékletekbe került; a szövegben csak azok a
+részletek szerepelnek, amelyek nélkül az adott megoldás nem érthető meg.
 
 ## Követelmények meghatározása
 
 ### Funkcionális követelmények
 
-<!-- ~400 szó. Szerepkörönként érdemes bontani:
-       - dolgozó: kártyás be- és kiléptetés, saját adatok megtekintése,
-         hiányzás bejelentése
-       - vezető: valós idejű állapot, napló, kimutatások, exportálás,
-         dolgozók kezelése, beállítások
-       - rendszer: automatikus kiléptetés, napi értesítő, vendégkezelés -->
+A követelmények meghatározása a rendszert használó három szerepkör
+elkülönítésével történt. A szerepkörönkénti bontás azért indokolt, mert a
+használat körülményei alapvetően eltérnek: a dolgozó néhány másodpercet tölt a
+rendszerrel a munkanap két végpontján, a vezető ezzel szemben hosszabb ideig,
+asztali eszközön dolgozik vele.
+
+**A dolgozóval kapcsolatos követelmények.** A rendszernek lehetővé kell tennie
+a munkaidő kezdetének és végének rögzítését az NFC-kártya érintésével, oly
+módon, hogy a művelet iránya — belépés vagy kilépés — automatikusan
+meghatározásra kerüljön, és ne igényeljen külön választást a dolgozótól. A
+visszajelzésnek egyértelműnek és több méter távolságból is értelmezhetőnek kell
+lennie, mivel a berendezés jellemzően falra szerelt eszközön üzemel. A kártya
+otthon felejtése nem akadályozhatja meg a munkakezdést, ezért tartalék
+azonosítási módra van szükség. A dolgozónak emellett hozzá kell férnie a saját
+jelenléti adataihoz, és be kell tudnia jelenteni tervezett távollétét.
+
+**A vezetővel kapcsolatos követelmények.** A vezetői felületnek valós időben
+kell megjelenítenie, hogy az adott pillanatban kik tartózkodnak a telephelyen. A
+jelenléti eseményekről visszakereshető naplót kell vezetnie, amelyben időszak,
+dolgozó és műszak szerint lehet szűrni. Szükséges továbbá az adatok időszakos
+összesítése és külső táblázatkezelőbe történő kivitele, mivel a bérszámfejtés
+jellemzően ilyen formátumot igényel. A vezetőnek kezelnie kell tudnia a
+dolgozók adatait, a hiányzásokat, valamint a cégre vonatkozó beállításokat. A
+rendszernek végül a felhalmozott adatokból természetes nyelvű értékelést is elő
+kell tudnia állítani, csökkentve ezzel a kimutatások értelmezéséhez szükséges
+időt.
+
+**A rendszerrel szemben támasztott követelmények.** Bizonyos műveleteknek
+felhasználói beavatkozás nélkül kell végbemenniük. A nyitva maradt munkanapokat
+a cég által beállított órában automatikusan le kell zárni, mivel a kilépés
+rögzítésének elmulasztása a tapasztalatok szerint gyakori. A vezetők számára
+napi összesítő értesítést kell küldeni. Kezelni kell továbbá az alkalmi
+látogatókat, akik nem rendelkeznek állandó kártyával.
 
 ### Nem funkcionális követelmények
 
-<!-- ~300 szó: rendelkezésre állás hálózatkimaradás esetén, válaszidő,
-     adatbiztonság és cégek közti elkülönítés, bővíthetőség, hordozhatóság. -->
+A minőségi jellemzők közül négy bizonyult meghatározónak.
+
+**Rendelkezésre állás.** A beléptetés a rendszer legkritikusabb funkciója:
+kiesése esetén a munkavégzés adminisztrációja ellehetetlenül. A telepítés helye
+— csarnok, telephelyi bejárat — a szakirodalmi áttekintésben említett módon
+gyakran gyenge lefedettségű, ezért a hálózatkimaradást nem hibaállapotként,
+hanem rendes üzemmenetként kell kezelni. Ebből következően az alkalmazásnak
+kapcsolat nélkül is el kell indulnia, fel kell ismernie a kártyát, meg kell
+határoznia a művelet irányát, és az eseményt későbbi továbbításra el kell
+tárolnia. A kapcsolat helyreállásakor a tárolt események továbbításának
+duplikáció nélkül kell megtörténnie.
+
+**Válaszidő.** A kártya érintésétől a visszajelzés megjelenéséig eltelt időnek
+két másodpercen belül kell maradnia. Ennél hosszabb várakozás esetén a dolgozó
+bizonytalanná válik a művelet sikerességét illetően, és a kártyát ismét
+odaérinti, ami szükségtelen ismételt eseményt eredményez.
+
+**Adatbiztonság és a cégek elkülönítése.** Mivel a rendszer több cég adatait
+kezeli ugyanabban az adatbázisban, biztosítani kell, hogy egyik cég adata se
+legyen elérhető a másik számára. A követelmény lényeges eleme, hogy ez az
+elkülönítés ne kizárólag az alkalmazás kódjának helyességén múljon: egyetlen
+elfelejtett szűrőfeltétel nem vezethet adatszivárgáshoz. A dolgozókról kezelt
+adatok körét az adattakarékosság elvéhez igazodva a feladat ellátásához
+szükséges minimumra kell szorítani.
+
+**Bővíthetőség és hordozhatóság.** A rendszernek fel kell készülnie arra, hogy
+egyes külső szolgáltatások — például a szöveges összefoglalást előállító
+nyelvi modell vagy az elektronikus levelek küldését végző szolgáltatás —
+lecserélésre kerülnek. Az ilyen függőségeket ezért a rendszer egy-egy jól
+körülhatárolt pontján kell elhelyezni, hogy cseréjük ne érintse a felhasználói
+felületet. Az alkalmazásoknak külön telepítés nélkül, böngészőből
+használhatónak kell lenniük.
 
 ## A rendszer architektúrája
 
-<!-- ~600 szó: a háromalkalmazásos felépítés indoklása (miért nem egy app).
-     Ide kívánkozik az architektúra-ábra: -->
+A követelmények áttekintése után az első és egyben legmeghatározóbb tervezési
+döntés az volt, hogy a rendszer nem egyetlen, hanem három különálló
+alkalmazásból áll, amelyek közös háttérrendszert használnak. A felépítés az 1.
+ábrán látható.
 
 ![A rendszer architektúrája](architektura.png)
+
+A kézenfekvőbb megoldás egyetlen alkalmazás készítése lett volna, amely a
+bejelentkezett felhasználó szerepköre alapján más-más felületet jelenít meg.
+Ezt a megközelítést három érv miatt vetettem el.
+
+Az **eltérő használati mód** a legfontosabb szempont. A beléptető alkalmazás
+falra szerelt, folyamatosan bekapcsolt eszközön fut, egyetlen képernyőt jelenít
+meg, és felhasználói bejelentkezés nélkül üzemel — az azonosítást maga a kártya
+végzi. A vezetői felület ezzel szemben asztali böngészőben, hitelesített
+munkamenetben, összetett táblázatokkal és diagramokkal dolgozik. E két
+felhasználási mód között gyakorlatilag nincs közös felületi elem, összevonásuk
+tehát nem egyszerűsítené, hanem bonyolítaná a kódot.
+
+A második érv a **támadási felület** csökkentése. A beléptető alkalmazás
+nyilvánosan hozzáférhető eszközön fut, amelyhez elvileg bárki hozzáférhet.
+Amennyiben ugyanaz az alkalmazás tartalmazná a vezetői funkciókat is, a
+kimutatásokhoz és a dolgozói adatokhoz tartozó programkód is eljutna erre az
+eszközre, még akkor is, ha a felület elrejtve marad. A szétválasztással a
+beléptető eszközre kizárólag az a kód kerül, amelyre a beléptetéshez ténylegesen
+szükség van.
+
+A harmadik szempont a **független telepíthetőség**. A három alkalmazás eltérő
+ütemben változik: a beléptető alkalmazás a legstabilabb, mivel a működése
+egyszerű és jól körülhatárolt, a vezetői felület viszont folyamatosan bővül. Az
+elkülönítés lehetővé teszi, hogy a vezetői felület módosítása ne igényelje a
+beléptető eszközök frissítését, ami üzemszerű körülmények között kifejezetten
+előnyös, hiszen ezek az eszközök nehezen hozzáférhetők.
+
+Az egyes alkalmazások szerepe a következőképpen alakult. A **beléptető
+alkalmazás** olvassa a kártyát, dönti el a művelet irányát, és jeleníti meg a
+visszajelzést; ez az egyetlen olyan része a rendszernek, amelynek hálózat
+nélkül is teljes értékűen működnie kell. A **dolgozói alkalmazás**
+önkiszolgáló felületet biztosít: a dolgozó a saját kártyájával azonosítja magát,
+és megtekintheti a jelenléti adatait, illetve távollétet jelenthet be. A
+**vezetői felület** a rendszer adminisztratív központja, ez az egyetlen
+alkalmazás, amely hagyományos, jelszavas bejelentkezést használ.
+
+A három alkalmazás közös háttérrendszerrel dolgozik, amely az adatbázist, a
+hitelesítést, a fájltárolást és a szerveroldali függvények futtatását biztosítja.
+Az üzleti logika azon része, amely biztonsági szempontból érzékeny — a
+beléptetés érvényesítése, a felhasználók létrehozása, a szöveges összefoglaló
+előállítása — nem a böngészőben futó alkalmazásokban, hanem szerveroldali
+függvényekben helyezkedik el. Ennek oka, hogy a kliensoldali kód a felhasználó
+által megtekinthető és módosítható, ezért érdemi ellenőrzés végrehajtására nem
+alkalmas.
 
 <!-- Az ábrafájlt a thesis/figures/ mappába kell tenni. A felirat és a
      sorszám automatikusan az ábra alá kerül. -->
