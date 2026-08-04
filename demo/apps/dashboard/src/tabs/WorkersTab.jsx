@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { C, S, CAL, tint } from '../lib/theme'
-import { calcDayMinutes, isWorkerLate, fmtMins, fmtClock, normalizeUid, hashPin } from '../lib/utils'
+import { calcDayMinutes, isWorkerLate, fmtMins, fmtClock, fmtDateTime, fmtAgo, normalizeUid, hashPin } from '../lib/utils'
 import { Table, Th, TableEmpty, SectionLabel, Badge, Field } from '../components/ui'
 import { PhoneInput } from '../components/PhoneInput'
 import { SelfPasswordChange } from '../components/SelfPasswordChange'
@@ -293,6 +293,18 @@ function ProfilSubTab({ worker, onSaved, isSelf }) {
                 </div>
             }
           </Field>
+        </div>
+      )}
+
+      {/* Metaadat: a profil létrehozásának ideje. Pontos dátum + eltelt idő,
+          mert a "mikor vették fel" kérdésre általában a nagyságrend a válasz. */}
+      {worker.created_at && (
+        <div style={{ marginTop: '1.25rem', paddingTop: '0.85rem', borderTop: `1px solid ${C.border}`, display: 'flex', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap', fontSize: '0.73rem', color: C.muted }}>
+          <span style={{ letterSpacing: '0.06em', textTransform: 'uppercase' }}>Létrehozva</span>
+          <span style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+            {fmtDateTime(worker.created_at)}
+            <span style={{ opacity: 0.7 }}> · {fmtAgo(worker.created_at)}</span>
+          </span>
         </div>
       )}
     </div>

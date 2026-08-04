@@ -69,6 +69,30 @@ export function fmtClock(ts) {
   return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
+// Pontos dátum + óra, magyar alakban: "2026. aug. 4. 14:32"
+export function fmtDateTime(ts) {
+  if (!ts) return null
+  const d = new Date(ts)
+  if (Number.isNaN(d.getTime())) return null
+  return `${d.getFullYear()}. ${HU_MONTHS[d.getMonth()]} ${d.getDate()}. ${fmtClock(d)}`
+}
+
+// Eltelt idő szövegesen. A hónapot 30, az évet 365 napnak vesszük — ez itt
+// tájékoztató adat, a pontos dátum mindig ott áll mellette.
+export function fmtAgo(ts) {
+  if (!ts) return null
+  const sec = (Date.now() - new Date(ts).getTime()) / 1000
+  if (Number.isNaN(sec)) return null
+  if (sec < 0) return 'a jövőben'
+  const min = sec / 60, hour = min / 60, day = hour / 24
+  if (min < 1)   return 'az imént'
+  if (min < 60)  return `${Math.floor(min)} perce`
+  if (hour < 24) return `${Math.floor(hour)} órája`
+  if (day < 30)  return `${Math.floor(day)} napja`
+  if (day < 365) return `${Math.floor(day / 30)} hónapja`
+  return `${Math.floor(day / 365)} éve`
+}
+
 // Normalize an NFC UID the same way the checkin Edge Function does, so stored
 // values always match what the scanner sends (uppercase, no separators).
 export function normalizeUid(raw) {

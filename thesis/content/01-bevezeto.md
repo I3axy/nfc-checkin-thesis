@@ -2,7 +2,12 @@
      1. BEVEZETŐ
      Előírás: a bevezető fejezet NE legyen hosszabb másfél oldalnál (~500 szó).
      Nem számít bele a 7000–10 000 szavas kvótába (az a 2. és 3. fejezetre él).
-     A sablon javasolja a szenvedő igealak használatát ("megvalósításra került").
+     STÍLUS — AZ EGÉSZ DOLGOZATRA ÉRVÉNYES:
+     A sablon szó szerint előírja: "A szakdolgozat írásakor javasolt a szenvedő
+     igealak használata, mint pl. »megcsinálták«, »megmutatták«."
+     Ebből következően E/1 alak (törekszem, elvetettem, megvalósítottam) NEM
+     használható. Helyette személytelen szerkezet: "megvalósításra került",
+     "a döntés indoka az volt", "az elemzésből következik".
      =========================================================================== -->
 
 # Bevezető

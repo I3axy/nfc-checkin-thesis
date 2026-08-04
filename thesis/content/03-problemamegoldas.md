@@ -16,8 +16,8 @@ szemben támasztott elvárások kerülnek rögzítésre, majd az ezekből követ
 architekturális döntések, ezt követően az adatmodell, végül az egyes
 alkalmazások működése.
 
-A bemutatás során nem csupán az elkészült megoldás leírására törekszem, hanem a
-mögötte álló döntések indoklására is. Ahol a fejlesztés közben derült ki, hogy
+A bemutatás célja nem csupán az elkészült megoldás leírása, hanem a mögötte
+álló döntések indoklása is. Ahol a fejlesztés közben derült ki, hogy
 egy korábbi elképzelés nem tartható, ott ez a körülmény külön jelzésre kerül,
 mivel a tervezési döntések felülvizsgálata a fejlesztési folyamat szerves része.
 A programkód terjedelmi okokból a Mellékletekbe került; a szövegben csak azok a
@@ -107,7 +107,7 @@ alkalmazásból áll, amelyek közös háttérrendszert használnak. A felépít
 
 A kézenfekvőbb megoldás egyetlen alkalmazás készítése lett volna, amely a
 bejelentkezett felhasználó szerepköre alapján más-más felületet jelenít meg.
-Ezt a megközelítést három érv miatt vetettem el.
+Ez a megközelítés három érv miatt került elvetésre.
 
 Az **eltérő használati mód** a legfontosabb szempont. A beléptető alkalmazás
 falra szerelt, folyamatosan bekapcsolt eszközön fut, egyetlen képernyőt jelenít

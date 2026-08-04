@@ -130,7 +130,9 @@ export function RegisterTab({ onSaved }) {
   )
 
   return (
-    <div style={{ maxWidth: 560, margin: '2.5rem auto 0' }}>
+    // A felső térköz szándékosan szűk: vezetői szerepkörnél az űrlap
+    // jelszómezőkkel bővül, és nagyobb spacinggel görgetni kellene.
+    <div style={{ maxWidth: 560, margin: '1rem auto 0' }}>
       <SectionLabel color={C.accent}>Új személy regisztrálása</SectionLabel>
       <div style={{ background: C.bg1, border: `1px solid ${C.border}`, borderRadius: R.lg, padding: '1.5rem' }}>
 
