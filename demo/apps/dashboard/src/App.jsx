@@ -267,7 +267,7 @@ function Dashboard() {
           {tab === 'insights' && <InsightsTab employees={employees} events={events} settings={settings} />}
           {/* A cég a szerveren, a hívó profiljából derül ki — nem kliensről érkezik */}
           {tab === 'register' && <RegisterTab onSaved={loadData} />}
-          {tab === 'settings' && <SettingsTab settings={settings} companyId={me?.company_id} me={me} onChange={setSettings} />}
+          {tab === 'settings' && <SettingsTab settings={settings} companyId={me?.company_id} me={me} employees={employees} onChange={setSettings} />}
         </div>
       </main>
 

@@ -6,6 +6,8 @@ export const DEFAULT_SETTINGS = {
   startMinute: 0,
   lateThresholdMinutes: 15,
   autoCheckoutHour: 23,
+  // Műszaknév -> óra felülírás. Ami nincs benne, arra autoCheckoutHour él.
+  autoCheckoutByShift: {},
   photoRequired: false,
   pinPhotoRequired: false,
   theme: 'dark',
@@ -31,6 +33,7 @@ export function companyToSettings(company) {
     startMinute:          company.work_start_minute,
     lateThresholdMinutes: company.late_threshold_minutes,
     autoCheckoutHour:     company.auto_checkout_hour,
+    autoCheckoutByShift:  company.auto_checkout_by_shift ?? {},
     photoRequired:        company.photo_required,
     pinPhotoRequired:     company.pin_photo_required,
   }
@@ -43,7 +46,24 @@ export function settingsToCompany(s) {
     work_start_minute:      Number(s.startMinute),
     late_threshold_minutes: Number(s.lateThresholdMinutes),
     auto_checkout_hour:     Number(s.autoCheckoutHour),
+    auto_checkout_by_shift: sanitizeShiftHours(s.autoCheckoutByShift),
     photo_required:         !!s.photoRequired,
     pin_photo_required:     !!s.pinPhotoRequired,
   }
+}
+
+// Csak érvényes órák (0–23) kerülhetnek az adatbázisba. Az üres és a
+// hibás érték kimarad — azokra a cég alapértelmezett órája marad érvényes,
+// pontosan úgy, ahogy az SQL oldali coalesce is kezeli.
+export function sanitizeShiftHours(map) {
+  const out = {}
+  for (const [shift, hour] of Object.entries(map ?? {})) {
+    const name = String(shift).trim()
+    if (!name) continue
+    if (hour === '' || hour === null || hour === undefined) continue
+    const h = Number(hour)
+    if (!Number.isInteger(h) || h < 0 || h > 23) continue
+    out[name] = h
+  }
+  return out
 }

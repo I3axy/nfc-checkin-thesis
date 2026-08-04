@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
-import { C, S, R } from '../lib/theme'
+import { C, S, R, tint } from '../lib/theme'
 import { saveTheme, loadTheme, settingsToCompany } from '../lib/settings'
 import { toast } from '../components/toast'
 import { SelfPasswordChange } from '../components/SelfPasswordChange'
@@ -26,11 +26,20 @@ function Toggle({ on, onClick }) {
 
 const ROLE_LABELS = { manager: 'Manager', admin: 'Admin', worker: 'Worker', guest: 'Vendég' }
 
-export function SettingsTab({ settings, companyId, me, onChange }) {
+export function SettingsTab({ settings, companyId, me, employees = [], onChange }) {
   const [startHour,     setStartHour]     = useState(settings.startHour)
   const [startMinute,   setStartMinute]   = useState(settings.startMinute)
   const [lateThreshold, setLateThreshold] = useState(settings.lateThresholdMinutes)
   const [autoCheckout,  setAutoCheckout]  = useState(settings.autoCheckoutHour)
+  const [shiftHours,    setShiftHours]    = useState(() => settings.autoCheckoutByShift ?? {})
+
+  // A ténylegesen használatban lévő műszakok. Kiegészítjük azokkal, amikre már
+  // van mentett felülírás — különben egy időközben kiürült műszak beállítása
+  // láthatatlanul, de érvényben maradna.
+  const shifts = useMemo(() => {
+    const used = employees.filter(e => e.role !== 'guest').map(e => e.department).filter(Boolean)
+    return [...new Set([...used, ...Object.keys(settings.autoCheckoutByShift ?? {})])].sort()
+  }, [employees, settings.autoCheckoutByShift])
   const [photoRequired, setPhotoRequired] = useState(settings.photoRequired ?? false)
   const [pinPhotoRequired, setPinPhotoRequired] = useState(settings.pinPhotoRequired ?? false)
   // Read the theme from its real source (localStorage) — the App-level settings
@@ -50,7 +59,8 @@ export function SettingsTab({ settings, companyId, me, onChange }) {
 
     const next = {
       startHour, startMinute, lateThresholdMinutes: lateThreshold,
-      autoCheckoutHour: autoCheckout, photoRequired, pinPhotoRequired, theme,
+      autoCheckoutHour: autoCheckout, autoCheckoutByShift: shiftHours,
+      photoRequired, pinPhotoRequired, theme,
     }
     const { data, error } = await supabase.from('companies').update(settingsToCompany(next)).eq('id', companyId).select()
     setSaving(false)
@@ -58,9 +68,14 @@ export function SettingsTab({ settings, companyId, me, onChange }) {
     if (!data || data.length === 0) { setError('A mentés nem sikerült (jogosultság hiánya). Ellenőrizd, hogy manager/admin szerepkörrel vagy bejelentkezve.'); toast('A beállítások mentése nem sikerült', 'error'); return }
 
     saveTheme(theme)
+    // A szerverre ténylegesen kiment, megtisztított leképezést vesszük át,
+    // hogy a felület ne mutasson mást, mint ami elmentésre került.
+    const savedShifts = data[0]?.auto_checkout_by_shift ?? {}
+    setShiftHours(savedShifts)
     onChange({
       startHour: Number(startHour), startMinute: Number(startMinute),
       lateThresholdMinutes: Number(lateThreshold), autoCheckoutHour: Number(autoCheckout),
+      autoCheckoutByShift: savedShifts,
       photoRequired, pinPhotoRequired, theme,
     })
     setSaved(true)
@@ -118,14 +133,61 @@ export function SettingsTab({ settings, companyId, me, onChange }) {
               <span style={{ fontSize: '0.8rem', color: C.muted }}>perc</span>
             </div>
           </SettingsRow>
-          <SettingsRow label="Auto checkout" hint="ennél később senki sem maradhat bent">
+          <SettingsRow label="Auto checkout" hint="alapértelmezés — ennél később senki sem maradhat bent">
             <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-              <input type="number" min="18" max="23" value={autoCheckout} onChange={e => setAutoCheckout(e.target.value)} style={{ ...S.input, width: 70 }} />
+              <input type="number" min="0" max="23" value={autoCheckout} onChange={e => setAutoCheckout(e.target.value)} style={{ ...S.input, width: 70 }} />
               <span style={{ fontSize: '0.8rem', color: C.muted }}>:00</span>
             </div>
           </SettingsRow>
         </tbody>
       </Table>
+
+      {/* Műszakonkénti felülírás. Az éjszakás műszak reggel végez, a nappali
+          délután — egyetlen közös órával az egyik mindig rosszul zárulna. */}
+      {shifts.length > 0 && (
+        <>
+          <div style={{ height: '1.5rem' }} />
+          <SectionLabel color={C.accent}>Auto checkout műszakonként</SectionLabel>
+          <div style={{ fontSize: '0.75rem', color: C.muted, margin: '0 0 0.6rem', lineHeight: 1.5 }}>
+            Üresen hagyva a fenti alapértelmezés ({String(autoCheckout).padStart(2, '0')}:00) érvényes.
+            Az éjszakás műszaknál reggeli óra is megadható — a rendszer a belépéstől
+            számított 24 órán belül zárja le a nyitva maradt napot.
+          </div>
+          <Table>
+            <tbody>
+              {shifts.map(shift => {
+                const val = shiftHours[shift] ?? ''
+                const overridden = val !== '' && val !== null && val !== undefined
+                return (
+                  <SettingsRow key={shift} label={shift}>
+                    <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                      <input
+                        type="number" min="0" max="23"
+                        value={val}
+                        placeholder={String(autoCheckout).padStart(2, '0')}
+                        onChange={e => setShiftHours(prev => {
+                          const next = { ...prev }
+                          if (e.target.value === '') delete next[shift]
+                          else next[shift] = Number(e.target.value)
+                          return next
+                        })}
+                        style={{ ...S.input, width: 70, borderColor: overridden ? tint(C.accent, 45) : C.border }}
+                      />
+                      <span style={{ fontSize: '0.8rem', color: C.muted }}>:00</span>
+                      {overridden && (
+                        <button type="button" onClick={() => setShiftHours(prev => { const n = { ...prev }; delete n[shift]; return n })}
+                          style={{ ...S.btnIcon, fontSize: '0.7rem', color: C.muted }} title="Vissza az alapértelmezésre">
+                          ↺
+                        </button>
+                      )}
+                    </div>
+                  </SettingsRow>
+                )
+              })}
+            </tbody>
+          </Table>
+        </>
+      )}
 
       <div style={{ height: '1.5rem' }} />
       <SectionLabel color={C.accent}>Fotó check-in</SectionLabel>
@@ -146,44 +208,6 @@ export function SettingsTab({ settings, companyId, me, onChange }) {
         </tbody>
       </Table>
 
-      <div style={{ height: '1.5rem' }} />
-      <SectionLabel color={C.accent}>Megjelenés</SectionLabel>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-        {THEMES.map(t => {
-          const active = theme === t.key
-          return (
-            // Theme is a per-device preference — applies and persists instantly
-            <button key={t.key} type="button" onClick={() => { setTheme(t.key); saveTheme(t.key) }} style={{
-              textAlign: 'left', cursor: 'pointer', padding: 0, overflow: 'hidden',
-              background: C.bg1, border: `2px solid ${active ? C.accent : C.border}`, borderRadius: R.lg,
-            }}>
-              {/* Mini theme preview */}
-              <div style={{ background: t.pv.bg, padding: '0.85rem', borderBottom: `1px solid ${t.pv.border}` }}>
-                <div style={{ background: t.pv.surface, border: `1px solid ${t.pv.border}`, padding: '0.5rem 0.6rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                  <span style={{ width: 10, height: 10, background: t.pv.accent, flexShrink: 0 }} />
-                  <span style={{ height: 6, width: '55%', background: t.pv.border }} />
-                </div>
-                <div style={{ height: 6, width: '70%', background: t.pv.border, marginTop: '0.5rem' }} />
-              </div>
-              <div style={{ padding: '0.6rem 0.9rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
-                <div>
-                  <div style={{ fontSize: '0.82rem', fontWeight: 600, color: C.text }}>{t.label}</div>
-                  <div style={{ fontSize: '0.7rem', color: C.muted }}>{t.desc}</div>
-                </div>
-                {active && <Badge color={C.accent}>aktív</Badge>}
-              </div>
-            </button>
-          )
-        })}
-      </div>
-
-      {error && <div style={{ ...S.errorBox, marginTop: '1rem' }}>{error}</div>}
-
-      <div style={{ marginTop: '1.25rem' }}>
-        <button type="submit" disabled={saving} style={{ ...S.btnPrimary, opacity: saving ? 0.6 : 1, background: saved ? C.green : C.accent }}>
-          {saving ? 'Mentés…' : saved ? '✓ Mentve' : 'Beállítások mentése'}
-        </button>
-      </div>
       </div>
 
       {/* ── Right column ─────────────────────────────────────────────── */}
@@ -246,6 +270,49 @@ export function SettingsTab({ settings, companyId, me, onChange }) {
           </tr>
         </tbody>
       </Table>
+
+      <div style={{ height: '1.5rem' }} />
+      <SectionLabel color={C.accent}>Megjelenés</SectionLabel>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+        {THEMES.map(t => {
+          const active = theme === t.key
+          return (
+            // Theme is a per-device preference — applies and persists instantly
+            <button key={t.key} type="button" onClick={() => { setTheme(t.key); saveTheme(t.key) }} style={{
+              textAlign: 'left', cursor: 'pointer', padding: 0, overflow: 'hidden',
+              background: C.bg1, border: `2px solid ${active ? C.accent : C.border}`, borderRadius: R.lg,
+            }}>
+              {/* Mini theme preview */}
+              <div style={{ background: t.pv.bg, padding: '0.85rem', borderBottom: `1px solid ${t.pv.border}` }}>
+                <div style={{ background: t.pv.surface, border: `1px solid ${t.pv.border}`, padding: '0.5rem 0.6rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <span style={{ width: 10, height: 10, background: t.pv.accent, flexShrink: 0 }} />
+                  <span style={{ height: 6, width: '55%', background: t.pv.border }} />
+                </div>
+                <div style={{ height: 6, width: '70%', background: t.pv.border, marginTop: '0.5rem' }} />
+              </div>
+              <div style={{ padding: '0.6rem 0.9rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+                <div>
+                  <div style={{ fontSize: '0.82rem', fontWeight: 600, color: C.text }}>{t.label}</div>
+                  <div style={{ fontSize: '0.7rem', color: C.muted }}>{t.desc}</div>
+                </div>
+                {active && <Badge color={C.accent}>aktív</Badge>}
+              </div>
+            </button>
+          )
+        })}
+      </div>
+      {/* A téma azonnal érvényre jut és eszközönként tárolódik, ezért nem
+          függ a mentés gombtól — ezt jelezni kell, mert most egymás alatt van. */}
+      
+
+      {error && <div style={{ ...S.errorBox, marginTop: '1rem' }}>{error}</div>}
+
+      {/* A gomb a teljes űrlapot menti (bal oszlop is) — egyetlen form van. */}
+      <div style={{ marginTop: '1.25rem', paddingTop: '1.25rem', borderTop: `1px solid ${C.border}` }}>
+        <button type="submit" disabled={saving} style={{ ...S.btnPrimary, opacity: saving ? 0.6 : 1, background: saved ? C.green : C.accent }}>
+          {saving ? 'Mentés…' : saved ? '✓ Mentve' : 'Beállítások mentése'}
+        </button>
+      </div>
       </div>
     </form>
   )

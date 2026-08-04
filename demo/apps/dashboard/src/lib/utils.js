@@ -69,6 +69,25 @@ export function fmtClock(ts) {
   return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
+// Naptári nap szerinti egyezés a helyi időzónában. A státusz lap ez alapján
+// dönti el, hogy egy esemény a MAI naphoz tartozik-e.
+export function isToday(ts) {
+  if (!ts) return false
+  const d = new Date(ts), n = new Date()
+  return d.getFullYear() === n.getFullYear() && d.getMonth() === n.getMonth() && d.getDate() === n.getDate()
+}
+
+// Rövid nap-megjelölés a mainál régebbi eseményekhez: "tegnap", "aug. 1."
+export function fmtDayLabel(ts) {
+  if (!ts) return ''
+  const d = new Date(ts)
+  const midnight = x => new Date(x.getFullYear(), x.getMonth(), x.getDate())
+  const diffDays = Math.round((midnight(new Date()) - midnight(d)) / 86400000)
+  if (diffDays === 0) return 'ma'
+  if (diffDays === 1) return 'tegnap'
+  return `${HU_MONTHS[d.getMonth()]} ${d.getDate()}.`
+}
+
 // Pontos dátum + óra, magyar alakban: "2026. aug. 4. 14:32"
 export function fmtDateTime(ts) {
   if (!ts) return null

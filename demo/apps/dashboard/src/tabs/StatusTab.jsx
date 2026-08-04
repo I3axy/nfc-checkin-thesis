@@ -1,8 +1,20 @@
 import { useState, useMemo } from 'react'
 import { C, S, CAL, tint } from '../lib/theme'
-import { fmtMins, fmtClock, isWorkerLate } from '../lib/utils'
+import { fmtMins, fmtClock, isWorkerLate, isToday, fmtDayLabel } from '../lib/utils'
 import { Table, TableEmpty, SectionLabel, Badge, EmptyState } from '../components/ui'
 import { EditModal } from '../components/EditModal'
+
+// Az automatikus kiléptetés ezzel a megjegyzéssel jön létre (auto_checkout_due).
+// Jelöljük, mert a vezetőnek látnia kell, hogy nem valódi kártyaérintés volt.
+const isAutoCheckout = ev => ev?.type === 'checkout' && ev?.note === 'Automatikus kiléptetés'
+
+function AutoTag() {
+  return (
+    <span style={{ fontSize: '0.6rem', color: C.muted, border: `1px solid ${C.border}`, padding: '0.1rem 0.35rem', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700 }}>
+      auto
+    </span>
+  )
+}
 
 export function StatusTab({ employees, onSaved, settings }) {
   const [editing, setEditing] = useState(null)
@@ -121,6 +133,14 @@ function EmpRow({ emp, onEdit, settings }) {
   const isIn   = emp.lastEvent?.type === 'checkin'
   const isLate = emp.firstInToday ? isWorkerLate(emp.firstInToday, settings) : false
 
+  // A lap a MAI állapotot mutatja. Egy korábbi napról származó esemény óráját
+  // dátum nélkül kiírni félrevezető volt ("Kint 02:00" úgy festett, mintha ma
+  // történt volna), ezért a nem mai eseményeknél a nap is megjelenik.
+  const evToday = isToday(emp.lastEvent?.timestamp)
+  // Nyitva maradt korábbi nap: a rendszer szerint bent van, de a belépés nem
+  // ma történt — vagy elmaradt a kiléptetés, vagy az automatikus zárás nem futott.
+  const staleIn = isIn && !evToday
+
   return (
     <tr style={{ borderBottom: `1px solid ${C.border}` }}>
       <td style={{ ...S.td, width: 42 }}>
@@ -130,13 +150,26 @@ function EmpRow({ emp, onEdit, settings }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <span style={{ fontWeight: 600, color: C.text }}>{emp.name}</span>
           {isLate && <span style={{ fontSize: '0.62rem', color: CAL.late.bar, border: `1px solid ${tint(CAL.late.bar, 30)}`, padding: '0.1rem 0.4rem', fontWeight: 700, borderRadius: 0 }}>Késő</span>}
+          {staleIn && <span style={{ fontSize: '0.62rem', color: CAL.late.bar, border: `1px solid ${tint(CAL.late.bar, 30)}`, padding: '0.1rem 0.4rem', fontWeight: 700, borderRadius: 0 }}>Nyitva maradt</span>}
         </div>
         {emp.department && <div style={{ fontSize: '0.7rem', color: C.muted, marginTop: '0.1rem' }}>{emp.department}</div>}
       </td>
       <td style={S.td}>
-        {emp.lastEvent
-          ? <Badge color={isIn ? C.green : C.red}>{isIn ? '↑ Bent' : '↓ Kint'} {fmtClock(emp.lastEvent.timestamp)}</Badge>
-          : <span style={{ color: C.muted, fontSize: '0.78rem' }}>Még nem volt</span>
+        {!emp.lastEvent
+          ? <span style={{ color: C.muted, fontSize: '0.78rem' }}>Még nem volt</span>
+          : evToday
+            ? <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                <Badge color={isIn ? C.green : C.red}>{isIn ? '↑ Bent' : '↓ Kint'} {fmtClock(emp.lastEvent.timestamp)}</Badge>
+                {isAutoCheckout(emp.lastEvent) && <AutoTag />}
+              </div>
+            // Nem mai esemény: ma nem járt bent, csak az utolsó ismert állapot látszik.
+            : <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                <span style={{ color: C.muted, fontSize: '0.78rem' }}>Ma nem volt bent</span>
+                <span style={{ fontSize: '0.68rem', color: C.muted, opacity: 0.75, fontFamily: "'JetBrains Mono', monospace" }}>
+                  utoljára {fmtDayLabel(emp.lastEvent.timestamp)} {fmtClock(emp.lastEvent.timestamp)} · {isIn ? 'bent' : 'kint'}
+                  {isAutoCheckout(emp.lastEvent) && ' (auto)'}
+                </span>
+              </div>
         }
       </td>
       <td style={{ ...S.td, fontSize: '0.78rem', fontFamily: "'JetBrains Mono', monospace" }}>
