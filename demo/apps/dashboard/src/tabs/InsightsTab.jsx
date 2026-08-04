@@ -484,13 +484,25 @@ const LOADING_STEPS = [
   'Összefoglaló megfogalmazása…',
 ]
 
-// A hibakódok emberi jelentése — a valódi API bekötése után ezek élesednek.
+// A hibakódok emberi jelentése. A kódok az ai-summary Edge Functiontől jönnek.
 const ERROR_MEANINGS = {
   TIMEOUT: 'Az összefoglaló elkészítése túllépte a 30 másodperces időkorlátot.',
+  ABORTED: 'A kérés megszakadt.',
   NETWORK: 'Nem sikerült elérni a szolgáltatást. Ellenőrizd az internetkapcsolatot.',
-  401: 'Hitelesítési hiba — az API kulcs hiányzik vagy érvénytelen.',
-  429: 'Túl sok kérés rövid idő alatt. Próbáld újra egy perc múlva.',
+  NO_API_KEY: 'Az MI szolgáltatás nincs beállítva (hiányzó API kulcs a szerveren).',
+  NO_AUTH: 'Nincs bejelentkezve.',
+  INVALID_SESSION: 'A munkamenet lejárt. Jelentkezz be újra.',
+  FORBIDDEN: 'Ehhez a művelethez manager vagy admin jogosultság szükséges.',
+  BAD_INPUT: 'Hiányos adat — nincs mit összefoglalni.',
+  SAFETY_BLOCKED: 'A modell biztonsági szűrője elutasította a kérést.',
+  EMPTY_RESPONSE: 'A modell üres választ adott. Próbáld újra.',
+  400: 'Hibás kérés az MI szolgáltatás felé.',
+  403: 'Az API kulcs érvénytelen, vagy a szolgáltatás nincs engedélyezve.',
+  404: 'A beállított modell nem érhető el ezzel a kulccsal.',
+  // Ingyenes szintnél ez a leggyakoribb: percenkénti vagy napi kvóta
+  429: 'Elérted az ingyenes szint kvótáját. Várj egy percet, és próbáld újra.',
   500: 'A szolgáltatás belső hibája.',
+  502: 'Az MI szolgáltatás hibát adott.',
   503: 'A szolgáltatás átmenetileg nem elérhető.',
 }
 
@@ -525,12 +537,16 @@ function AiPanel({ worker, periodText, stats, trendPct, onClose }) {
     abortRef.current = ctrl
     const timer = setTimeout(() => ctrl.abort('TIMEOUT'), AI_TIMEOUT_MS)
 
-    requestSummary({ worker, periodText, stats, trendPct, signal: ctrl.signal })
+    requestSummary({ periodText, stats, trendPct, signal: ctrl.signal })
       .then(res => { if (alive) { setText(res); setState('done') } })
       .catch(err => {
         if (!alive) return
         const code = err?.code ?? (ctrl.signal.aborted ? 'TIMEOUT' : 'NETWORK')
-        setError({ code, message: ERROR_MEANINGS[code] ?? (err?.message || 'Ismeretlen hiba.') })
+        setError({
+          code,
+          message: ERROR_MEANINGS[code] ?? (err?.message || 'Ismeretlen hiba.'),
+          detail: err?.detail ?? null,
+        })
         setState('error')
       })
       .finally(() => clearTimeout(timer))
@@ -578,6 +594,12 @@ function AiPanel({ worker, periodText, stats, trendPct, onClose }) {
           </div>
           <div style={{ fontSize: '0.8rem', color: C.text, marginBottom: '0.4rem' }}>{error?.message}</div>
           <div style={{ fontSize: '0.72rem', color: C.muted, fontFamily: MONO }}>Hibakód: {error?.code}</div>
+          {/* A szolgáltató eredeti üzenete — ebből derül ki a valódi ok */}
+          {error?.detail && (
+            <div style={{ fontSize: '0.7rem', color: C.muted, fontFamily: MONO, marginTop: '0.4rem', padding: '0.4rem 0.5rem', background: C.bg0, border: `1px solid ${C.border}`, maxHeight: 120, overflowY: 'auto', wordBreak: 'break-word' }}>
+              {error.detail}
+            </div>
+          )}
         </div>
       )}
 
@@ -592,33 +614,33 @@ function AiPanel({ worker, periodText, stats, trendPct, onClose }) {
   )
 }
 
-// A tényleges szöveg-előállítás. Jelenleg helyi generátor; a valódi API-hívás
-// ide kerül (Edge Function -> Claude), a signal/hibakód szerződés változatlanul.
-function requestSummary({ worker, periodText, stats, trendPct, signal }) {
-  return new Promise((resolve, reject) => {
-    const t = setTimeout(() => resolve(buildSummary(worker?.name ?? '', periodText, stats, trendPct)), 900)
-    signal?.addEventListener('abort', () => {
-      clearTimeout(t)
-      const err = new Error('aborted'); err.code = signal.reason === 'TIMEOUT' ? 'TIMEOUT' : 'NETWORK'
-      reject(err)
+// A szöveget a védett ai-summary Edge Function állítja elő (Claude Haiku 4.5).
+// A modellnek CSAK aggregált számok mennek — se név, se azonosító.
+async function requestSummary({ periodText, stats, trendPct, signal }) {
+  const { data: { session } } = await supabase.auth.getSession()
+  let res
+  try {
+    res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ai-summary`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
+      body: JSON.stringify({ period: periodText, stats, trend_pct: trendPct }),
+      signal,
     })
-  })
-}
+  } catch (e) {
+    // Megszakítás: az időtúllépés és a hálózati hiba itt válik szét
+    const err = new Error(e.message)
+    err.code = signal?.aborted ? (signal.reason === 'TIMEOUT' ? 'TIMEOUT' : 'ABORTED') : 'NETWORK'
+    throw err
+  }
 
-function buildSummary(name, periodText, s, trendPct) {
-  const parts = []
-  const avg = s.workDays > 0 ? Math.round(s.totalMins / s.workDays) : 0
-  if (s.workDays === 0) return `${name} nevű dolgozónak a vizsgált időszakban (${periodText}) nincs rögzített munkaideje.`
-  parts.push(`${name} a(z) ${periodText} időszakban ${fmtMins(s.totalMins)} munkaidőt teljesített ${s.workDays} munkanapon, ami napi átlagban ${fmtMins(avg)}.`)
-  if (s.avgArrival) parts.push(`Átlagos érkezési ideje ${s.avgArrival}${s.lateDays > 0 ? `, ebből ${s.lateDays} alkalommal késett` : ', késés nélkül'}.`)
-  if (s.breakCount > 0) parts.push(`Az időszak alatt ${s.breakCount} alkalommal hagyta el a munkaterületet, összesen ${fmtMins(s.breakMins)} időtartamra.`)
-  if (s.justified + s.unjustified > 0) parts.push(`${s.justified} igazolt és ${s.unjustified} igazolatlan hiányzás került rögzítésre.`)
-  if (trendPct !== null && Math.abs(trendPct) >= 3) parts.push(`Az előző időszakhoz képest a ledolgozott idő ${trendPct >= 0 ? 'nőtt' : 'csökkent'} ${Math.abs(trendPct)}%-kal.`)
-  const lateRatio = s.workDays > 0 ? s.lateDays / s.workDays : 0
-  if (s.unjustified > 0) parts.push('Az igazolatlan hiányzások kiemelt figyelmet igényelnek.')
-  else if (lateRatio > 0.3) parts.push('A jelenlét stabil, a pontosságon azonban érdemes javítani.')
-  else parts.push('Összességében megbízható, kiegyensúlyozott teljesítmény.')
-  return parts.join(' ')
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    const err = new Error(data.error ?? 'Ismeretlen hiba')
+    err.code = data.code ?? String(res.status)
+    err.detail = data.detail ?? null   // a szolgáltató eredeti üzenete
+    throw err
+  }
+  return data.summary
 }
 
 // ─── Segédfüggvények ─────────────────────────────────────────────────────────
