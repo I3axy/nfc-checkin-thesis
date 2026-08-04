@@ -1,409 +1,651 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
+import {
+  fmtTime, fmtMins, toYmd, dayLabel, rangeLabel,
+  calcDayMins, groupByDay, groupRuns, countWorkdays,
+  ABSENCE_LABELS, STATUS_LABELS, STATUS_COLORS, isSameDay,
+} from './lib/format'
+import { S, Button, SectionLabel, Card, Stat, Empty, Pill, FullScreen } from './components/ui'
+import { PinPad } from './components/PinPad'
 
-const FUNCTION_URL  = import.meta.env.VITE_WORKER_FUNCTION_URL
-const COMPANY_SLUG  = import.meta.env.VITE_COMPANY_SLUG
+const FUNCTION_URL = import.meta.env.VITE_WORKER_FUNCTION_URL
+const COMPANY_SLUG = import.meta.env.VITE_COMPANY_SLUG
+
+// A képernyő személyes adatot mutat, az eszközt pedig többen használhatják.
+// Tétlenség után visszatér a belépőképernyőre — adattakarékossági megfontolás.
+const IDLE_TIMEOUT_MS = 120_000
+
+const TABS = [
+  { key: 'today',    label: 'Ma'        },
+  { key: 'log',      label: 'Napló'     },
+  { key: 'absences', label: 'Hiányzás'  },
+]
 
 export default function App() {
-  const [state, setState] = useState('idle') // idle | starting | ready | loading | profile | manager | unknown
-  const [profile, setProfile] = useState(null)
-  const [events, setEvents] = useState([])
-  const [absences, setAbsences] = useState([])
+  // login → loading → profile | manager | error
+  const [screen, setScreen] = useState('login')
+  const [tab, setTab] = useState('today')
+  const [data, setData] = useState(null)
   const [managerData, setManagerData] = useState(null)
-  const [nfcError, setNfcError] = useState('')
-  const [lastUid, setLastUid] = useState('')
-  const [absOpen, setAbsOpen] = useState(false)
-  const [absDate, setAbsDate] = useState(() => new Date().toISOString().slice(0, 10))
-  const [absType, setAbsType] = useState('vacation')
-  const [absNote, setAbsNote] = useState('')
-  const [absStatus, setAbsStatus] = useState(null) // null | saving | ok | error
-  const [absError, setAbsError] = useState('')
+  const [errorMsg, setErrorMsg] = useState('')
+  // A munkamenet azonosítója: a további kérések (kérelem, visszavonás) ezzel
+  // azonosítanak. Csak a memóriában él — kilépéskor és újratöltéskor elveszik.
+  const [credential, setCredential] = useState(null)   // { pin } | { nfc_uid }
+
   const nfcSupported = 'NDEFReader' in window
-  const scanning = useRef(false)
-  const resumeTimerRef = useRef(null)
+  const urlUid = useMemo(() => new URLSearchParams(window.location.search).get('uid'), [])
+  const idleTimer = useRef(null)
+  const scanStarted = useRef(false)
 
-  // iOS: check if launched via NDEF URL (?uid=...)
-  const urlUid = new URLSearchParams(window.location.search).get('uid')
+  // ─── Belépés ───────────────────────────────────────────────────────────────
 
-  async function startScan() {
-    if (resumeTimerRef.current) {
-      clearTimeout(resumeTimerRef.current)
-      resumeTimerRef.current = null
-    }
-
-    // iOS fallback: uid in URL param
-    if (urlUid && !nfcSupported) {
-      await handleCard(urlUid)
-      return
-    }
-
-    setState('starting')
-    setNfcError('')
-    try {
-      const ndef = new window.NDEFReader()
-      ndef.onreading = ({ serialNumber }) => {
-        if (!scanning.current) handleCard(serialNumber)
-      }
-      await ndef.scan()
-      setState('ready')
-    } catch (err) {
-      setNfcError(err.message)
-      setState('idle')
-    }
-  }
-
-  async function handleCard(uid) {
-    scanning.current = true
-    setLastUid(uid)
-    setState('loading')
-
+  const login = useCallback(async (cred) => {
+    setScreen('loading')
+    setErrorMsg('')
     try {
       const res = await fetch(FUNCTION_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nfc_uid: uid, company_slug: COMPANY_SLUG }),
+        body: JSON.stringify({ ...cred, company_slug: COMPANY_SLUG }),
       })
-
-      const data = await res.json()
-
+      const body = await res.json().catch(() => ({}))
       if (!res.ok) {
-        setNfcError(data.code === 'UNKNOWN_CARD' ? `Unknown card: ${uid}` : (data.error ?? 'Error'))
-        setState('unknown')
-        scanning.current = false
+        setErrorMsg(
+          body.code === 'BAD_PIN'      ? 'Hibás PIN kód. Próbáld újra.' :
+          body.code === 'UNKNOWN_CARD' ? 'Ez a kártya nincs nyilvántartva.' :
+          (body.error ?? 'A belépés nem sikerült.')
+        )
+        setScreen('login')
         return
       }
-
-      setProfile(data.profile)
-
-      if (data.profile.role === 'manager' || data.profile.role === 'admin') {
-        setManagerData({ allProfiles: data.allProfiles, recentEvents: data.recentEvents })
-        setState('manager')
+      setCredential(cred)
+      if (body.profile.role === 'manager' || body.profile.role === 'admin') {
+        setManagerData({ profile: body.profile, allProfiles: body.allProfiles ?? [], recentEvents: body.recentEvents ?? [] })
+        setScreen('manager')
       } else {
-        setEvents(data.events ?? [])
-        setAbsences(data.absences ?? [])
-        setState('profile')
+        setData({ profile: body.profile, events: body.events ?? [], absences: body.absences ?? [] })
+        setTab('today')
+        setScreen('profile')
       }
     } catch {
-      setNfcError('Network error')
-      setState('unknown')
-      scanning.current = false
+      setErrorMsg('Nincs hálózati kapcsolat.')
+      setScreen('login')
     }
+  }, [])
+
+  const logout = useCallback(() => {
+    setData(null); setManagerData(null); setCredential(null)
+    setErrorMsg(''); setTab('today')
+    setScreen('login')
+  }, [])
+
+  // ─── Kártyás belépés (helyszíni kényelmi lehetőség) ────────────────────────
+  // A beléptetés NEM itt történik — ez csak azonosítás, esemény nem jön létre.
+  useEffect(() => {
+    if (screen !== 'login' || scanStarted.current) return
+    if (urlUid) { scanStarted.current = true; login({ nfc_uid: urlUid }); return }
+    if (!nfcSupported) return
+
+    scanStarted.current = true
+    try {
+      const ndef = new window.NDEFReader()
+      ndef.onreading = ({ serialNumber }) => login({ nfc_uid: serialNumber })
+      ndef.scan().catch(() => {})   // engedély megtagadva: marad a PIN
+    } catch { /* nincs olvasó — a PIN önmagában elegendő */ }
+  }, [screen, urlUid, nfcSupported, login])
+
+  // ─── Tétlenségi kiléptetés ─────────────────────────────────────────────────
+  const showsPersonalData = screen === 'profile' || screen === 'manager'
+
+  useEffect(() => {
+    if (!showsPersonalData) return
+    const arm = () => {
+      clearTimeout(idleTimer.current)
+      idleTimer.current = setTimeout(logout, IDLE_TIMEOUT_MS)
+    }
+    arm()
+    const evts = ['pointerdown', 'keydown', 'touchstart']
+    evts.forEach(e => window.addEventListener(e, arm, { passive: true }))
+    return () => {
+      clearTimeout(idleTimer.current)
+      evts.forEach(e => window.removeEventListener(e, arm))
+    }
+  }, [showsPersonalData, logout])
+
+  // ─── Képernyők ─────────────────────────────────────────────────────────────
+
+  if (screen === 'loading') return <FullScreen title="Belépés…" />
+
+  if (screen === 'login') return (
+    <LoginScreen onSubmit={pin => login({ pin })} error={errorMsg} nfcHint={nfcSupported && !urlUid} />
+  )
+
+  if (screen === 'manager') return <ManagerScreen {...managerData} onLogout={logout} />
+
+  return (
+    <WorkerScreen
+      data={data} setData={setData} tab={tab} setTab={setTab}
+      credential={credential} onLogout={logout}
+    />
+  )
+}
+
+// ─── Belépőképernyő ──────────────────────────────────────────────────────────
+
+function LoginScreen({ onSubmit, error, nfcHint }) {
+  return (
+    <div style={{ ...S.page, alignItems: 'center', justifyContent: 'center', padding: '1.5rem' }}>
+      <div style={{ width: 'min(340px, 100%)' }}>
+        <div style={{ textAlign: 'center', marginBottom: '1.75rem' }}>
+          <div style={{ fontSize: '1.4rem', fontWeight: 700, letterSpacing: '-0.02em' }}>Dolgozói alkalmazás</div>
+          <div style={{ fontSize: '0.85rem', color: 'var(--muted)', marginTop: '0.4rem', lineHeight: 1.5 }}>
+            Add meg a PIN kódodat a saját adataid megtekintéséhez.
+          </div>
+        </div>
+
+        <PinPad onSubmit={onSubmit} error={error} />
+
+        {/* A kártya itt csak azonosít — be- és kiléptetni a beléptető
+            alkalmazásnál lehet. Ezt ki kell mondani, különben az érintés
+            jelenlét-rögzítésnek tűnhet. */}
+        {nfcHint && (
+          <div style={{ marginTop: '1.5rem', paddingTop: '1.25rem', borderTop: '1px solid var(--border)', textAlign: 'center', fontSize: '0.78rem', color: 'var(--muted)', lineHeight: 1.6 }}>
+            A kártyád érintésével is beléphetsz.<br />
+            <span style={{ opacity: 0.75 }}>A be- és kiléptetés a beléptető terminálon történik.</span>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ─── Dolgozói nézet ──────────────────────────────────────────────────────────
+
+function WorkerScreen({ data, setData, tab, setTab, credential, onLogout }) {
+  const { profile, events, absences } = data
+  const isIn = events[0]?.type === 'checkin'
+
+  const days = useMemo(() => groupByDay(events), [events])
+  const today = days.find(d => isSameDay(d.date, new Date()))
+  const pendingCount = useMemo(
+    () => groupRuns((absences ?? []).filter(a => a.status === 'pending')).length,
+    [absences]
+  )
+
+  return (
+    <div style={S.page}>
+      <Header profile={profile} isIn={isIn} onLogout={onLogout} />
+
+      <nav style={{ display: 'flex', borderBottom: '1px solid var(--border)', background: 'var(--surface)', flexShrink: 0 }}>
+        {TABS.map(t => {
+          const active = tab === t.key
+          return (
+            <button key={t.key} onClick={() => setTab(t.key)} style={{
+              flex: 1, padding: '0.85rem 0.5rem', fontSize: '0.85rem', fontFamily: 'inherit',
+              fontWeight: active ? 700 : 500,
+              color: active ? 'var(--accent)' : 'var(--muted)',
+              background: 'transparent', border: 'none', cursor: 'pointer',
+              borderBottom: `2px solid ${active ? 'var(--accent)' : 'transparent'}`,
+              marginBottom: -1, minHeight: 48,
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem',
+            }}>
+              {t.label}
+              {/* Függő kérelmek jelzése — a dolgozó lássa, hogy van nyitott ügye */}
+              {t.key === 'absences' && pendingCount > 0 && (
+                <span style={{
+                  fontSize: '0.62rem', fontWeight: 700, minWidth: 16, padding: '0.1rem 0.25rem',
+                  background: 'var(--warn)', color: 'var(--bg)',
+                }}>
+                  {pendingCount}
+                </span>
+              )}
+            </button>
+          )
+        })}
+      </nav>
+
+      <main style={{ flex: 1, overflowY: 'auto', paddingBottom: '2rem' }}>
+        {tab === 'today'    && <TodayTab today={today} days={days} />}
+        {tab === 'log'      && <LogTab days={days} />}
+        {tab === 'absences' && (
+          <AbsencesTab
+            absences={absences}
+            credential={credential}
+            onAdded={rows => setData(d => ({ ...d, absences: [...rows, ...d.absences] }))}
+            onRemoved={ids => setData(d => ({ ...d, absences: d.absences.filter(a => !ids.includes(a.id)) }))}
+          />
+        )}
+      </main>
+    </div>
+  )
+}
+
+function Header({ profile, isIn, onLogout }) {
+  return (
+    <header style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)', padding: '1rem', flexShrink: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.75rem' }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: '1.25rem', fontWeight: 700, letterSpacing: '-0.02em', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {profile.name}
+          </div>
+          <div style={{ fontSize: '0.78rem', color: 'var(--muted)', marginTop: '0.15rem' }}>
+            {profile.department || 'Nincs műszak megadva'}
+          </div>
+        </div>
+        <button onClick={onLogout} style={{
+          background: 'transparent', border: '1px solid var(--border)', color: 'var(--muted)',
+          padding: '0.5rem 0.8rem', fontSize: '0.78rem', fontFamily: 'inherit',
+          cursor: 'pointer', borderRadius: 0, flexShrink: 0, minHeight: 40,
+        }}>
+          Kijelentkezés
+        </button>
+      </div>
+      {/* Az állapotot a szín ÉS a szöveg is hordozza — színvakság mellett is olvasható */}
+      <div style={{
+        marginTop: '0.85rem', padding: '0.6rem 0.85rem',
+        border: `1px solid color-mix(in srgb, ${isIn ? 'var(--green)' : 'var(--muted)'} 40%, transparent)`,
+        background: `color-mix(in srgb, ${isIn ? 'var(--green)' : 'var(--muted)'} 10%, transparent)`,
+        color: isIn ? 'var(--green)' : 'var(--muted)',
+        fontWeight: 700, fontSize: '0.9rem', letterSpacing: '0.02em',
+      }}>
+        {isIn ? 'Jelenleg bent vagy' : 'Jelenleg nem vagy bent'}
+      </div>
+    </header>
+  )
+}
+
+function TodayTab({ today, days }) {
+  const evts = today?.events ?? []
+  const firstIn = evts.find(e => e.type === 'checkin')
+  const lastOut = [...evts].reverse().find(e => e.type === 'checkout')
+
+  // Heti összesítő a betöltött (7 napos) ablakból
+  const weekMins = days.reduce((s, d) => s + d.minutes, 0)
+  const workDays = days.filter(d => d.minutes > 0).length
+
+  return (
+    <>
+      <SectionLabel>Mai nap</SectionLabel>
+      <Card>
+        <div style={{ display: 'flex' }}>
+          <Stat label="Érkezés" value={firstIn ? fmtTime(firstIn.timestamp) : '—'} accent="var(--green)" />
+          <div style={{ width: 1, background: 'var(--border)' }} />
+          <Stat label="Távozás" value={lastOut ? fmtTime(lastOut.timestamp) : '—'} accent="var(--red)" />
+          <div style={{ width: 1, background: 'var(--border)' }} />
+          <Stat label="Ledolgozva" value={fmtMins(today?.minutes ?? 0)} accent="var(--accent)" />
+        </div>
+      </Card>
+
+      <SectionLabel right="az elmúlt 7 nap">Összesítő</SectionLabel>
+      <Card>
+        <div style={{ display: 'flex' }}>
+          <Stat label="Ledolgozott idő" value={fmtMins(weekMins)} accent="var(--accent)" />
+          <div style={{ width: 1, background: 'var(--border)' }} />
+          <Stat label="Munkanap" value={String(workDays)} />
+        </div>
+      </Card>
+
+      {evts.length > 0 && (
+        <>
+          <SectionLabel>Mai események</SectionLabel>
+          <Card>
+            {evts.map(e => <EventRow key={e.id} event={e} />)}
+          </Card>
+        </>
+      )}
+    </>
+  )
+}
+
+const LOG_RANGES = [
+  { key: 7,  label: '1 hét'   },
+  { key: 30, label: '1 hónap' },
+]
+
+function LogTab({ days }) {
+  const [range, setRange] = useState(7)
+
+  // A szerver egy hónapnyi eseményt küld, ezért a nézetváltás nem igényel
+  // újabb kérést — offline is működik, ha az adat már betöltődött.
+  const cutoff = useMemo(() => {
+    const d = new Date()
+    d.setHours(0, 0, 0, 0)
+    d.setDate(d.getDate() - (range - 1))
+    return d
+  }, [range])
+  const shown = days.filter(d => d.date >= cutoff)
+
+  const totalMins = shown.reduce((s, d) => s + d.minutes, 0)
+
+  return (
+    <>
+      <div style={{ display: 'flex', gap: '0.5rem', padding: '1rem 1rem 0' }}>
+        {LOG_RANGES.map(r => {
+          const active = range === r.key
+          return (
+            <button key={r.key} onClick={() => setRange(r.key)} style={{
+              flex: 1, padding: '0.6rem', fontSize: '0.82rem', fontFamily: 'inherit',
+              fontWeight: active ? 700 : 500,
+              color: active ? 'var(--accent)' : 'var(--muted)',
+              background: active ? 'color-mix(in srgb, var(--accent) 10%, transparent)' : 'transparent',
+              border: `1px solid ${active ? 'color-mix(in srgb, var(--accent) 45%, transparent)' : 'var(--border)'}`,
+              borderRadius: 0, cursor: 'pointer', minHeight: 44,
+            }}>
+              {r.label}
+            </button>
+          )
+        })}
+      </div>
+
+      {shown.length === 0
+        ? <Empty>Ebben az időszakban nincs rögzített esemény.</Empty>
+        : <LogList days={shown} totalMins={totalMins} />
+      }
+    </>
+  )
+}
+
+function LogList({ days, totalMins }) {
+  return (
+    <>
+      <SectionLabel right={`összesen ${fmtMins(totalMins)}`}>Napló</SectionLabel>
+      {days.map(d => (
+        <div key={d.key} style={{ marginBottom: '0.75rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', padding: '0.4rem 1rem' }}>
+            <span style={{ ...S.label, color: 'var(--text)' }}>{dayLabel(d.date)}</span>
+            <span style={{ ...S.mono, fontSize: '0.8rem', color: d.minutes > 0 ? 'var(--accent)' : 'var(--muted)', fontWeight: 700 }}>
+              {fmtMins(d.minutes)}
+            </span>
+          </div>
+          <Card>
+            {d.events.map(e => <EventRow key={e.id} event={e} />)}
+          </Card>
+        </div>
+      ))}
+    </>
+  )
+}
+
+function EventRow({ event }) {
+  const isIn = event.type === 'checkin'
+  return (
+    <div style={{
+      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+      padding: '0.7rem 1rem', borderBottom: '1px solid var(--border)', gap: '0.75rem',
+    }}>
+      <span style={{ color: isIn ? 'var(--green)' : 'var(--red)', fontWeight: 700, fontSize: '0.88rem' }}>
+        {isIn ? 'Belépés' : 'Kilépés'}
+      </span>
+      <span style={{ ...S.mono, color: 'var(--muted)', fontSize: '0.88rem' }}>{fmtTime(event.timestamp)}</span>
+    </div>
+  )
+}
+
+// ─── Hiányzások ──────────────────────────────────────────────────────────────
+
+function AbsencesTab({ absences, credential, onAdded, onRemoved }) {
+  const [open, setOpen] = useState(false)
+  const [cancelling, setCancelling] = useState(null)   // a visszavonás alatt álló tétel ids-e
+  const [from, setFrom] = useState(() => toYmd(new Date()))
+  const [to, setTo] = useState(() => toYmd(new Date()))
+  const [type, setType] = useState('vacation')
+  const [note, setNote] = useState('')
+  const [skipWeekends, setSkipWeekends] = useState(true)
+  const [status, setStatus] = useState(null)   // null | 'saving' | 'ok'
+  const [error, setError] = useState('')
+  const [okMsg, setOkMsg] = useState('')
+
+  const runs = useMemo(() => groupRuns(absences), [absences])
+  const previewDays = countWorkdays(from, to, skipWeekends)
+  const invalidRange = !from || !to || to < from
+
+  // A záró dátum követi a kezdőt, ha az elé csúszna — így nem lehet
+  // véletlenül érvénytelen tartományt beküldeni.
+  function changeFrom(v) {
+    setFrom(v)
+    if (to < v) setTo(v)
   }
 
-  async function submitAbsence() {
-    setAbsStatus('saving'); setAbsError('')
+  async function submit() {
+    setStatus('saving'); setError('')
     try {
       const res = await fetch(FUNCTION_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          nfc_uid: lastUid,
+          ...credential,
           company_slug: COMPANY_SLUG,
           action: 'submit_absence',
-          absence: { date: absDate, type: absType, note: absNote.trim() || null },
+          absence: { date_from: from, date_to: to, type, note: note.trim() || null, skip_weekends: skipWeekends },
         }),
       })
-      const data = await res.json()
-      if (!res.ok) { setAbsError(data.error ?? 'Hiba történt'); setAbsStatus('error'); return }
-      setAbsStatus('ok'); setAbsOpen(false)
-      setAbsences(prev => [{ id: 'tmp-' + Date.now(), date: absDate, type: absType, note: absNote.trim() || null }, ...prev])
-      setAbsNote('')
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) { setError(body.error ?? 'Nem sikerült beküldeni.'); setStatus(null); return }
+
+      onAdded(body.absences ?? [])
+      setOkMsg(body.skipped > 0
+        ? `${body.created} nap beküldve, ${body.skipped} nap kimaradt (már volt rá bejegyzés). A vezetőd fog dönteni róla.`
+        : `${body.created} nap beküldve. A vezetőd fog dönteni róla.`)
+      setStatus('ok'); setOpen(false); setNote('')
     } catch {
-      setAbsError('Hálózati hiba'); setAbsStatus('error')
+      setError('Nincs hálózati kapcsolat.'); setStatus(null)
     }
   }
 
-  function reset() {
-    if (resumeTimerRef.current) clearTimeout(resumeTimerRef.current)
-    resumeTimerRef.current = setTimeout(() => {
-      scanning.current = false
-      startScan()
-    }, 150)
-    setState('starting')
-    setProfile(null)
-    setEvents([])
-    setAbsences([])
-    setManagerData(null)
-    setAbsOpen(false); setAbsStatus(null); setAbsError('')
-    scanning.current = false
+  // Csak a még el nem bírált kérelem vonható vissza. A szerver ezt külön
+  // ellenőrzi — a felületi elrejtés önmagában nem védelem.
+  async function cancelRun(run) {
+    setCancelling(run.ids); setError(''); setStatus(null)
+    try {
+      const res = await fetch(FUNCTION_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...credential,
+          company_slug: COMPANY_SLUG,
+          action: 'cancel_absence',
+          absence_ids: run.ids,
+        }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) { setError(body.error ?? 'A visszavonás nem sikerült.'); setCancelling(null); return }
+      onRemoved(body.removed ?? run.ids)
+      setOkMsg('A kérelem visszavonva.')
+      setStatus('ok')
+    } catch {
+      setError('Nincs hálózati kapcsolat.')
+    } finally {
+      setCancelling(null)
+    }
   }
 
-  // ---- screens ----
+  return (
+    <>
+      <SectionLabel>Hiányzásaim</SectionLabel>
+      <Card>
+        {runs.length === 0
+          ? <Empty>Nincs rögzített hiányzásod.</Empty>
+          : runs.map((r, i) => (
+              <AbsenceRow
+                key={i} run={r}
+                onCancel={() => cancelRun(r)}
+                busy={cancelling === r.ids}
+              />
+            ))
+        }
+      </Card>
 
-  if (!nfcSupported && !urlUid) return (
-    <FullScreen bg="var(--bg)" emoji="⚠️" title="NFC not supported"
-      sub="Android Chrome required, or open via NFC link on iOS" />
+      {error && !open && (
+        <div style={{ margin: '0.85rem 1rem 0', color: 'var(--red)', fontSize: '0.82rem' }}>{error}</div>
+      )}
+
+      {status === 'ok' && (
+        <div style={{ margin: '0.85rem 1rem 0', padding: '0.7rem 0.85rem', border: '1px solid color-mix(in srgb, var(--green) 40%, transparent)', background: 'color-mix(in srgb, var(--green) 10%, transparent)', color: 'var(--green)', fontSize: '0.85rem', fontWeight: 600 }}>
+          {okMsg}
+        </div>
+      )}
+
+      <div style={{ padding: '1rem' }}>
+        {!open
+          ? <Button variant="primary" onClick={() => { setOpen(true); setStatus(null); setError('') }}>Hiányzás bejelentése</Button>
+          : (
+            <Card style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.6rem' }}>
+                <label style={{ display: 'block', minWidth: 0 }}>
+                  <span style={S.label}>Kezdete</span>
+                  <input type="date" value={from} onChange={e => changeFrom(e.target.value)} style={{ ...S.input, marginTop: '0.3rem' }} />
+                </label>
+                <label style={{ display: 'block', minWidth: 0 }}>
+                  <span style={S.label}>Vége</span>
+                  <input type="date" value={to} min={from} onChange={e => setTo(e.target.value)} style={{ ...S.input, marginTop: '0.3rem' }} />
+                </label>
+              </div>
+
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.82rem', color: 'var(--muted)', cursor: 'pointer' }}>
+                <input type="checkbox" checked={skipWeekends} onChange={e => setSkipWeekends(e.target.checked)} style={{ accentColor: 'var(--accent)', width: 18, height: 18 }} />
+                Hétvégék kihagyása
+              </label>
+
+              <label style={{ display: 'block' }}>
+                <span style={S.label}>Típus</span>
+                <select value={type} onChange={e => setType(e.target.value)} style={{ ...S.input, marginTop: '0.3rem' }}>
+                  <option value="vacation">Szabadság</option>
+                  <option value="sick">Betegszabadság</option>
+                  <option value="other">Egyéb</option>
+                </select>
+              </label>
+
+              <label style={{ display: 'block' }}>
+                <span style={S.label}>Megjegyzés (nem kötelező)</span>
+                <input value={note} onChange={e => setNote(e.target.value)} placeholder="például: orvosi vizsgálat" style={{ ...S.input, marginTop: '0.3rem' }} />
+              </label>
+
+              {/* Előnézet: a dolgozó a beküldés ELŐTT lássa, hány napot jelent be */}
+              <div style={{ fontSize: '0.82rem', color: invalidRange ? 'var(--red)' : 'var(--muted)' }}>
+                {invalidRange
+                  ? 'A záró dátum nem lehet korábbi a kezdőnél.'
+                  : <>Bejelentendő: <strong style={{ color: 'var(--accent)' }}>{previewDays} nap</strong>{skipWeekends ? ' (hétvégék nélkül)' : ''}</>
+                }
+              </div>
+
+              {error && <div style={{ color: 'var(--red)', fontSize: '0.82rem' }}>{error}</div>}
+
+              <div style={{ display: 'flex', gap: '0.6rem' }}>
+                <Button onClick={() => { setOpen(false); setError('') }}>Mégse</Button>
+                <Button variant="primary" onClick={submit} disabled={status === 'saving' || invalidRange || previewDays === 0}>
+                  {status === 'saving' ? 'Küldés…' : 'Beküldés'}
+                </Button>
+              </div>
+            </Card>
+          )
+        }
+      </div>
+    </>
   )
+}
 
-  if (state === 'idle') return (
-    <FullScreen bg="var(--bg)" emoji="📱" title="Worker App" sub={nfcError || 'Tap to start'}>
-      <Btn onClick={startScan} accent>Start Scanning</Btn>
-    </FullScreen>
+function AbsenceRow({ run, onCancel, busy }) {
+  const past = new Date(run.to + 'T23:59:59') < new Date()
+  const isPending = run.status === 'pending'
+  // Az elbírált, múltbeli tételek halványabbak; a függő kérelem mindig
+  // teljes erősséggel látszik, mert még teendő van vele.
+  const dim = past && !isPending
+
+  return (
+    <div style={{ padding: '0.8rem 1rem', borderBottom: '1px solid var(--border)', opacity: dim ? 0.55 : 1 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem' }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: '0.9rem', fontWeight: 600 }}>{rangeLabel(run.from, run.to)}</div>
+          <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginTop: '0.1rem' }}>
+            {ABSENCE_LABELS[run.type] ?? run.type} · {run.days} nap{run.note ? ` · ${run.note}` : ''}
+          </div>
+        </div>
+        <Pill color={STATUS_COLORS[run.status] ?? 'var(--muted)'}>
+          {STATUS_LABELS[run.status] ?? run.status}
+        </Pill>
+      </div>
+
+      {/* A vezető indoklása elutasításkor — enélkül a döntés érthetetlen */}
+      {run.status === 'rejected' && run.decisionNote && (
+        <div style={{ marginTop: '0.5rem', padding: '0.5rem 0.6rem', fontSize: '0.78rem', color: 'var(--muted)', background: 'var(--bg)', border: '1px solid var(--border)', lineHeight: 1.5 }}>
+          Indoklás: {run.decisionNote}
+        </div>
+      )}
+
+      {isPending && (
+        <button onClick={onCancel} disabled={busy} style={{
+          marginTop: '0.6rem', width: '100%', padding: '0.55rem',
+          fontSize: '0.8rem', fontFamily: 'inherit', fontWeight: 600,
+          background: 'transparent', color: 'var(--red)',
+          border: '1px solid color-mix(in srgb, var(--red) 40%, transparent)',
+          borderRadius: 0, cursor: busy ? 'default' : 'pointer', opacity: busy ? 0.5 : 1, minHeight: 40,
+        }}>
+          {busy ? 'Visszavonás…' : 'Kérelem visszavonása'}
+        </button>
+      )}
+    </div>
   )
+}
 
-  if (state === 'starting') return <FullScreen bg="var(--bg)" emoji="⏳" title="Starting…" />
-  if (state === 'ready')    return <FullScreen bg="var(--bg)" emoji="📱" title="Tap your card" sub="Hold card to phone" />
-  if (state === 'loading')  return <FullScreen bg="var(--bg)" emoji="⏳" title="Loading…" />
-  if (state === 'unknown')  return <FullScreen bg="var(--bg)" emoji="❓" title="Card not registered" sub={nfcError} onReset={reset} />
+// ─── Vezetői gyorsnézet ──────────────────────────────────────────────────────
+// Nem a vezetői felület helyettesítése: csak az a kérdés, hogy ebben a
+// pillanatban ki van bent. Bármi több a dashboardra tartozik.
 
-  if (state === 'manager') {
-    const { allProfiles = [], recentEvents = [] } = managerData ?? {}
-    const latest = {}
-    for (const e of recentEvents) {
-      if (!latest[e.user_id]) latest[e.user_id] = e
-    }
-    const workers = allProfiles.filter(p => p.role === 'worker')
-    const inside  = workers.filter(p => latest[p.id]?.type === 'checkin')
-    const outside = workers.filter(p => latest[p.id]?.type !== 'checkin')
+function ManagerScreen({ profile, allProfiles, recentEvents, onLogout }) {
+  const latest = {}
+  for (const e of recentEvents) if (!latest[e.user_id]) latest[e.user_id] = e
 
-    return (
-      <Page>
-        <PageHeader title="Manager View" right={
-          <span style={{ background: 'color-mix(in srgb, var(--green) 13%, transparent)', color: 'var(--green)', border: '1px solid color-mix(in srgb, var(--green) 30%, transparent)', padding: '0.25rem 0.75rem', fontSize: '0.8rem', fontWeight: 600, borderRadius: 999 }}>
-            {inside.length} bent van
-          </span>
-        } />
+  const workers = allProfiles.filter(p => p.role === 'worker')
+  const inside  = workers.filter(p => latest[p.id]?.type === 'checkin')
+  const outside = workers.filter(p => latest[p.id]?.type !== 'checkin')
 
-        <Section label={`Bent (${inside.length})`}>
+  return (
+    <div style={S.page}>
+      <header style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)', padding: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: '1.1rem', fontWeight: 700 }}>Jelenlét</div>
+          <div style={{ fontSize: '0.75rem', color: 'var(--muted)', marginTop: '0.1rem' }}>{profile.name}</div>
+        </div>
+        <Pill color="var(--green)">{inside.length} / {workers.length} bent</Pill>
+      </header>
+
+      <main style={{ flex: 1, overflowY: 'auto', paddingBottom: '1rem' }}>
+        <SectionLabel right={`${inside.length} fő`}>Bent</SectionLabel>
+        <Card>
           {inside.length === 0
-            ? <Empty>Senki nincs bent</Empty>
-            : inside.map(p => <PersonRow key={p.id} person={p} status="in" />)
+            ? <Empty>Jelenleg senki nincs bent.</Empty>
+            : inside.map(p => <PersonRow key={p.id} person={p} inside event={latest[p.id]} />)
           }
-        </Section>
+        </Card>
 
-        <Section label={`Kint (${outside.length})`}>
-          {outside.map(p => <PersonRow key={p.id} person={p} status="out" />)}
-        </Section>
+        <SectionLabel right={`${outside.length} fő`}>Kint</SectionLabel>
+        <Card>
+          {outside.length === 0
+            ? <Empty>Mindenki bent van.</Empty>
+            : outside.map(p => <PersonRow key={p.id} person={p} event={latest[p.id]} />)
+          }
+        </Card>
+      </main>
 
-        <div style={{ padding: '0 1rem 2rem' }}>
-          <Btn onClick={reset}>← Vissza</Btn>
-        </div>
-      </Page>
-    )
-  }
-
-  // state === 'profile'
-  const lastEvent = events[0]
-  const isIn = lastEvent?.type === 'checkin'
-
-  const todayStr = new Date().toDateString()
-  const todayEvents = events.filter(e => new Date(e.timestamp).toDateString() === todayStr)
-  const todayCheckin  = todayEvents.filter(e => e.type === 'checkin').sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))[0]
-  const todayCheckout = todayEvents.filter(e => e.type === 'checkout').sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))[0]
-  const todayMins = calcDayMins(todayEvents)
-
-  // group last 7 days
-  const byDay = {}
-  for (const e of events) {
-    const key = new Date(e.timestamp).toDateString()
-    if (!byDay[key]) byDay[key] = { label: new Date(e.timestamp).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }), evts: [] }
-    byDay[key].evts.push(e)
-  }
-  const days = Object.values(byDay)
-  const weekMins = days.reduce((s, d) => s + calcDayMins(d.evts), 0)
-  const workDays = days.filter(d => calcDayMins(d.evts) > 0).length
-
-  return (
-    <Page>
-      {/* Status banner — vivid green/red in both themes, white text */}
-      <div style={{ background: isIn ? '#10b981' : '#ef4444', padding: '1.4rem 1rem', textAlign: 'center' }}>
-        <div style={{ fontSize: 'clamp(1.4rem, 7vw, 2rem)', fontWeight: 800, color: '#fff', letterSpacing: '-0.02em' }}>{profile.name}</div>
-        <div style={{ fontSize: '0.95rem', color: 'rgba(255,255,255,0.9)', marginTop: '0.2rem', fontWeight: 500 }}>
-          {lastEvent ? (isIn ? '✅ Bent van' : '🔴 Nincs bent') : 'Még nincs esemény'}
-        </div>
-      </div>
-
-      <Section label="Mai nap">
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr' }}>
-          <StatCell label="Belépés" value={todayCheckin ? fmt(todayCheckin.timestamp) : '—'} color="var(--green)" />
-          <StatCell label="Kilépés" value={todayCheckout ? fmt(todayCheckout.timestamp) : '—'} color="var(--red)" />
-          <StatCell label="Ledolgozva" value={fmtMins(todayMins)} color="var(--accent)" last />
-        </div>
-      </Section>
-
-      <Section label="Heti összesítő">
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
-          <StatCell label="Ledolgozott idő" value={fmtMins(weekMins)} color="var(--accent)" />
-          <StatCell label="Munkanapok" value={String(workDays)} color="var(--text)" last />
-        </div>
-      </Section>
-
-      <Section label="Utolsó 7 nap">
-        {days.length === 0
-          ? <Empty>Nincs esemény</Empty>
-          : days.map((d, di) => {
-            const mins = calcDayMins(d.evts)
-            return (
-              <div key={di} style={{ borderBottom: '1px solid var(--border)', padding: '0.6rem 1rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.3rem' }}>
-                  <span style={{ fontSize: '0.75rem', color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 700 }}>{d.label}</span>
-                  {mins > 0 && <span style={{ fontSize: '0.75rem', color: 'var(--accent)', fontWeight: 700 }}>{fmtMins(mins)}</span>}
-                </div>
-                {d.evts.map((e, i) => (
-                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', padding: '0.1rem 0' }}>
-                    <span style={{ color: e.type === 'checkin' ? 'var(--green)' : 'var(--red)', fontWeight: 600 }}>
-                      {e.type === 'checkin' ? '↑ Be' : '↓ Ki'}
-                    </span>
-                    <span style={{ color: 'var(--muted)' }}>{fmt(e.timestamp)}</span>
-                  </div>
-                ))}
-              </div>
-            )
-          })
-        }
-      </Section>
-
-      <Section label="Hiányzások">
-        {absences.length === 0
-          ? <Empty>Nincs rögzített hiányzás</Empty>
-          : absences.map(a => {
-            const isPast = new Date(a.date + 'T23:59:59') < new Date()
-            return (
-              <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.55rem 1rem', borderBottom: '1px solid var(--border)', opacity: isPast ? 0.6 : 1 }}>
-                <span style={{ fontSize: '0.85rem', fontFamily: 'monospace', color: 'var(--text)' }}>{a.date}</span>
-                <span style={{ fontSize: '0.78rem', fontWeight: 700, color: a.type === 'unjustified' ? 'var(--red)' : 'var(--cal-justified)' }}>{ABSENCE_LABELS[a.type] ?? a.type}</span>
-              </div>
-            )
-          })
-        }
-        {absStatus === 'ok' && (
-          <div style={{ padding: '0.6rem 1rem', color: 'var(--green)', fontSize: '0.85rem', fontWeight: 600 }}>✓ Rögzítve — a vezető látni fogja.</div>
-        )}
-        {!absOpen ? (
-          <div style={{ padding: '0.75rem 1rem' }}>
-            <Btn onClick={() => { setAbsOpen(true); setAbsStatus(null); setAbsError('') }} accent>+ Új hiányzás</Btn>
-          </div>
-        ) : (
-          <div style={{ padding: '0.75rem 1rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-            <label style={LBL}>Dátum</label>
-            <input type="date" value={absDate} onChange={e => setAbsDate(e.target.value)} style={INP} />
-            <label style={LBL}>Típus</label>
-            <select value={absType} onChange={e => setAbsType(e.target.value)} style={INP}>
-              <option value="vacation">Szabadság</option>
-              <option value="sick">Betegszabadság</option>
-              <option value="other">Egyéb</option>
-            </select>
-            <label style={LBL}>Megjegyzés (opcionális)</label>
-            <input value={absNote} onChange={e => setAbsNote(e.target.value)} placeholder="pl. Orvosi vizsgálat" style={INP} />
-            {absStatus === 'error' && <div style={{ color: 'var(--red)', fontSize: '0.82rem' }}>{absError}</div>}
-            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.2rem' }}>
-              <Btn onClick={() => setAbsOpen(false)}>Mégse</Btn>
-              <Btn onClick={submitAbsence} accent>{absStatus === 'saving' ? 'Küldés…' : 'Beküldés'}</Btn>
-            </div>
-          </div>
-        )}
-      </Section>
-
-      <div style={{ padding: '1rem 1rem 2rem' }}>
-        <Btn onClick={reset}>← Vissza</Btn>
-      </div>
-    </Page>
-  )
-}
-
-// ---- helpers ----
-
-function fmt(ts) {
-  return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-}
-
-function calcDayMins(dayEvents) {
-  const sorted = [...dayEvents].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
-  let total = 0, lastIn = null
-  for (const e of sorted) {
-    if (e.type === 'checkin') lastIn = new Date(e.timestamp)
-    else if (e.type === 'checkout' && lastIn) { total += (new Date(e.timestamp) - lastIn) / 60000; lastIn = null }
-  }
-  if (lastIn && new Date().toDateString() === lastIn.toDateString()) total += (Date.now() - lastIn) / 60000
-  return Math.floor(total)
-}
-
-function fmtMins(m) {
-  if (m < 1) return '—'
-  const h = Math.floor(m / 60), min = Math.floor(m % 60)
-  return h === 0 ? `${min}p` : min === 0 ? `${h}ó` : `${h}ó ${min}p`
-}
-
-const ABSENCE_LABELS = { vacation: 'Szabadság', sick: 'Betegszabadság', unjustified: 'Igazolatlan', other: 'Egyéb' }
-const LBL = { fontSize: '0.7rem', color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.05em' }
-const INP = { width: '100%', padding: '0.6rem 0.7rem', fontSize: '0.9rem', background: 'var(--bg)', border: '1px solid var(--border)', color: 'var(--text)', boxSizing: 'border-box', borderRadius: 10, outline: 'none' }
-
-function Page({ children }) {
-  return (
-    <div style={{ minHeight: '100dvh', background: 'var(--bg)', color: 'var(--text)', fontFamily: 'system-ui, sans-serif' }}>
-      {children}
-    </div>
-  )
-}
-
-function PageHeader({ title, right }) {
-  return (
-    <div style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)', padding: '0.9rem 1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-      <span style={{ fontWeight: 800, fontSize: '1.1rem' }}>{title}</span>
-      {right}
-    </div>
-  )
-}
-
-function Section({ label, children }) {
-  return (
-    <div style={{ marginTop: '1rem', padding: '0 0.85rem' }}>
-      <div style={{ borderLeft: '3px solid var(--accent)', paddingLeft: '0.6rem', marginBottom: '0.45rem', fontWeight: 700, fontSize: '0.72rem', color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-        {label}
-      </div>
-      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
-        {children}
+      <div style={{ padding: '1rem', borderTop: '1px solid var(--border)', background: 'var(--surface)', flexShrink: 0 }}>
+        <Button onClick={onLogout}>Kijelentkezés</Button>
       </div>
     </div>
   )
 }
 
-function StatCell({ label, value, color, last }) {
+function PersonRow({ person, inside, event }) {
   return (
-    <div style={{ padding: '0.75rem 1rem', borderRight: last ? 'none' : '1px solid var(--border)' }}>
-      <div style={{ fontSize: '0.7rem', color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 700 }}>{label}</div>
-      <div style={{ fontWeight: 800, fontSize: '1.15rem', color }}>{value}</div>
-    </div>
-  )
-}
-
-function PersonRow({ person, status }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.6rem 1rem', borderBottom: '1px solid var(--border)' }}>
-      <div style={{ width: 8, height: 8, borderRadius: '50%', background: status === 'in' ? 'var(--green)' : 'var(--border)', flexShrink: 0 }} />
-      <div>
-        <div style={{ fontWeight: 700, fontSize: '0.95rem' }}>{person.name}</div>
-        {person.department && <div style={{ fontSize: '0.75rem', color: 'var(--muted)' }}>{person.department}</div>}
+    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 1rem', borderBottom: '1px solid var(--border)' }}>
+      <span style={{ width: 6, height: 32, background: inside ? 'var(--green)' : 'var(--border)', flexShrink: 0 }} />
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div style={{ fontWeight: 600, fontSize: '0.92rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{person.name}</div>
+        {person.department && <div style={{ fontSize: '0.72rem', color: 'var(--muted)' }}>{person.department}</div>}
       </div>
+      {event && (
+        <span style={{ ...S.mono, fontSize: '0.78rem', color: 'var(--muted)', flexShrink: 0 }}>
+          {isSameDay(new Date(event.timestamp), new Date()) ? fmtTime(event.timestamp) : dayLabel(new Date(event.timestamp))}
+        </span>
+      )}
     </div>
-  )
-}
-
-function Empty({ children }) {
-  return <div style={{ color: 'var(--muted)', padding: '1rem', textAlign: 'center', fontSize: '0.9rem' }}>{children}</div>
-}
-
-function FullScreen({ bg, emoji, title, sub, onReset, children }) {
-  return (
-    <div style={{ height: '100dvh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '1rem', background: bg, color: 'var(--text)', fontFamily: 'system-ui, sans-serif', textAlign: 'center', padding: '1.5rem', boxSizing: 'border-box' }}>
-      <div style={{ fontSize: 'clamp(3rem, 16vw, 5rem)', lineHeight: 1 }}>{emoji}</div>
-      <div style={{ fontSize: 'clamp(1.5rem, 7vw, 2rem)', fontWeight: 800, color: 'var(--text)' }}>{title}</div>
-      {sub && <div style={{ fontSize: '0.95rem', color: 'var(--muted)', maxWidth: 420 }}>{sub}</div>}
-      {children}
-      {onReset && <Btn onClick={onReset}>Újra</Btn>}
-    </div>
-  )
-}
-
-function Btn({ onClick, accent, children }) {
-  return (
-    <button onClick={onClick} style={{
-      padding: '0.8rem 1.5rem', fontSize: '0.95rem', fontWeight: 600,
-      background: accent ? 'var(--accent)' : 'var(--surface-2)',
-      color: accent ? 'var(--accent-contrast)' : 'var(--text)',
-      border: '1px solid ' + (accent ? 'var(--accent)' : 'var(--border)'),
-      borderRadius: 10, cursor: 'pointer', width: '100%',
-    }}>
-      {children}
-    </button>
   )
 }

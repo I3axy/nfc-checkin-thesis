@@ -107,9 +107,12 @@ export function InsightsTab({ employees, settings }) {
         .gte('timestamp', prevStart.toISOString())
         .lt('timestamp', end.toISOString())
         .order('timestamp', { ascending: true }),
+      // Csak a jóváhagyott hiányzás számít — a függő kérelem még nem tény,
+      // az elutasított pedig soha nem is volt az.
       supabase.from('absences')
         .select('date, type, note')
         .eq('user_id', sel.id)
+        .eq('status', 'approved')
         .gte('date', ymd(prevStart))
         .lt('date', ymd(end)),
     ]).then(([{ data: evts }, { data: abs }]) => {
@@ -750,7 +753,7 @@ function MonthlySummary({ employees, settings }) {
     const toD = ymd(new Date(month.getFullYear(), month.getMonth() + 1, 0))
     Promise.all([
       supabase.from('events').select('user_id, type, timestamp').gte('timestamp', from).lt('timestamp', to).order('timestamp', { ascending: true }),
-      supabase.from('absences').select('user_id, type').gte('date', fromD).lte('date', toD),
+      supabase.from('absences').select('user_id, type').eq('status', 'approved').gte('date', fromD).lte('date', toD),
     ]).then(([{ data: evts }, { data: abs }]) => {
       setEvents(evts ?? []); setAbsences(abs ?? []); setLoading(false)
     })

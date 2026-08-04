@@ -41,7 +41,11 @@ visszajelzésnek egyértelműnek és több méter távolságból is értelmezhet
 lennie, mivel a berendezés jellemzően falra szerelt eszközön üzemel. A kártya
 otthon felejtése nem akadályozhatja meg a munkakezdést, ezért tartalék
 azonosítási módra van szükség. A dolgozónak emellett hozzá kell férnie a saját
-jelenléti adataihoz, és be kell tudnia jelenteni tervezett távollétét.
+jelenléti adataihoz, mégpedig a munkahelyi terminálhoz kötöttség nélkül: a
+tervezett távollétet jellemzően nem a műszak közben, hanem otthonról jelenti be.
+A távollét bejelentése **kérelem**, nem tény rögzítése, ezért a dolgozónak
+követnie kell tudnia a kérelem sorsát, és az elbírálásig vissza kell tudnia
+vonni azt.
 
 **A vezetővel kapcsolatos követelmények.** A vezetői felületnek valós időben
 kell megjelenítenie, hogy az adott pillanatban kik tartózkodnak a telephelyen. A
@@ -49,7 +53,9 @@ jelenléti eseményekről visszakereshető naplót kell vezetnie, amelyben idős
 dolgozó és műszak szerint lehet szűrni. Szükséges továbbá az adatok időszakos
 összesítése és külső táblázatkezelőbe történő kivitele, mivel a bérszámfejtés
 jellemzően ilyen formátumot igényel. A vezetőnek kezelnie kell tudnia a
-dolgozók adatait, a hiányzásokat, valamint a cégre vonatkozó beállításokat. A
+dolgozók adatait, a hiányzásokat, valamint a cégre vonatkozó beállításokat.
+Döntenie kell továbbá a dolgozói távollét-kérelmekről; elutasítás esetén az
+indoklásnak el kell jutnia a kérelmezőhöz. A
 rendszernek végül a felhalmozott adatokból természetes nyelvű értékelést is elő
 kell tudnia állítani, csökkentve ezzel a kimutatások értelmezéséhez szükséges
 időt.
@@ -57,7 +63,9 @@ időt.
 **A rendszerrel szemben támasztott követelmények.** Bizonyos műveleteknek
 felhasználói beavatkozás nélkül kell végbemenniük. A nyitva maradt munkanapokat
 a cég által beállított órában automatikusan le kell zárni, mivel a kilépés
-rögzítésének elmulasztása a tapasztalatok szerint gyakori. A vezetők számára
+rögzítésének elmulasztása a tapasztalatok szerint gyakori. A zárás időpontja
+műszakonként eltérhet — az éjszakás műszak reggel végez, a nappali délután —,
+ezért egyetlen közös óra nem elegendő. A vezetők számára
 napi összesítő értesítést kell küldeni. Kezelni kell továbbá az alkalmi
 látogatókat, akik nem rendelkeznek állandó kártyával.
 
@@ -136,10 +144,28 @@ Az egyes alkalmazások szerepe a következőképpen alakult. A **beléptető
 alkalmazás** olvassa a kártyát, dönti el a művelet irányát, és jeleníti meg a
 visszajelzést; ez az egyetlen olyan része a rendszernek, amelynek hálózat
 nélkül is teljes értékűen működnie kell. A **dolgozói alkalmazás**
-önkiszolgáló felületet biztosít: a dolgozó a saját kártyájával azonosítja magát,
-és megtekintheti a jelenléti adatait, illetve távollétet jelenthet be. A
-**vezetői felület** a rendszer adminisztratív központja, ez az egyetlen
-alkalmazás, amely hagyományos, jelszavas bejelentkezést használ.
+önkiszolgáló felületet biztosít: a dolgozó megtekintheti a saját jelenléti
+adatait, és távollétet kérvényezhet. A **vezetői felület** a rendszer
+adminisztratív központja, ez az egyetlen alkalmazás, amely hagyományos,
+jelszavas bejelentkezést használ.
+
+A dolgozói alkalmazás szerepének pontos meghatározása a fejlesztés során
+módosult. Az eredeti elképzelés szerint a dolgozó a kártyáját a saját
+telefonjához érintve azonosította volna magát, sőt felmerült, hogy a telefon
+váltsa ki magát a kártyát a terminál előtt. Ez utóbbi azonban nem
+megvalósítható: a Web NFC felület kizárólag olvasó/író üzemmódot támogat, a
+kártyaemulációhoz szükséges *Host Card Emulation* pedig natív rendszerszintű
+felület, amely böngészőből nem érhető el.
+
+A korlát felismerése tisztább szereposztáshoz vezetett. A jelenlét rögzítése
+kizárólag a beléptető alkalmazásban történik, a dolgozói alkalmazás pedig
+kizárólag önkiszolgáló portál, amely PIN-kóddal azonosít. Ennek gyakorlati
+haszna, hogy a felület a munkahelytől függetlenül, otthonról is használható —
+márpedig a szabadságkérelem jellemzően nem műszak közben születik. A PIN itt
+tehát azonosításra szolgál, nem jelenlét igazolására; ugyanaz az adat két
+eltérő biztonsági szerepben jelenik meg, és ezt a megkülönböztetést a
+szerveroldal is érvényesíti: a dolgozói alkalmazás felől jelenléti esemény
+nem hozható létre.
 
 A három alkalmazás közös háttérrendszerrel dolgozik, amely az adatbázist, a
 hitelesítést, a fájltárolást és a szerveroldali függvények futtatását biztosítja.
@@ -230,8 +256,15 @@ create policy "events: read own company"
 
 ## A dolgozói alkalmazás
 
-<!-- ~500 szó: önkiszolgáló felület, saját jelenléti adatok, heti összesítő,
-     hiányzás bejelentése és annak életciklusa. -->
+<!-- ~600 szó. A tartalom a fejlesztés során bővült, ezért a vázlat frissült:
+       - PIN-alapú azonosítás; miért nem a kártya, és miért fontos, hogy
+         munkahelytől függetlenül működjön
+       - a felület három nézete (mai nap, napló egy hét / egy hónap
+         bontásban, hiányzások)
+       - a távollét-kérelem életciklusa: beküldés -> elbírálás -> jóváhagyás
+         vagy indokolt elutasítás; a kérelem visszavonása az elbírálásig
+       - a tartomány napokra bontása a SZERVEREN, és miért nem a kliensen
+       - tétlenségi kiléptetés: a képernyő személyes adatot mutat -->
 
 ## A vezetői felület
 

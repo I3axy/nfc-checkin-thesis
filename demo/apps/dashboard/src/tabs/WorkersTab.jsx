@@ -328,7 +328,9 @@ function NaptarSubTab({ worker, settings }) {
     const toD   = new Date(calMonth.getFullYear(), calMonth.getMonth() + 1, 0).toISOString().slice(0, 10)
     Promise.all([
       supabase.from('events').select('id, type, timestamp, is_manual, note').eq('user_id', worker.id).gte('timestamp', from).lt('timestamp', to).order('timestamp', { ascending: true }),
-      supabase.from('absences').select('id, date, type, note').eq('user_id', worker.id).gte('date', fromD).lte('date', toD),
+      // Csak a jóváhagyott hiányzás valós tény — a függő kérelem és az
+      // elutasított kérés nem jelenhet meg a naptárban.
+      supabase.from('absences').select('id, date, type, note').eq('user_id', worker.id).eq('status', 'approved').gte('date', fromD).lte('date', toD),
     ]).then(([{ data: evts }, { data: abs }]) => {
       setMonthEvents(evts ?? [])
       setMonthAbsences(abs ?? [])
@@ -465,10 +467,20 @@ function groupRuns(list) {
   for (const a of sorted) {
     const last = runs[runs.length - 1]
     const follows = last && continuesFrom(last.to, a.date)
-    if (last && follows && last.type === a.type && (last.note ?? '') === (a.note ?? '')) {
+    // Az állapot is töri a sorozatot: egy részben elbírált időszakot egyetlen
+    // tételként mutatni félrevezető lenne.
+    const same = last
+      && last.type === a.type
+      && (last.note ?? '') === (a.note ?? '')
+      && (last.status ?? 'approved') === (a.status ?? 'approved')
+    if (follows && same) {
       last.to = a.date; last.ids.push(a.id); last.days++
     } else {
-      runs.push({ from: a.date, to: a.date, type: a.type, note: a.note, ids: [a.id], days: 1 })
+      runs.push({
+        from: a.date, to: a.date, type: a.type, note: a.note,
+        status: a.status ?? 'approved', decisionNote: a.decision_note ?? null,
+        ids: [a.id], days: 1,
+      })
     }
   }
   return runs.reverse()
@@ -486,11 +498,14 @@ function HianyokSubTab({ worker }) {
   const [error,    setError]    = useState('')
 
   useEffect(() => {
-    supabase.from('absences').select('id, date, type, note').eq('user_id', worker.id).order('date', { ascending: false }).limit(400)
+    supabase.from('absences').select('id, date, type, note, status, decision_note').eq('user_id', worker.id).order('date', { ascending: false }).limit(400)
       .then(({ data }) => setAbsences(data ?? []))
   }, [worker.id, reload])
 
   const runs = groupRuns(absences)
+  // A dolgozói kérelmek elkülönítve, elöl: ezekkel teendő van.
+  const pendingRuns = runs.filter(r => r.status === 'pending')
+  const decidedRuns = runs.filter(r => r.status !== 'pending')
   const previewDays = (from && to && from <= to) ? expandRange(from, to, skipWeekends).length : 0
 
   // A kezdő dátum sosem lehet a záró után
@@ -504,8 +519,10 @@ function HianyokSubTab({ worker }) {
     if (dates.length > MAX_RANGE_DAYS) { setError(`Legfeljebb ${MAX_RANGE_DAYS} nap rögzíthető egyszerre`); return }
 
     setSaving(true)
+    // A vezető által rögzített hiányzás nem kérelem — azonnal érvényes.
     const rows = dates.map(d => ({
-      company_id: worker.company_id, user_id: worker.id, date: d, type, note: note.trim() || null,
+      company_id: worker.company_id, user_id: worker.id, date: d, type,
+      note: note.trim() || null, status: 'approved',
     }))
     // A már rögzített napokat átlépjük, nem hibázunk el miattuk az egészet
     const { data, error } = await supabase
@@ -529,6 +546,31 @@ function HianyokSubTab({ worker }) {
     if (error) { toast('A törlés nem sikerült', 'error'); return }
     toast(ids.length > 1 ? `${ids.length} nap törölve` : 'Hiányzás törölve')
     setAbsences(prev => prev.filter(a => !ids.includes(a.id)))
+  }
+
+  // Döntés a dolgozói kérelemről. Elutasításnál indoklás kérhető — a dolgozó
+  // a saját alkalmazásában ezt látja, enélkül a döntés érthetetlen volna.
+  async function decide(run, status) {
+    let decisionNote = null
+    if (status === 'rejected') {
+      const answer = window.prompt('Az elutasítás indoklása (a dolgozó látni fogja):', '')
+      if (answer === null) return                       // Mégse
+      decisionNote = answer.trim() || null
+    }
+    const { data: { user } } = await supabase.auth.getUser()
+    const { data: me } = await supabase.from('profiles').select('id').eq('auth_user_id', user?.id).maybeSingle()
+
+    const { error } = await supabase.from('absences')
+      .update({ status, decision_note: decisionNote, approved_by: me?.id ?? null, decided_at: new Date().toISOString() })
+      .in('id', run.ids)
+
+    if (error) { toast('A döntés mentése nem sikerült', 'error'); return }
+    toast(status === 'approved'
+      ? `Jóváhagyva · ${run.days} nap`
+      : `Elutasítva · ${run.days} nap`)
+    setAbsences(prev => prev.map(a =>
+      run.ids.includes(a.id) ? { ...a, status, decision_note: decisionNote } : a
+    ))
   }
 
   return (
@@ -582,13 +624,49 @@ function HianyokSubTab({ worker }) {
       </div>
 
       <div>
+        {/* Elbírálásra váró kérelmek külön, elöl — ezekkel teendő van */}
+        {pendingRuns.length > 0 && (
+          <>
+            <SectionLabel color={C.warn}>Elbírálásra vár — {pendingRuns.length}</SectionLabel>
+            <Table>
+              <tbody>
+                {pendingRuns.map(r => (
+                  <tr key={r.ids[0]} style={{ borderBottom: `1px solid ${C.border}`, background: tint(C.warn, 6) }}>
+                    <td style={{ ...S.td, fontFamily: 'monospace', fontSize: '0.8rem', color: C.text, whiteSpace: 'nowrap' }}>
+                      {r.from}{r.days > 1 && <> – {r.to}</>}
+                    </td>
+                    <td style={{ ...S.td, fontSize: '0.78rem', whiteSpace: 'nowrap' }}>{r.days} nap</td>
+                    <td style={S.td}>
+                      <Badge color={CAL.justified.bar}>{ABSENCE_LABELS[r.type]}</Badge>
+                    </td>
+                    <td style={{ ...S.td, color: C.muted, fontSize: '0.78rem' }}>{r.note ?? ''}</td>
+                    <td style={{ ...S.td, textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      <button onClick={() => decide(r, 'approved')}
+                        style={{ ...S.btnIcon, color: C.green, borderColor: tint(C.green, 35), marginRight: '0.35rem', width: 'auto', padding: '0.3rem 0.7rem', fontSize: '0.75rem' }}>
+                        Jóváhagyás
+                      </button>
+                      <button onClick={() => decide(r, 'rejected')}
+                        style={{ ...S.btnIcon, color: C.red, borderColor: tint(C.red, 35), width: 'auto', padding: '0.3rem 0.7rem', fontSize: '0.75rem' }}>
+                        Elutasítás
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </Table>
+            <div style={{ height: '1.25rem' }} />
+          </>
+        )}
+
         <SectionLabel color={C.muted}>Rögzített hiányzások</SectionLabel>
         <Table>
           <tbody>
-            {runs.length === 0
+            {decidedRuns.length === 0
               ? <TableEmpty>Nincs rögzített hiányzás</TableEmpty>
-              : runs.map(r => (
-                <tr key={r.ids[0]} style={{ borderBottom: `1px solid ${C.border}` }}>
+              : decidedRuns.map(r => {
+                const rejected = r.status === 'rejected'
+                return (
+                <tr key={r.ids[0]} style={{ borderBottom: `1px solid ${C.border}`, opacity: rejected ? 0.55 : 1 }}>
                   <td style={{ ...S.td, fontFamily: 'monospace', fontSize: '0.8rem', color: C.muted, whiteSpace: 'nowrap' }}>
                     {r.from}
                     {r.days > 1 && <> – {r.to}</>}
@@ -597,11 +675,15 @@ function HianyokSubTab({ worker }) {
                     {r.days} nap
                   </td>
                   <td style={S.td}>
-                    <Badge color={r.type === 'unjustified' ? CAL.unjustified.bar : CAL.justified.bar}>
+                    <Badge color={rejected ? C.muted : r.type === 'unjustified' ? CAL.unjustified.bar : CAL.justified.bar}>
                       {ABSENCE_LABELS[r.type]}
                     </Badge>
+                    {rejected && <span style={{ marginLeft: '0.4rem', fontSize: '0.68rem', color: C.red, fontWeight: 700 }}>ELUTASÍTVA</span>}
                   </td>
-                  <td style={{ ...S.td, color: C.muted, fontSize: '0.78rem' }}>{r.note ?? ''}</td>
+                  <td style={{ ...S.td, color: C.muted, fontSize: '0.78rem' }}>
+                    {r.note ?? ''}
+                    {rejected && r.decisionNote && <div style={{ fontSize: '0.72rem', opacity: 0.8 }}>Indoklás: {r.decisionNote}</div>}
+                  </td>
                   <td style={{ ...S.td, textAlign: 'right' }}>
                     <button
                       onClick={() => delRun(r.ids)}
@@ -610,7 +692,7 @@ function HianyokSubTab({ worker }) {
                     >✕</button>
                   </td>
                 </tr>
-              ))
+              )})
             }
           </tbody>
         </Table>
