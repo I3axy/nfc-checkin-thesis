@@ -184,22 +184,154 @@ alkalmas.
 
 ### Az alkalmazott technológiák
 
-<!-- ~500 szó: React + Vite, Supabase (PostgreSQL, Auth, Storage, Realtime,
-     Edge Functions), Deno futtatókörnyezet. Minden választás INDOKLÁSSAL —
-     nem felsorolás, hanem érvelés. -->
+A technológiai döntéseket két körülmény határolta be. Egyrészt a beléptetéshez
+szükséges Web NFC felület kizárólag böngészőben érhető el, ami eleve webes
+megvalósítást ír elő. Másrészt a rendelkezésre álló fejlesztői kapacitás egyetlen
+személy, ezért az olyan megoldások kerültek előnybe, amelyek a járulékos
+üzemeltetési munkát a lehető legkisebbre szorítják.
+
+**A felhasználói felület** React könyvtárral készült. A választás fő indoka,
+hogy a rendszer állapota folyamatosan változik — érkezik egy új esemény, lezárul
+egy nap, megszületik egy döntés —, és a React deklaratív megközelítése éppen az
+ilyen, állapotvezérelt felületekhez való: a megjelenítés az adatból következik,
+nem külön léptetett műveletekből. Ehhez járul, hogy a három alkalmazás közös
+megjelenítési elemeket használ, amelyek komponensként egyszer írhatók meg.
+
+Az építőeszköz a Vite, amely fejlesztés közben natív ES-modulokat szolgál ki,
+így a módosítás és a böngészőben megjelenő eredmény között eltelt idő
+számottevően rövidebb, mint a korábbi, teljes csomagolást végző eszközöknél. Ez
+NFC-vel dolgozva külön előny, mivel a hibakeresés valódi eszközön, ismételt
+kártyaérintésekkel történik.
+
+**A háttérrendszer** a Supabase szolgáltatáscsomagra épül, amelynek alapja a
+PostgreSQL adatbázis-kezelő. A döntés lényege nem a kényelem, hanem az, hogy a
+szolgáltatás nem rejti el az adatbázist: közvetlen SQL-hozzáférés áll
+rendelkezésre, a sorszintű biztonság, a generált oszlopok, a részleges egyedi
+indexek és az ütemezett feladatok mind használhatók. Ezek a rendszer több
+pontján meghatározó szerepet kaptak, ahogyan az a következő alfejezetekből
+kiderül. A 2.4. alfejezetben tárgyalt szolgáltatói kötődés kockázata ezzel
+mérsékelhető: az adatbázis szabványos PostgreSQL, tehát az adatok és a séma
+átvihetők.
+
+A csomag további elemei közül a **hitelesítés** a vezetői belépést kezeli, a
+**fájltároló** a fényképes ellenőrzés képeit, a **valós idejű szolgáltatás**
+pedig az adatbázis változásait továbbítja a vezetői felületnek, így a jelenléti
+állapot lekérdezés nélkül frissül.
+
+A **szerveroldali függvények** Deno futtatókörnyezetben futnak. Ezekbe került az
+üzleti logika azon része, amelyet a kliensre bízni nem lehet: a beléptetés
+érvényesítése, a felhasználók létrehozása, a hiányzás-kérelmek feldolgozása és a
+nyelvi modell hívása. Utóbbinál külön szempont, hogy az API-kulcs a
+szolgáltatás beállításai között tárolható, és így soha nem kerül a böngészőbe.
+
+**Az ütemezett feladatokat** a `pg_cron` bővítmény végzi, tehát az adatbázison
+belül, nem külső ütemezőben. Ennek gyakorlati haszna, hogy nincs újabb
+üzemeltetendő komponens, és a feladat ugyanabban a tranzakciós környezetben fut,
+mint az adat, amelyen dolgozik.
+
+**A hálózatfüggetlen működéshez** a böngésző IndexedDB tárolója szolgál, a
+Dexie könyvtár közvetítésével, amely a nyers felület alacsony szintű,
+eseményvezérelt kezelése helyett ígéret-alapú felületet ad. Az alkalmazás
+hálózat nélküli indulását *service worker* biztosítja.
+
+A választások közös vonása, hogy mindegyik esetben egy meglévő, széles körben
+használt megoldás került átvételre saját fejlesztés helyett. Egy szakdolgozat
+keretei között a szakmai érték nem ezek újraírásában, hanem helyes
+összeillesztésükben és a köztük lévő határok pontos meghúzásában rejlik.
 
 ## Az adatmodell
 
-<!-- ~700 szó: táblánként a szerep és a fontosabb mezők.
-     Az adatbázis-séma ábrája ide való. -->
+Az adatbázis öt tábla köré szerveződik. A logikai séma a 2. ábrán látható.
 
 ![Az adatbázis logikai sémája](adatbazis-sema.png)
 
+**A `companies` tábla** a rendszert használó cégeket tartja nyilván. Ez a tábla
+a több bérlős működés kiindulópontja: minden további tábla ide hivatkozik
+vissza. A cégnév és az URL-ben használható rövid azonosító mellett a
+munkaidő-szabályok is itt kaptak helyet — a munkanap kezdete, a késésnek
+számító küszöb, az automatikus kiléptetés órája, valamint a fényképes
+ellenőrzés két kapcsolója. Ezek azért a cég sorában szerepelnek, és nem
+alkalmazásszintű beállításként, mert cégenként eltérhetnek, és a beléptetés
+kiértékelésekor a szervernek amúgy is be kell töltenie a cég sorát.
+
+**A `profiles` tábla** a személyeket írja le, szerepkörtől függetlenül: a
+dolgozókat, a vezetőket, az adminisztrátorokat és az alkalmi látogatókat is. A
+szerepkört külön mező hordozza, megszorítással korlátozva a megengedett
+értékekre. A név két összetevőben tárolódik — vezetéknév és keresztnév —,
+mert a rendezés, a megszólítás és az adatkarbantartás mind a két rész
+ismeretét igényli. A teljes név **generált oszlopként** áll elő a kettőből,
+tehát nem külön karbantartott adat, hanem származtatott érték, amely soha nem
+térhet el az összetevőitől. Ennek gyakorlati haszna, hogy a nevet olvasó
+korábbi lekérdezések változtatás nélkül működnek tovább.
+
+A táblában szerepel az NFC-kártya azonosítója, a tartalék belépéshez használt
+PIN, a telefonszám és az elektronikus levélcím, továbbá az opcionális műszak
+vagy részleg megjelölése. Az alkalmi látogatóknál egy lejárati időpont is
+rögzítésre kerül, amely után a kártya érvénytelenné válik.
+
+Két egyediségi megkötés érdemel figyelmet. A kártyaazonosító **cégen belül**
+egyedi, nem globálisan: két különböző cég használhat azonos azonosítójú
+kártyát, hiszen egymás rendszeréhez nincs közük. A PIN esetében az egyediséget
+*részleges* index biztosítja, amely csak a kitöltött értékekre vonatkozik —
+enélkül a PIN nélküli dolgozók ütköznének egymással, mivel valamennyiüknél
+üres az érték.
+
+**Az `events` tábla** a jelenléti eseményeket tárolja: minden sor egy belépés
+vagy egy kilépés, időbélyeggel. Külön mező jelzi, hogy a bejegyzés vezetői kézi
+javítás eredménye-e, és megjegyzés is fűzhető hozzá — így az automatikus
+kiléptetés vagy az utólagos korrekció megkülönböztethető a valódi
+kártyaérintéstől. A fényképes ellenőrzés képének elérési útja szintén itt
+szerepel.
+
+A tábla legfontosabb sajátossága a `client_event_id` mező, amelyet nem a
+szerver, hanem a kliens állít elő. Erre a hálózatfüggetlen működés miatt van
+szükség: ha a válasz elveszik azután, hogy a szerver már feldolgozta a kérést,
+az ismételt küldés duplikált bejegyzést hozna létre. A mezőre épített
+**részleges egyedi index** ezt kizárja, a részlegesség pedig azért kell, mert a
+kártyás beléptetés közvetlen, hálózaton keresztüli útján ez az azonosító
+kitöltetlen marad, és az üres értékek egyébként ütköznének. A megoldás a 2.4.
+alfejezetben tárgyalt idempotencia gyakorlati megvalósítása.
+
+**Az `absences` tábla** a hiányzásokat tartja nyilván, **naponként egy sorban**.
+Ez a döntés magyarázatot igényel, hiszen kézenfekvőbbnek tűnne a kezdő és a
+záró dátum tárolása egyetlen sorban. A napokra bontás mellett két érv szólt.
+Egyrészt a naptárnézet, a havi összesítő és a kimutatások mind napi bontásban
+dolgoznak, tehát az időszakot úgyis fel kellene bontaniuk. Másrészt így az
+átfedések kizárása egyetlen egyediségi megkötéssel megoldható — egy dolgozóhoz
+egy napon legfeljebb egy hiányzás tartozhat —, míg időszakokkal ez lényegesen
+összetettebb ellenőrzést kívánna. A megoldás ára, hogy az egybefüggő időszakot
+megjelenítéskor össze kell vonni; ezt a felület végzi.
+
+A tábla hordozza a kérelem állapotát is: a dolgozó által beküldött hiányzás
+elbírálásra vár, a vezető által rögzített azonnal érvényes. Az elutasítás
+indoklása szintén itt tárolódik, mivel az a döntéshez tartozik.
+
+**A `notifications` tábla** a dolgozónak szóló értesítéseket őrzi. A megjelenítés
+adatai JSON szerkezetben szerepelnek, mert a szöveg megfogalmazása — és annak
+nyelve — a felület dolga, míg az adatbázisban a tény tárolódik. Az olvasottság
+időbélyegként jelenik meg, nem logikai értékként, így az is megállapítható,
+mikor jutott az értesítés a címzetthez.
+
+Valamennyi táblában szerepel a cégazonosító, akkor is, ha az elvben
+levezethető volna a kapcsolódó sorokból. A látszólagos redundancia szándékos: a
+következő alfejezetben tárgyalt biztonsági szabályok így egyetlen mező
+vizsgálatával kiértékelhetők, kapcsolás nélkül.
+
 ### A több bérlős (multi-tenant) felépítés
 
-<!-- ~400 szó: minden táblán company_id, és a sorszintű biztonság (RLS)
-     hogyan garantálja, hogy egy cég adata más cég számára láthatatlan.
-     Rövid szabály-részlet bemutatható: -->
+A 2.4. alfejezetben ismertetett három minta közül a közös táblás megoldás
+került alkalmazásra, amelyben a sorokat bérlőazonosító különbözteti meg. Ez a
+leggazdaságosabb változat, ugyanakkor a legnagyobb figyelmet igénylő is:
+egyetlen hiányzó szűrőfeltétel elegendő ahhoz, hogy az egyik cég adata a másik
+számára láthatóvá váljon.
+
+Éppen ezért az elkülönítés nem az alkalmazás kódjára van bízva. A védelem a
+PostgreSQL **sorszintű biztonságára** épül, amely a szűrést az adatbázisban
+kényszeríti ki. A szabály akkor is érvényesül, ha a lekérdezésből véletlenül
+kimarad a feltétel — a hiba tehát nem eredményez adatszivárgást, hanem üres
+találati halmazt.
+
+Az alábbi szabály a jelenléti események olvasását engedélyezi:
 
 ```
 create policy "events: read own company"
@@ -207,12 +339,68 @@ create policy "events: read own company"
   using (company_id = auth_company_id());
 ```
 
+A szabály lelke az `auth_company_id()` segédfüggvény, amely a bejelentkezett
+felhasználó munkamenetéből indulva megkeresi a hozzá tartozó profilt, és
+visszaadja annak cégazonosítóját. A függvény azért kapott *definer* jogosultsági
+módot, mert magának a profilnak az olvasásához is szabályt kellene
+kiértékelnie, ami körkörös hivatkozáshoz vezetne.
+
+Ugyanezen a mintán további két segédfüggvény áll rendelkezésre a felhasználó
+profilazonosítójára és szerepkörére. Ezekkel a szabályok az egyszerű cégszintű
+elkülönítésnél árnyaltabb feltételeket is megfogalmazhatnak: a hiányzások
+módosítása például vezetői szerepkörhöz kötött, míg olvasni a saját cég
+valamennyi bejegyzését lehet.
+
+Fontos kiemelni, hogy a beléptető és a dolgozói alkalmazás **nem ezen az úton**
+fér az adatokhoz. Ezek az alkalmazások nem rendelkeznek bejelentkezett
+munkamenettel — a dolgozóknak nincs belépési fiókjuk —, ezért kéréseiket
+szerveroldali függvények szolgálják ki, amelyek megemelt jogosultsággal futnak,
+és a sorszintű szabályokat megkerülik. Az elkülönítés itt tehát a függvény
+kódjában valósul meg: a cég azonosítója minden esetben a kártyához vagy a
+PIN-hez tartozó profilból származik, sosem a kérés törzséből. Ez a
+megkülönböztetés lényeges: a sorszintű biztonság a bejelentkező vezetőket
+védi a saját hibáiktól, a szerveroldali függvények kapuőr szerepe pedig a
+bejelentkezés nélküli alkalmazásokat.
+
 ### A profilok és a hitelesítés szétválasztása
 
-<!-- ~400 szó: miért nem a profiles.id az auth.users azonosítója.
-     A dolgozók NEM rendelkeznek belépési fiókkal — náluk a kártya az identitás;
-     csak a vezetők kapnak auth-fiókot (auth_user_id). Ez tervezési döntés volt,
-     és a fejlesztés közben derült ki, hogy szükséges — ezt érdemes leírni. -->
+Az adatmodell egyik meghatározó döntése, hogy a személyeket leíró tábla
+elsődleges kulcsa **független** a hitelesítési rendszer felhasználó-azonosítójától.
+Ez a döntés nem a tervezőasztalon született, hanem a fejlesztés közben, egy
+hibából kiindulva.
+
+Az eredeti séma a profil azonosítóját közvetlenül a hitelesítési rendszer
+felhasználójához kötötte, ahogyan azt a szolgáltatás mintapéldái is javasolják.
+A megoldás a vezetőknél működött, a dolgozók felvételénél viszont hibára
+futott: minden új dolgozóhoz belépési fiókot kellett volna létrehozni, amivel az
+azonosító a hivatkozási megkötést sértette.
+
+A hiba mögött fogalmi ellentmondás állt. A rendszerben ugyanis **a dolgozónak
+nincs és nem is lehet belépési fiókja**: az azonosítást a kártya végzi, nem
+felhasználónév és jelszó. Egy fiók létrehozása elektronikus levélcímet
+igényelne, ami fizikai munkakörökben gyakran nem áll rendelkezésre, és
+felesleges személyes adatot is kezelne. A hitelesítési fiókhoz kötött séma
+tehát olyan feltételt támasztott, amely a rendszer működési modelljével
+ellentétes.
+
+A megoldás a két fogalom szétválasztása lett. A profil önálló, saját azonosítót
+kap, és egy **kitölthető, de nem kötelező** mező köti — ha van ilyen — a
+hitelesítési rendszer felhasználójához. Ezt a mezőt kizárólag a vezetők és az
+adminisztrátorok sora tölti ki; a dolgozóknál, a látogatóknál üresen marad.
+
+A megoldás következménye, hogy a jogosultsági szabályok nem közvetlenül a
+munkamenet azonosítójával dolgoznak, hanem azon keresztül keresik meg a
+profilt. Ezt végzik a korábban bemutatott segédfüggvények. A kerülőút ára egy
+további lekérdezés, haszna viszont az, hogy a személy és a belépési mód
+egymástól függetlenül kezelhető: egy dolgozó később vezetővé léptethető pusztán
+azzal, hogy a profilja fiókhoz kapcsolódik, és a hozzá tartozó jelenléti előzmény
+érintetlen marad.
+
+Ez a döntés jól szemlélteti, hogy a szolgáltatások dokumentációjában szereplő
+minták egy tipikus felhasználási módra készülnek. Amennyiben a rendszer
+működési modellje ettől eltér — jelen esetben azzal, hogy a felhasználók
+többsége soha nem jelentkezik be —, a mintát nem átvenni, hanem a saját
+követelményekhez igazítani kell.
 
 ## A beléptető alkalmazás
 
