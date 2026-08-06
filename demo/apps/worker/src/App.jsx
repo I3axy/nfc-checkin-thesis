@@ -6,6 +6,8 @@ import {
 } from './lib/format'
 import { S, Button, SectionLabel, Card, Stat, Empty, Pill, FullScreen } from './components/ui'
 import { PinPad } from './components/PinPad'
+import { NotificationBell, NotificationsScreen } from './components/Notifications'
+import { useSwipe } from './lib/useSwipe'
 
 const FUNCTION_URL = import.meta.env.VITE_WORKER_FUNCTION_URL
 const COMPANY_SLUG = import.meta.env.VITE_COMPANY_SLUG
@@ -62,7 +64,12 @@ export default function App() {
         setManagerData({ profile: body.profile, allProfiles: body.allProfiles ?? [], recentEvents: body.recentEvents ?? [] })
         setScreen('manager')
       } else {
-        setData({ profile: body.profile, events: body.events ?? [], absences: body.absences ?? [] })
+        setData({
+          profile: body.profile,
+          events: body.events ?? [],
+          absences: body.absences ?? [],
+          notifications: body.notifications ?? [],
+        })
         setTab('today')
         setScreen('profile')
       }
@@ -161,8 +168,17 @@ function LoginScreen({ onSubmit, error, nfcHint }) {
 // ─── Dolgozói nézet ──────────────────────────────────────────────────────────
 
 function WorkerScreen({ data, setData, tab, setTab, credential, onLogout }) {
-  const { profile, events, absences } = data
+  const { profile, events, absences, notifications } = data
   const isIn = events[0]?.type === 'checkin'
+  const [notifOpen, setNotifOpen] = useState(false)
+
+  // Lapozás a fülek között. A sorrend a fülsávét követi, és nem körkörös:
+  // a szélső fülön túl nincs hova lapozni, ez adja vissza, hol tartunk.
+  const tabIndex = TABS.findIndex(t => t.key === tab)
+  const swipe = useSwipe({
+    onLeft:  () => { if (tabIndex < TABS.length - 1) setTab(TABS[tabIndex + 1].key) },
+    onRight: () => { if (tabIndex > 0)               setTab(TABS[tabIndex - 1].key) },
+  })
 
   const days = useMemo(() => groupByDay(events), [events])
   const today = days.find(d => isSameDay(d.date, new Date()))
@@ -170,10 +186,39 @@ function WorkerScreen({ data, setData, tab, setTab, credential, onLogout }) {
     () => groupRuns((absences ?? []).filter(a => a.status === 'pending')).length,
     [absences]
   )
+  const unread = (notifications ?? []).filter(n => !n.read_at).length
+
+  // A panel megnyitása olvasottnak jelöli az addigi értesítéseket. A jelölés
+  // azonnal látszik a felületen; ha a hálózati hívás elbukik, a következő
+  // belépéskor újra olvasatlanként jön vissza — ez a biztonságos irány.
+  async function openNotifications() {
+    setNotifOpen(true)
+    if (unread === 0) return
+    setData(d => ({
+      ...d,
+      notifications: d.notifications.map(n => n.read_at ? n : { ...n, read_at: new Date().toISOString() }),
+    }))
+    try {
+      await fetch(FUNCTION_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...credential, company_slug: COMPANY_SLUG, action: 'mark_notifications_read' }),
+      })
+    } catch { /* a következő belépéskor újra olvasatlan lesz */ }
+  }
+
+  // Az értesítések teljes képernyőt kapnak: telefonon egy lenyíló doboz szűk
+  // az indoklásoknak, és a görgetése ütközne a mögötte lévő tartalommal.
+  if (notifOpen) {
+    return <NotificationsScreen notifications={notifications ?? []} onBack={() => setNotifOpen(false)} />
+  }
 
   return (
     <div style={S.page}>
-      <Header profile={profile} isIn={isIn} onLogout={onLogout} />
+      <Header
+        profile={profile} isIn={isIn} onLogout={onLogout}
+        unread={unread} onOpenNotif={openNotifications}
+      />
 
       <nav style={{ display: 'flex', borderBottom: '1px solid var(--border)', background: 'var(--surface)', flexShrink: 0 }}>
         {TABS.map(t => {
@@ -203,7 +248,7 @@ function WorkerScreen({ data, setData, tab, setTab, credential, onLogout }) {
         })}
       </nav>
 
-      <main style={{ flex: 1, overflowY: 'auto', paddingBottom: '2rem' }}>
+      <main {...swipe} style={{ flex: 1, overflowY: 'auto', paddingBottom: '2rem' }}>
         {tab === 'today'    && <TodayTab today={today} days={days} />}
         {tab === 'log'      && <LogTab days={days} />}
         {tab === 'absences' && (
@@ -219,7 +264,7 @@ function WorkerScreen({ data, setData, tab, setTab, credential, onLogout }) {
   )
 }
 
-function Header({ profile, isIn, onLogout }) {
+function Header({ profile, isIn, onLogout, unread, onOpenNotif }) {
   return (
     <header style={{ background: 'var(--surface)', borderBottom: '1px solid var(--border)', padding: '1rem', flexShrink: 0 }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.75rem' }}>
@@ -231,13 +276,17 @@ function Header({ profile, isIn, onLogout }) {
             {profile.department || 'Nincs műszak megadva'}
           </div>
         </div>
-        <button onClick={onLogout} style={{
-          background: 'transparent', border: '1px solid var(--border)', color: 'var(--muted)',
-          padding: '0.5rem 0.8rem', fontSize: '0.78rem', fontFamily: 'inherit',
-          cursor: 'pointer', borderRadius: 0, flexShrink: 0, minHeight: 40,
-        }}>
-          Kijelentkezés
-        </button>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+          <NotificationBell unread={unread} onOpen={onOpenNotif} />
+          <button onClick={onLogout} style={{
+            background: 'transparent', border: '1px solid var(--border)', color: 'var(--muted)',
+            padding: '0.5rem 0.8rem', fontSize: '0.78rem', fontFamily: 'inherit',
+            cursor: 'pointer', borderRadius: 0, minHeight: 44,
+          }}>
+            Kijelentkezés
+          </button>
+        </div>
       </div>
       {/* Az állapotot a szín ÉS a szöveg is hordozza — színvakság mellett is olvasható */}
       <div style={{

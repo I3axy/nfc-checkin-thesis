@@ -46,7 +46,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { nfc_uid, pin, company_slug, action, absence, absence_ids } = await req.json()
+    const { nfc_uid, pin, company_slug, action, absence, absence_ids, notification_ids } = await req.json()
 
     if (!company_slug || (!nfc_uid && !pin)) {
       return json({ error: 'Azonosító szükséges', code: 'NO_IDENTITY' }, 400)
@@ -105,6 +105,22 @@ Deno.serve(async (req) => {
       if (!profile) {
         return json({ error: 'Ismeretlen kártya', code: 'UNKNOWN_CARD' }, 404)
       }
+    }
+
+    // ── Értesítések olvasottra jelölése ─────────────────────────────────────
+    // A bejegyzés nem törlődik: a dolgozónak visszamenőleg is látnia kell,
+    // mit döntöttek a kérelmeiről. Csak az olvasás ténye kerül rögzítésre.
+    if (action === 'mark_notifications_read') {
+      const ids = Array.isArray(notification_ids) ? notification_ids.filter(i => typeof i === 'string') : []
+      const q = supabase
+        .from('notifications')
+        .update({ read_at: new Date().toISOString() })
+        .eq('user_id', profile.id)     // másét nem lehet olvasottra állítani
+        .is('read_at', null)
+      // Üres lista: minden olvasatlan. Így a panel megnyitása egy kérés.
+      const { error: updErr } = ids.length > 0 ? await q.in('id', ids) : await q
+      if (updErr) return json({ error: 'A jelölés nem sikerült', code: 'UPDATE_FAILED' }, 500)
+      return json({ ok: true })
     }
 
     // ── Kérelem visszavonása ────────────────────────────────────────────────
@@ -217,8 +233,8 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Worker view: own events (last 31 days) + own absences
-    const [{ data: events }, { data: absences }] = await Promise.all([
+    // Worker view: own events (last 31 days) + own absences + notifications
+    const [{ data: events }, { data: absences }, { data: notifications }] = await Promise.all([
       supabase
         .from('events')
         .select('id, type, timestamp')
@@ -234,9 +250,16 @@ Deno.serve(async (req) => {
         // egybefüggő tételekké vonja össze őket, ezért kell bővebb keret.
         .order('date', { ascending: false })
         .limit(120),
+      // Az olvasottakat is küldjük: az értesítés visszanézhető, nem tűnik el.
+      supabase
+        .from('notifications')
+        .select('id, type, data, created_at, read_at')
+        .eq('user_id', profile.id)
+        .order('created_at', { ascending: false })
+        .limit(50),
     ])
 
-    return json({ profile, company, events, absences })
+    return json({ profile, company, events, absences, notifications })
   } catch {
     return new Response(
       JSON.stringify({ error: 'Internal server error' }),

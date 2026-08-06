@@ -45,7 +45,10 @@ jelenléti adataihoz, mégpedig a munkahelyi terminálhoz kötöttség nélkül:
 tervezett távollétet jellemzően nem a műszak közben, hanem otthonról jelenti be.
 A távollét bejelentése **kérelem**, nem tény rögzítése, ezért a dolgozónak
 követnie kell tudnia a kérelem sorsát, és az elbírálásig vissza kell tudnia
-vonni azt.
+vonni azt. A döntésről a rendszernek értesítenie kell a kérelmezőt, mégpedig
+úgy, hogy az értesítés **visszamenőleg is megtekinthető** maradjon: a dolgozó
+nem feltétlenül nyitja meg az alkalmazást a döntés napján, egy elmulasztott,
+múló üzenet pedig ugyanoda vezetne, mint az értesítés hiánya.
 
 **A vezetővel kapcsolatos követelmények.** A vezetői felületnek valós időben
 kell megjelenítenie, hogy az adott pillanatban kik tartózkodnak a telephelyen. A
@@ -263,6 +266,10 @@ create policy "events: read own company"
          bontásban, hiányzások)
        - a távollét-kérelem életciklusa: beküldés -> elbírálás -> jóváhagyás
          vagy indokolt elutasítás; a kérelem visszavonása az elbírálásig
+       - értesítések: a döntést adatbázis-esemény (trigger) rögzíti, nem a
+         vezetői felület, ezért nem lehet elfelejteni; utasítás szintű, hogy
+         egy több napra szóló döntésről EGY értesítés szóljon. Az értesítés
+         tárolt bejegyzés (olvasottság-jelöléssel), nem múló üzenet.
        - a tartomány napokra bontása a SZERVEREN, és miért nem a kliensen
        - tétlenségi kiléptetés: a képernyő személyes adatot mutat -->
 
