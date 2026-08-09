@@ -37,7 +37,7 @@ export function AbsencesTab({ employees }) {
   }
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,340px) minmax(0,1fr)', gap: '1.5rem' }}>
+    <div className="stack-phone" style={{ display: 'grid', gridTemplateColumns: 'minmax(0,340px) minmax(0,1fr)', gap: '1.5rem' }}>
       <div>
         <SectionLabel color={C.accent}>Rögzítés</SectionLabel>
         <div style={{ background: C.bg1, border: `1px solid ${C.border}`, padding: '1.25rem' }}>
@@ -64,7 +64,7 @@ export function AbsencesTab({ employees }) {
 
       <div>
         <SectionLabel color={C.muted}>Rögzített hiányzások</SectionLabel>
-        <Table>
+        <Table className="table-compact">
           <tbody>
             {absences.length === 0
               ? <TableEmpty>Nincs rögzített hiányzás</TableEmpty>

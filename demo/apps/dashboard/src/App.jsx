@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from './lib/supabase'
 import { C, S, R, tint } from './lib/theme'
 import { DEFAULT_SETTINGS, loadTheme, companyToSettings } from './lib/settings'
+import './responsive.css'
 import { getDaySummary, calcRangeMinutes, countRangeEvents } from './lib/utils'
 import { Field } from './components/ui'
 import { ToastHost } from './components/toast'
@@ -160,8 +161,10 @@ function Dashboard() {
   }, [loadData])
 
   return (
-    <div style={{ height: '100dvh', display: 'flex', background: C.bg0, color: C.text }}>
-      <aside style={{
+    <div style={{ height: '100dvh', display: 'flex', background: C.bg0, color: C.text, position: 'relative' }}>
+      {/* Az `is-open` csak ÁLLAPOTOT jelöl; hogy ez lebegő megjelenítést
+          jelent-e, azt a stíluslap dönti el a képernyőméret alapján. */}
+      <aside className={collapsed ? 'app-nav' : 'app-nav is-open'} style={{
         width: collapsed ? 52 : 224,
         flexShrink: 0,
         background: C.bg1,
@@ -170,6 +173,7 @@ function Dashboard() {
         flexDirection: 'column',
         transition: 'width 0.18s ease',
         overflow: 'hidden',
+        boxShadow: collapsed ? 'none' : C.shadow,
       }}>
 
         {/* Header */}
@@ -259,8 +263,13 @@ function Dashboard() {
         </div>
       </aside>
 
+      {/* Elsötétítő réteg a lebegő menü mögé — csak telefonon jelenik meg */}
+      {!collapsed && (
+        <div className="app-nav-scrim only-phone" onClick={toggleCollapsed} />
+      )}
+
       <main style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-        <div style={{ flex: 1, padding: '1.25rem 1.5rem', overflowY: 'auto' }}>
+        <div className="app-main">
           {tab === 'status'   && <StatusTab   employees={employees} onSaved={loadData} settings={settings} />}
           {tab === 'workers'  && <WorkersTab  employees={employees} settings={settings} me={me} onSaved={loadData} />}
           {tab === 'log'      && <LogTab      events={events} employees={employees} onSaved={loadData} />}

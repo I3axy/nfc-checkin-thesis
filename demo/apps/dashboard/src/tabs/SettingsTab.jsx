@@ -115,7 +115,7 @@ export function SettingsTab({ settings, companyId, me, employees = [], onChange 
   return (
     // Two columns: editable company settings on the left, read-only /
     // one-off actions (notifications, account) on the right.
-    <form onSubmit={handleSave} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))', gap: '2rem', alignItems: 'start', maxWidth: 1200 }}>
+    <form onSubmit={handleSave} className="stack-phone" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))', gap: '2rem', alignItems: 'start', maxWidth: 1200 }}>
       <div>
       <SectionLabel color={C.accent}>Munkaidő szabályok</SectionLabel>
       <Table>

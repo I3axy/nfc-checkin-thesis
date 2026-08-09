@@ -3,7 +3,7 @@ import * as XLSX from 'xlsx'
 import { supabase } from '../lib/supabase'
 import { C, S, tint } from '../lib/theme'
 import { fmtClock } from '../lib/utils'
-import { Table, Th, TableEmpty, Modal } from '../components/ui'
+import { Table, Th, TableEmpty, Modal , Chip, FilterGroup } from '../components/ui'
 import { toast } from '../components/toast'
 
 const PAGE_SIZES = [20, 50, 100, 0]           // 0 = mind
@@ -128,9 +128,9 @@ export function LogTab({ events, employees = [], onSaved }) {
       {/* ── Filter bar ───────────────────────────────────────────────── */}
       <div style={{ background: C.bg1, border: `1px solid ${C.border}`, padding: '0.9rem 1rem', marginBottom: '0.85rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
 
-        <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'flex-start', flexWrap: 'wrap' }}>
           {/* Predictive name search */}
-          <div style={{ position: 'relative', minWidth: 220 }}>
+          <div style={{ position: 'relative', flex: '1 1 220px', minWidth: 200 }}>
             <FilterLabel>Keresés névre</FilterLabel>
             <input
               value={search}
@@ -172,36 +172,29 @@ export function LogTab({ events, employees = [], onSaved }) {
           </div>
 
           {/* Quick ranges */}
-          <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
-            {[['Ma', 0], ['7 nap', 6], ['30 nap', 29], ['90 nap', 89]].map(([label, d]) => {
-              const active = from === daysAgo(d) && to === ymd(new Date())
-              return (
-                <button key={label} type="button" onClick={() => { setFrom(daysAgo(d)); setTo(ymd(new Date())) }}
-                  style={{ ...S.btnIcon, padding: '0.35rem 0.65rem', color: active ? C.accent : C.muted, borderColor: active ? tint(C.accent, 40) : C.border, background: active ? tint(C.accent, 10) : 'transparent' }}>
+          <div>
+            <FilterLabel>Gyorsválasztás</FilterLabel>
+            <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+              {[['Ma', 0], ['7 nap', 6], ['30 nap', 29], ['90 nap', 89]].map(([label, d]) => (
+                <Chip key={label}
+                  active={from === daysAgo(d) && to === ymd(new Date())}
+                  onClick={() => { setFrom(daysAgo(d)); setTo(ymd(new Date())) }}>
                   {label}
-                </button>
-              )
-            })}
+                </Chip>
+              ))}
+            </div>
           </div>
         </div>
 
         {/* Shift chips — options are derived from the profiles' department field */}
         {shiftOptions.length > 0 && (
-          <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', flexWrap: 'wrap' }}>
-            <FilterLabel inline>Műszak</FilterLabel>
-            <button type="button" onClick={() => setShifts([])}
-              style={{ ...S.btnIcon, padding: '0.3rem 0.7rem', color: shifts.length === 0 ? C.accent : C.muted, borderColor: shifts.length === 0 ? tint(C.accent, 40) : C.border, background: shifts.length === 0 ? tint(C.accent, 10) : 'transparent' }}>
-              Mind
-            </button>
-            {shiftOptions.map(s => {
-              const on = shifts.includes(s)
-              return (
-                <button key={s} type="button" onClick={() => toggleShift(s)}
-                  style={{ ...S.btnIcon, padding: '0.3rem 0.7rem', fontWeight: on ? 700 : 500, color: on ? C.accent : C.muted, borderColor: on ? tint(C.accent, 40) : C.border, background: on ? tint(C.accent, 10) : 'transparent' }}>
-                  {on ? '✓ ' : ''}{s}
-                </button>
-              )
-            })}
+          <div style={{ paddingTop: '0.75rem', borderTop: `1px solid ${C.border}` }}>
+            <FilterGroup label="Műszak">
+              <Chip active={shifts.length === 0} onClick={() => setShifts([])}>Mind</Chip>
+              {shiftOptions.map(s => (
+                <Chip key={s} active={shifts.includes(s)} onClick={() => toggleShift(s)}>{s}</Chip>
+              ))}
+            </FilterGroup>
           </div>
         )}
       </div>
@@ -216,10 +209,9 @@ export function LogTab({ events, employees = [], onSaved }) {
         <span style={{ fontSize: '0.75rem', color: C.muted }}>Sorok:</span>
         <div style={{ display: 'flex', gap: '0.25rem' }}>
           {PAGE_SIZES.map(n => (
-            <button key={n} type="button" onClick={() => setPageSize(n)}
-              style={{ ...S.btnIcon, padding: '0.3rem 0.6rem', color: pageSize === n ? C.accent : C.muted, borderColor: pageSize === n ? tint(C.accent, 40) : C.border, background: pageSize === n ? tint(C.accent, 10) : 'transparent' }}>
+            <Chip key={n} active={pageSize === n} onClick={() => setPageSize(n)}>
               {n === 0 ? 'Mind' : n}
-            </button>
+            </Chip>
           ))}
         </div>
         <button onClick={exportCSV} style={S.btnSecondary}>↓ CSV</button>
@@ -227,13 +219,13 @@ export function LogTab({ events, employees = [], onSaved }) {
       </div>
 
       {/* ── Table ────────────────────────────────────────────────────── */}
-      <Table>
+      <Table className="table-compact">
         <thead>
           <tr>
             <Th>Dolgozó</Th>
-            <Th>Műszak</Th>
+            <Th className="col-secondary">Műszak</Th>
             <Th>Típus</Th>
-            <Th sortable onClick={() => setSortDir(d => d === 'desc' ? 'asc' : 'desc')}>Időpont {sortDir === 'desc' ? '↓' : '↑'}</Th>
+            <Th sortable active dir={sortDir} onClick={() => setSortDir(d => d === 'desc' ? 'asc' : 'desc')}>Időpont</Th>
             <Th></Th>
           </tr>
         </thead>
@@ -249,13 +241,13 @@ export function LogTab({ events, employees = [], onSaved }) {
                     {e.is_manual && <span style={{ marginLeft: '0.4rem', fontSize: '0.65rem', color: C.accent, border: `1px solid ${tint(C.accent, 28)}`, padding: '0 0.3rem' }}>kézi</span>}
                     {e.note && <div style={{ fontSize: '0.72rem', color: C.muted }}>{e.note}</div>}
                   </td>
-                  <td style={{ ...S.td, fontSize: '0.78rem', color: C.muted }}>{e.department ?? '—'}</td>
+                  <td className="col-secondary" style={{ ...S.td, fontSize: '0.78rem', color: C.muted }}>{e.department ?? '—'}</td>
                   <td style={S.td}>
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}>
                       <span style={{ width: 22, height: 22, borderRadius: '50%', background: tint(e.type === 'checkin' ? C.green : C.red, 15), color: e.type === 'checkin' ? C.green : C.red, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.72rem', fontWeight: 800, flexShrink: 0 }}>
                         {e.type === 'checkin' ? '↑' : '↓'}
                       </span>
-                      <span style={{ fontSize: '0.78rem', fontWeight: 600, color: e.type === 'checkin' ? C.green : C.red }}>
+                      <span className="not-phone" style={{ fontSize: '0.78rem', fontWeight: 600, color: e.type === 'checkin' ? C.green : C.red }}>
                         {e.type === 'checkin' ? 'Belépés' : 'Kilépés'}
                       </span>
                     </span>
@@ -263,11 +255,13 @@ export function LogTab({ events, employees = [], onSaved }) {
                       <button onClick={() => setPhotoView(e)} title="Fénykép megtekintése" style={{ ...S.btnIcon, marginLeft: '0.5rem', padding: '0.1rem 0.4rem' }}>📷</button>
                     )}
                   </td>
-                  <td style={{ ...S.td, fontFamily: MONO, fontSize: '0.82rem' }}>
-                    <span style={{ color: C.text }}>{fmtClock(e.timestamp)}</span>
-                    <span style={{ color: C.muted, marginLeft: '0.5rem', fontSize: '0.72rem' }}>
+                  {/* Az óra és a dátum egymás alatt: így az oszlop nem
+                      szélesíti ki a táblázatot vízszintes görgetésig. */}
+                  <td style={{ ...S.td, fontFamily: MONO, fontSize: '0.82rem', whiteSpace: 'nowrap' }}>
+                    <div style={{ color: C.text }}>{fmtClock(e.timestamp)}</div>
+                    <div style={{ color: C.muted, fontSize: '0.7rem' }}>
                       {new Date(e.timestamp).toLocaleDateString('hu', { year: '2-digit', month: 'short', day: 'numeric' })}
-                    </span>
+                    </div>
                   </td>
                   <td style={{ ...S.td, textAlign: 'right' }}>
                     {e.is_manual && (

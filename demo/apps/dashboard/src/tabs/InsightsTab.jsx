@@ -3,7 +3,7 @@ import * as XLSX from 'xlsx'
 import { supabase } from '../lib/supabase'
 import { C, S, CAL, R, tint } from '../lib/theme'
 import { calcDayMinutes, isWorkerLate, fmtMins, fmtClock, HU_DAYS, HU_MONTHS } from '../lib/utils'
-import { Table, Th, TableEmpty, SectionLabel, Badge, EmptyState } from '../components/ui'
+import { Table, Th, TableEmpty, SectionLabel, Badge, EmptyState, Select } from '../components/ui'
 
 const MONO = "'JetBrains Mono', monospace"
 const HU_DAYS_MON = ['H', 'K', 'Sze', 'Cs', 'P', 'Szo', 'V']   // hétfővel kezdve
@@ -169,9 +169,14 @@ export function InsightsTab({ employees, settings }) {
     <div style={{ position: 'relative' }}>
       {/* ── Fejléc ─────────────────────────────────────────────────────── */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
-        <select value={selectedId} onChange={e => { setSelectedId(e.target.value); setSelection(null) }} style={{ ...S.input, width: 'auto', minWidth: 190 }}>
-          {staff.map(emp => <option key={emp.id} value={emp.id}>{emp.name}</option>)}
-        </select>
+        {/* Saját választó: a natív lista a leghosszabb névhez igazodna, és
+            szűk elrendezésben kilógna a képernyőről. */}
+        <Select
+          value={selectedId}
+          onChange={v => { setSelectedId(v); setSelection(null) }}
+          options={staff.map(emp => ({ value: emp.id, label: emp.name }))}
+          style={{ flex: '1 1 190px', maxWidth: 260 }}
+        />
         <Badge color={isIn ? C.green : C.muted}>{isIn ? 'Bent' : 'Kint'}</Badge>
         {sel.department && <span style={{ fontSize: '0.78rem', color: C.muted }}>{sel.department}</span>}
         <div style={{ flex: 1 }} />
@@ -197,7 +202,7 @@ export function InsightsTab({ employees, settings }) {
       {/* ── Időszak-navigáció ──────────────────────────────────────────── */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
         <button type="button" onClick={() => { setAnchor(a => shiftPeriod(period, a, -1)); setSelection(null) }} style={S.btnIcon}>‹</button>
-        <span style={{ fontSize: '0.85rem', fontWeight: 600, color: C.text, minWidth: 210, textAlign: 'center' }}>
+        <span className="shrink-phone" style={{ fontSize: '0.85rem', fontWeight: 600, color: C.text, minWidth: 210, textAlign: 'center' }}>
           {periodLabel(period, start)}
         </span>
         <button
@@ -224,7 +229,7 @@ export function InsightsTab({ employees, settings }) {
       </div>
 
       {/* ── Grafikon + részletező ──────────────────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '1rem', alignItems: 'start' }}>
+      <div className="stack-phone" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '1rem', alignItems: 'start' }}>
 
         <div style={{ background: C.bg1, border: `1px solid ${C.border}`, padding: '1rem' }}>
           <div style={{ fontSize: '0.7rem', fontWeight: 600, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.85rem' }}>
@@ -797,17 +802,27 @@ function MonthlySummary({ employees, settings }) {
         <SectionLabel color={C.accent}>Havi összesítő — minden dolgozó</SectionLabel>
         <div style={{ flex: 1 }} />
         <button type="button" onClick={() => setMonth(m => new Date(m.getFullYear(), m.getMonth() - 1, 1))} style={S.btnIcon}>‹</button>
-        <span style={{ fontSize: '0.82rem', fontWeight: 700, color: C.text, minWidth: 120, textAlign: 'center' }}>
+        <span className="shrink-phone" style={{ fontSize: '0.82rem', fontWeight: 700, color: C.text, minWidth: 120, textAlign: 'center' }}>
           {month.toLocaleDateString('hu', { year: 'numeric', month: 'long' })}
         </span>
         <button type="button" onClick={() => setMonth(m => new Date(m.getFullYear(), m.getMonth() + 1, 1))} style={S.btnIcon}>›</button>
         <button type="button" onClick={exportExcel} disabled={rows.length === 0} style={{ ...S.btnSecondary, opacity: rows.length === 0 ? 0.5 : 1 }}>↓ Excel</button>
       </div>
 
-      <Table>
+      {/* Az oszlopok elrejtése telefonon nem lehet néma — enélkül úgy tűnne,
+          hogy az adat nincs meg. */}
+      <div className="only-phone" style={{ fontSize: '0.72rem', color: C.muted, marginBottom: '0.5rem', lineHeight: 1.5 }}>
+        Rövidített nézet. A késések és a hiányzások asztali gépen, illetve az
+        Excel-exportban tekinthetők meg.
+      </div>
+
+      <Table className="table-compact">
         <thead>
           <tr>
-            <Th>Dolgozó</Th><Th>Részleg</Th><Th>Ledolg.</Th><Th>Munkanap</Th><Th>Késés</Th><Th>Ig. hiány</Th><Th>Igazolatlan</Th>
+            {/* A számoszlopok jobbra igazodnak és szűkebb térközt kapnak:
+                hét oszlop 1rem-es térközzel vízszintes görgetést okozott. */}
+            <Th>Dolgozó</Th><Th className="col-secondary">Részleg</Th>
+            <Th num>Ledolg.</Th><Th num>Napok</Th><Th num className="col-tertiary">Késés</Th><Th num className="col-tertiary">Igazolt</Th><Th num className="col-tertiary">Igazolatlan</Th>
           </tr>
         </thead>
         <tbody>
@@ -818,12 +833,12 @@ function MonthlySummary({ employees, settings }) {
               : rows.map(r => (
                 <tr key={r.name} style={{ borderBottom: `1px solid ${C.border}` }}>
                   <td style={{ ...S.td, fontWeight: 600, color: C.text }}>{r.name}</td>
-                  <td style={{ ...S.td, color: C.muted, fontSize: '0.8rem' }}>{r.department || '—'}</td>
-                  <td style={{ ...S.td, fontWeight: 700, color: C.green, fontFamily: MONO }}>{fmtMins(r.totalMins)}</td>
-                  <td style={{ ...S.td, fontFamily: MONO }}>{r.workDays}</td>
-                  <td style={{ ...S.td, fontFamily: MONO, color: r.lateDays > 0 ? CAL.late.bar : C.muted }}>{r.lateDays}</td>
-                  <td style={{ ...S.td, fontFamily: MONO, color: r.justified > 0 ? CAL.justified.bar : C.muted }}>{r.justified}</td>
-                  <td style={{ ...S.td, fontFamily: MONO, color: r.unjustified > 0 ? CAL.unjustified.bar : C.muted }}>{r.unjustified}</td>
+                  <td className="col-secondary" style={{ ...S.td, color: C.muted, fontSize: '0.8rem' }}>{r.department || '—'}</td>
+                  <td style={{ ...S.tdNum, fontWeight: 700, color: C.green }}>{fmtMins(r.totalMins)}</td>
+                  <td style={S.tdNum}>{r.workDays}</td>
+                  <td className="col-tertiary" style={{ ...S.tdNum, color: r.lateDays > 0 ? CAL.late.bar : C.muted }}>{r.lateDays}</td>
+                  <td className="col-tertiary" style={{ ...S.tdNum, color: r.justified > 0 ? CAL.justified.bar : C.muted }}>{r.justified}</td>
+                  <td className="col-tertiary" style={{ ...S.tdNum, color: r.unjustified > 0 ? CAL.unjustified.bar : C.muted }}>{r.unjustified}</td>
                 </tr>
               ))
           }

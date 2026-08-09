@@ -40,10 +40,14 @@ export function WorkersTab({ employees, settings, me, onSaved }) {
   })
 
   return (
-    <div style={{ display: 'flex', gap: '1rem', height: 'calc(100dvh - 2.5rem)', minHeight: 0 }}>
+    // A `has-selection` csak azt jelzi, hogy van kiválasztott dolgozó. Hogy
+    // ebből következik-e elrejtés, azt a stíluslap dönti el: asztali gépen a
+    // lista és a részletek egymás mellett maradnak, telefonon egyszerre csak
+    // az egyik látszik.
+    <div className={selected ? 'wt-split has-selection' : 'wt-split'} style={{ height: 'calc(100dvh - 2.5rem)' }}>
 
       {/* ── Left sidebar ── */}
-      <div style={{ flex: '0 0 260px', display: 'flex', flexDirection: 'column', background: C.bg1, border: `1px solid ${C.border}`, minHeight: 0 }}>
+      <div className="wt-list" style={{ background: C.bg1, border: `1px solid ${C.border}` }}>
 
         <div style={{ padding: '0.65rem 0.75rem', borderBottom: `1px solid ${C.border}`, flexShrink: 0 }}>
           <input
@@ -118,7 +122,7 @@ export function WorkersTab({ employees, settings, me, onSaved }) {
       </div>
 
       {/* ── Right: detail or placeholder ── */}
-      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+      <div className="wt-detail">
         {selected
           ? <WorkerDetail key={selected.id} worker={selected} employees={employees} settings={settings} me={me} onClose={() => setSelected(null)} onSaved={onSaved} />
           : <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.muted, fontSize: '0.85rem', border: `1px solid ${C.border}`, background: C.bg1 }}>
@@ -159,7 +163,16 @@ function WorkerDetail({ worker, employees, settings, me, onClose, onSaved }) {
           </button>
         ))}
         <div style={{ flex: 1 }} />
-        <button onClick={onClose} style={{ ...S.btnIcon, margin: 'auto 0.65rem', padding: '0.2rem 0.55rem', alignSelf: 'center' }}>✕</button>
+        {/* Telefonon a lista nem látszik egyszerre, ezért ott a visszaút
+            feliratot is kap; asztali gépen marad a tömör bezáró jel. */}
+        <button
+          onClick={onClose}
+          title="Bezárás"
+          style={{ ...S.btnIcon, margin: 'auto 0.65rem', padding: '0.2rem 0.55rem', alignSelf: 'center', whiteSpace: 'nowrap' }}
+        >
+          <span className="not-phone">✕</span>
+          <span className="only-phone">« Lista</span>
+        </button>
       </div>
 
       {/* Sub-tab content */}
@@ -381,7 +394,7 @@ function NaptarSubTab({ worker, settings }) {
           />
         </div>
 
-        <div style={{ flex: '0 0 290px', maxHeight: 440, overflowY: 'auto' }}>
+        <div style={{ flex: '1 1 290px', minWidth: 0, maxWidth: 420, maxHeight: 440, overflowY: 'auto' }}>
           {selectedDay
             ? <DayPanel dateStr={selectedDay} workerId={worker.id} events={selDayEvts} onAdd={handleAddEvent} onDelete={deleteEvent} />
             : <div style={{ paddingTop: '3rem', color: C.muted, fontSize: '0.78rem', textAlign: 'center' }}>Kattints egy napra</div>
@@ -393,7 +406,7 @@ function NaptarSubTab({ worker, settings }) {
         <SectionLabel color={C.muted}>
           Eseménytörténet — {calMonth.toLocaleDateString('hu', { year: 'numeric', month: 'long' })}
         </SectionLabel>
-        <Table>
+        <Table className="table-compact">
           <thead>
             <tr style={{ background: C.bg2 }}>
               <Th>Típus</Th><Th>Időpont</Th><Th>Megjegyzés</Th><Th></Th>
@@ -574,7 +587,7 @@ function HianyokSubTab({ worker }) {
   }
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,360px) minmax(0,1fr)', gap: '1.5rem' }}>
+    <div className="stack-phone" style={{ display: 'grid', gridTemplateColumns: 'minmax(0,360px) minmax(0,1fr)', gap: '1.5rem' }}>
       <div style={{ minWidth: 0 }}>
         <SectionLabel color={C.accent}>Hiányzás rögzítése</SectionLabel>
         <div style={{ background: C.bg1, border: `1px solid ${C.border}`, padding: '1.25rem' }}>
@@ -628,7 +641,7 @@ function HianyokSubTab({ worker }) {
         {pendingRuns.length > 0 && (
           <>
             <SectionLabel color={C.warn}>Elbírálásra vár — {pendingRuns.length}</SectionLabel>
-            <Table>
+            <Table className="table-compact">
               <tbody>
                 {pendingRuns.map(r => (
                   <tr key={r.ids[0]} style={{ borderBottom: `1px solid ${C.border}`, background: tint(C.warn, 6) }}>
@@ -659,7 +672,7 @@ function HianyokSubTab({ worker }) {
         )}
 
         <SectionLabel color={C.muted}>Rögzített hiányzások</SectionLabel>
-        <Table>
+        <Table className="table-compact">
           <tbody>
             {decidedRuns.length === 0
               ? <TableEmpty>Nincs rögzített hiányzás</TableEmpty>

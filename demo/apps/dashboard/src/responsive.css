@@ -1,0 +1,100 @@
+/* ===========================================================================
+   Reszponzív elrendezés — KIZÁRÓLAG telefonra
+   ===========================================================================
+   A felület asztali eszközre készült, és 760 képpont fölött VÁLTOZATLAN marad.
+   Az alábbi szabályok csak ez alatt lépnek életbe, ahol a cél nem a teljes
+   funkcionalitás megőrzése, hanem az, hogy a lényeges műveletek elvégezhetők
+   legyenek.
+
+   Miért stíluslap, és nem JavaScript-töréspont?
+   Az egyedi elrendezési szabályok beágyazott stílusobjektumként élnek a
+   komponensekben, amihez korábban JavaScript-alapú törésponthook kellett. Ez
+   két hibaforrást hordozott: a törésponthoz tartozó szám a kódban szétszórva
+   jelent meg, és az átkapcsolás újrarajzolást igényelt. A médialekérdezés
+   ehelyett a böngésző dolga, és a szabály egyetlen helyen áll.
+
+   A komponensek osztályt kapnak, az osztály jelentését pedig ez a fájl adja
+   meg — az ÁLLAPOTOT (például hogy ki van-e választva dolgozó) továbbra is a
+   JavaScript jelzi, de hogy ez mit jelent az elrendezésben, azt már itt
+   dől el.
+   =========================================================================== */
+
+/* --- Alapértelmezés: asztali elrendezés, érintetlenül ------------------- */
+
+.app-main {
+  flex: 1;
+  padding: 1.25rem 1.5rem;
+  overflow-y: auto;
+}
+
+/* Mester-részlet: lista és részletpanel egymás mellett */
+.wt-split { display: flex; gap: 1rem; min-height: 0; }
+.wt-list   { flex: 0 0 260px; display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+.wt-detail { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+
+/* Csak telefonon látszó, illetve csak telefonon rejtett elemek */
+.only-phone { display: none !important; }
+
+/* =========================================================================
+   TELEFON
+   ========================================================================= */
+@media (max-width: 759px) {
+
+  .app-main { padding: 0.75rem 0.7rem; }
+
+  /* --- Oldalsáv: kinyitva a tartalom FÖLÉ kerül -------------------------
+     Kinyitva 224 képpontot foglalna a 390 képpontos képernyőből, ami a
+     tartalomnak alig hagyna helyet. */
+  .app-nav.is-open {
+    position: absolute;
+    inset-block: 0;
+    left: 0;
+    z-index: 30;
+  }
+  .app-nav-scrim { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.5); z-index: 20; }
+
+  /* --- Munkások: egyszerre csak az egyik oldal ------------------------- */
+  .wt-list   { flex: 1 1 auto; }
+  .wt-split.has-selection .wt-list   { display: none; }
+  .wt-split:not(.has-selection) .wt-detail { display: none; }
+
+  .only-phone { display: revert !important; }
+  .not-phone  { display: none !important; }
+
+  /* Egy sorban álló, fix szélességű feliratok telefonon összeszorulnak */
+  .shrink-phone { min-width: 0 !important; }
+
+  /* --- Egymás melletti oszlopok egymás alá ------------------------------
+     A minmax() alsó határa nem esik vissza a képernyő szélessége alá, ezért
+     a rács kilógna; telefonon egyetlen oszlop marad. */
+  .stack-phone { grid-template-columns: minmax(0, 1fr) !important; }
+
+  /* --- Táblázatok telefonon --------------------------------------------
+     A napló négy oszlopa 300 képpontos szélességben levágódik. A lényeg
+     azonban elfér, ha a másodlagos oszlop kimarad, a térközök szűkülnek,
+     és a hosszú feliratokat rövid jelölés váltja ki. A műszak nem vész el:
+     a szűrősávban továbbra is szűrhető rá. */
+  .col-secondary { display: none !important; }
+
+  /* Részletező oszlopok. A havi összesítő hat oszlopa telefonon akkor sem
+     fér el, ha minden térköz szűkül: már a fejlécek szélesebbek, mint a
+     bennük álló számok. Telefonon ezért csak arra a kérdésre válaszol,
+     amelyért megnyitják — ki mennyit dolgozott —, a részletezés asztali
+     gépen és az Excel-exportban marad meg. */
+  .col-tertiary { display: none !important; }
+
+  .table-compact th,
+  .table-compact td {
+    padding-left: 0.5rem !important;
+    padding-right: 0.5rem !important;
+  }
+
+  /* Az utolsó oszlop jobb térköze maradjon, hogy ne érjen a szegélyhez */
+  .table-compact th:last-child,
+  .table-compact td:last-child { padding-right: 0.7rem !important; }
+
+  /* A táblázat a rendelkezésre álló helyre szorítkozik, és a hosszú
+     szövegek tördelnek — így nem az egyik oszlop feszíti szét az egészet. */
+  .table-compact { table-layout: auto; width: 100%; }
+  .table-compact td { word-break: break-word; }
+}

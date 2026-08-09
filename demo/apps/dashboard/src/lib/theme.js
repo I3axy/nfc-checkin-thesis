@@ -62,6 +62,13 @@ export const S = {
     cursor: 'pointer', padding: '0.2rem 0.5rem', fontSize: '0.78rem', borderRadius: R.sm,
   },
   td: { padding: '0.65rem 1rem', fontSize: '0.85rem', color: C.text, background: C.bg1 },
+  // Számoszlop: jobbra igazítva, szűkebb térközzel és fix szélességű
+  // számjegyekkel — így a számok egymás alatt olvashatók, és a több
+  // számoszlopos táblázat nem lóg ki a helyéről.
+  tdNum: {
+    padding: '0.65rem 0.7rem', fontSize: '0.85rem', color: C.text, background: C.bg1,
+    textAlign: 'right', fontFamily: "'JetBrains Mono', monospace", whiteSpace: 'nowrap',
+  },
   errorBox: {
     background: tint(C.red, 10), border: `1px solid ${tint(C.red, 30)}`,
     padding: '0.5rem 0.75rem', fontSize: '0.82rem', color: C.red, borderRadius: R.md,

@@ -48,7 +48,7 @@ export function StatusTab({ employees, onSaved, settings }) {
       )}
 
       <SectionLabel color={C.green}>Bent — {inside.length}</SectionLabel>
-      <Table>
+      <Table className="table-compact">
         <tbody>
           {inside.length === 0
             ? <TableEmpty>Senki nincs bent</TableEmpty>
@@ -60,7 +60,7 @@ export function StatusTab({ employees, onSaved, settings }) {
       <div style={{ height: '1.25rem' }} />
 
       <SectionLabel color={C.muted}>Kint — {outside.length}</SectionLabel>
-      <Table>
+      <Table className="table-compact">
         <tbody>
           {outside.length === 0
             ? <TableEmpty>Mindenki bent van</TableEmpty>
@@ -73,7 +73,7 @@ export function StatusTab({ employees, onSaved, settings }) {
         <>
           <div style={{ height: '1.25rem' }} />
           <SectionLabel color={C.accent}>Vendégek — {guests.length}</SectionLabel>
-          <Table>
+          <Table className="table-compact">
             <tbody>
               {guests.map(g => <GuestRow key={g.id} guest={g} onEdit={() => setEditing(g)} />)}
             </tbody>
@@ -103,7 +103,7 @@ function GuestRow({ guest, onEdit }) {
 
   return (
     <tr style={{ borderBottom: `1px solid ${C.border}`, opacity: expired ? 0.55 : 1 }}>
-      <td style={{ ...S.td, width: 42 }}>
+      <td className="col-secondary" style={{ ...S.td, width: 42 }}>
         <Avatar name={guest.name} color={isIn ? C.green : C.muted} />
       </td>
       <td style={{ ...S.td }}>
@@ -116,7 +116,7 @@ function GuestRow({ guest, onEdit }) {
           : <span style={{ color: C.muted, fontSize: '0.78rem' }}>Még nem volt</span>
         }
       </td>
-      <td style={{ ...S.td, fontSize: '0.78rem' }}>
+      <td className="col-secondary" style={{ ...S.td, fontSize: '0.78rem' }}>
         {expired
           ? <span style={{ color: CAL.unjustified.bar, fontWeight: 700 }}>⏰ Lejárt · {expLabel}</span>
           : <span style={{ color: C.muted }}>Lejár: <span style={{ color: C.text }}>{expLabel}</span></span>
@@ -143,7 +143,7 @@ function EmpRow({ emp, onEdit, settings }) {
 
   return (
     <tr style={{ borderBottom: `1px solid ${C.border}` }}>
-      <td style={{ ...S.td, width: 42 }}>
+      <td className="col-secondary" style={{ ...S.td, width: 42 }}>
         <Avatar name={emp.name} color={isIn ? C.green : C.muted} />
       </td>
       <td style={{ ...S.td }}>
@@ -172,7 +172,7 @@ function EmpRow({ emp, onEdit, settings }) {
               </div>
         }
       </td>
-      <td style={{ ...S.td, fontSize: '0.78rem', fontFamily: "'JetBrains Mono', monospace" }}>
+      <td className="col-secondary" style={{ ...S.td, fontSize: '0.78rem', fontFamily: "'JetBrains Mono', monospace" }}>
         {emp.todayMinutes > 0 ? <span style={{ color: C.text }}>{fmtMins(emp.todayMinutes)}</span> : <span style={{ color: C.muted }}>—</span>}
       </td>
       <td style={{ ...S.td, textAlign: 'right' }}>
