@@ -25,3 +25,6 @@
 [9] The PostgreSQL Global Development Group, PostgreSQL Documentation: Row Security Policies [Online]. https://www.postgresql.org/docs/current/ddl-rowsecurity.html [letöltve: 2026. 07. 31.]
 [10] T. B. Brown, B. Mann, N. Ryder és mtsai, "Language Models are Few-Shot Learners", in Advances in Neural Information Processing Systems 33 (NeurIPS 2020), 2020, pp. 1877-1901.
 [11] Z. Ji, N. Lee, R. Frieske, T. Yu, D. Su, Y. Xu, E. Ishii, Y. J. Bang, A. Madotto és P. Fung, "Survey of Hallucination in Natural Language Generation", ACM Computing Surveys, vol. 55, no. 12, pp. 1-38, 2023.
+[12] Meta Open Source, React Documentation [Online]. https://react.dev/ [letöltve: 2026. 08. 06.]
+[13] Vite, Vite Documentation: Why Vite [Online]. https://vite.dev/guide/why.html [letöltve: 2026. 08. 06.]
+[14] Supabase Inc., Supabase Documentation [Online]. https://supabase.com/docs [letöltve: 2026. 08. 06.]

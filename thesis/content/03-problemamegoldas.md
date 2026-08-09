@@ -46,7 +46,7 @@ tervezett távollétet jellemzően nem a műszak közben, hanem otthonról jelen
 A távollét bejelentése **kérelem**, nem tény rögzítése, ezért a dolgozónak
 követnie kell tudnia a kérelem sorsát, és az elbírálásig vissza kell tudnia
 vonni azt. A döntésről a rendszernek értesítenie kell a kérelmezőt, mégpedig
-úgy, hogy az értesítés **visszamenőleg is megtekinthető** maradjon: a dolgozó
+úgy, hogy az értesítés visszamenőleg is megtekinthető maradjon: a dolgozó
 nem feltétlenül nyitja meg az alkalmazást a döntés napján, egy elmulasztott,
 múló üzenet pedig ugyanoda vezetne, mint az értesítés hiánya.
 
@@ -186,26 +186,27 @@ alkalmas.
 
 A technológiai döntéseket két körülmény határolta be. Egyrészt a beléptetéshez
 szükséges Web NFC felület kizárólag böngészőben érhető el, ami eleve webes
-megvalósítást ír elő. Másrészt a rendelkezésre álló fejlesztői kapacitás egyetlen
-személy, ezért az olyan megoldások kerültek előnybe, amelyek a járulékos
-üzemeltetési munkát a lehető legkisebbre szorítják.
+megvalósítást ír elő. Másrészt a fejlesztést egyetlen személy végezte, ezért
+azok a megoldások kerültek előnybe, amelyek a járulékos üzemeltetési munkát a
+lehető legkisebbre szorítják.
 
-**A felhasználói felület** React könyvtárral készült. A választás fő indoka,
-hogy a rendszer állapota folyamatosan változik — érkezik egy új esemény, lezárul
+**A felhasználói felület** React könyvtárral készült [12]. A választás fő
+indoka, hogy a rendszer állapota folyamatosan változik — érkezik egy új esemény, lezárul
 egy nap, megszületik egy döntés —, és a React deklaratív megközelítése éppen az
 ilyen, állapotvezérelt felületekhez való: a megjelenítés az adatból következik,
 nem külön léptetett műveletekből. Ehhez járul, hogy a három alkalmazás közös
 megjelenítési elemeket használ, amelyek komponensként egyszer írhatók meg.
 
-Az építőeszköz a Vite, amely fejlesztés közben natív ES-modulokat szolgál ki,
-így a módosítás és a böngészőben megjelenő eredmény között eltelt idő
-számottevően rövidebb, mint a korábbi, teljes csomagolást végző eszközöknél. Ez
-NFC-vel dolgozva külön előny, mivel a hibakeresés valódi eszközön, ismételt
-kártyaérintésekkel történik.
+Az építőeszköz a Vite, amely fejlesztés közben az egyes modulokat a böngésző
+natív modulkezelőjén keresztül szolgálja ki, és így a forrás módosításakor nem
+a teljes alkalmazást, hanem csak az érintett modult kell újraépítenie [13]. Ez
+NFC-vel dolgozva külön előnyt jelent, mivel a hibakeresés valódi eszközön,
+ismételt kártyaérintésekkel történik, tehát a fordítási várakozás minden egyes
+próbánál újra jelentkezne.
 
 **A háttérrendszer** a Supabase szolgáltatáscsomagra épül, amelynek alapja a
 PostgreSQL adatbázis-kezelő. A döntés lényege nem a kényelem, hanem az, hogy a
-szolgáltatás nem rejti el az adatbázist: közvetlen SQL-hozzáférés áll
+szolgáltatás nem rejti el az adatbázist [14]: közvetlen SQL-hozzáférés áll
 rendelkezésre, a sorszintű biztonság, a generált oszlopok, a részleges egyedi
 indexek és az ütemezett feladatok mind használhatók. Ezek a rendszer több
 pontján meghatározó szerepet kaptak, ahogyan az a következő alfejezetekből
@@ -234,10 +235,11 @@ Dexie könyvtár közvetítésével, amely a nyers felület alacsony szintű,
 eseményvezérelt kezelése helyett ígéret-alapú felületet ad. Az alkalmazás
 hálózat nélküli indulását *service worker* biztosítja.
 
-A választások közös vonása, hogy mindegyik esetben egy meglévő, széles körben
-használt megoldás került átvételre saját fejlesztés helyett. Egy szakdolgozat
-keretei között a szakmai érték nem ezek újraírásában, hanem helyes
-összeillesztésükben és a köztük lévő határok pontos meghúzásában rejlik.
+A felsorolt eszközök közös vonása, hogy mindegyik kiforrott, dokumentált és
+széles körben alkalmazott megoldás. Ez a fejlesztési kockázatot csökkenti, ára
+viszont az, hogy a rendszer viselkedése részben olyan komponensektől függ,
+amelyek belső működése nem módosítható. Ezt a függőséget a 3.1.2. alfejezetben
+rögzített elszigetelési követelmény tartja kezelhető szinten.
 
 ## Az adatmodell
 
@@ -269,7 +271,7 @@ PIN, a telefonszám és az elektronikus levélcím, továbbá az opcionális mű
 vagy részleg megjelölése. Az alkalmi látogatóknál egy lejárati időpont is
 rögzítésre kerül, amely után a kártya érvénytelenné válik.
 
-Két egyediségi megkötés érdemel figyelmet. A kártyaazonosító **cégen belül**
+Két egyediségi megkötés érdemel figyelmet. A kártyaazonosító cégen belül
 egyedi, nem globálisan: két különböző cég használhat azonos azonosítójú
 kártyát, hiszen egymás rendszeréhez nincs közük. A PIN esetében az egyediséget
 *részleges* index biztosítja, amely csak a kitöltött értékekre vonatkozik —
@@ -351,8 +353,8 @@ elkülönítésnél árnyaltabb feltételeket is megfogalmazhatnak: a hiányzás
 módosítása például vezetői szerepkörhöz kötött, míg olvasni a saját cég
 valamennyi bejegyzését lehet.
 
-Fontos kiemelni, hogy a beléptető és a dolgozói alkalmazás **nem ezen az úton**
-fér az adatokhoz. Ezek az alkalmazások nem rendelkeznek bejelentkezett
+Kiemelendő, hogy a beléptető és a dolgozói alkalmazás nem ezen az úton fér az
+adatokhoz. Ezek az alkalmazások nem rendelkeznek bejelentkezett
 munkamenettel — a dolgozóknak nincs belépési fiókjuk —, ezért kéréseiket
 szerveroldali függvények szolgálják ki, amelyek megemelt jogosultsággal futnak,
 és a sorszintű szabályokat megkerülik. Az elkülönítés itt tehát a függvény
@@ -365,15 +367,15 @@ bejelentkezés nélküli alkalmazásokat.
 ### A profilok és a hitelesítés szétválasztása
 
 Az adatmodell egyik meghatározó döntése, hogy a személyeket leíró tábla
-elsődleges kulcsa **független** a hitelesítési rendszer felhasználó-azonosítójától.
+elsődleges kulcsa független a hitelesítési rendszer felhasználó-azonosítójától.
 Ez a döntés nem a tervezőasztalon született, hanem a fejlesztés közben, egy
 hibából kiindulva.
 
 Az eredeti séma a profil azonosítóját közvetlenül a hitelesítési rendszer
 felhasználójához kötötte, ahogyan azt a szolgáltatás mintapéldái is javasolják.
 A megoldás a vezetőknél működött, a dolgozók felvételénél viszont hibára
-futott: minden új dolgozóhoz belépési fiókot kellett volna létrehozni, amivel az
-azonosító a hivatkozási megkötést sértette.
+futott: minden új dolgozóhoz belépési fiókot kellett volna létrehozni, enélkül
+ugyanis a profil azonosítója hivatkozási megkötést sértett.
 
 A hiba mögött fogalmi ellentmondás állt. A rendszerben ugyanis **a dolgozónak
 nincs és nem is lehet belépési fiókja**: az azonosítást a kártya végzi, nem
@@ -384,7 +386,7 @@ tehát olyan feltételt támasztott, amely a rendszer működési modelljével
 ellentétes.
 
 A megoldás a két fogalom szétválasztása lett. A profil önálló, saját azonosítót
-kap, és egy **kitölthető, de nem kötelező** mező köti — ha van ilyen — a
+kap, és egy kitölthető, de nem kötelező mező köti — ha van ilyen — a
 hitelesítési rendszer felhasználójához. Ezt a mezőt kizárólag a vezetők és az
 adminisztrátorok sora tölti ki; a dolgozóknál, a látogatóknál üresen marad.
 
@@ -396,46 +398,231 @@ egymástól függetlenül kezelhető: egy dolgozó később vezetővé léptethe
 azzal, hogy a profilja fiókhoz kapcsolódik, és a hozzá tartozó jelenléti előzmény
 érintetlen marad.
 
-Ez a döntés jól szemlélteti, hogy a szolgáltatások dokumentációjában szereplő
-minták egy tipikus felhasználási módra készülnek. Amennyiben a rendszer
-működési modellje ettől eltér — jelen esetben azzal, hogy a felhasználók
-többsége soha nem jelentkezik be —, a mintát nem átvenni, hanem a saját
-követelményekhez igazítani kell.
+Az eset tanulsága, hogy a dokumentációban szereplő minta hallgatólagos
+előfeltevéssel élt: azzal, hogy minden nyilvántartott személy egyben
+bejelentkező felhasználó is. Ez a feltevés a szolgáltatás szokásos
+felhasználási módjában teljesül, a jelen rendszerben azonban nem, mivel a
+nyilvántartott személyek többsége soha nem jelentkezik be. A mintát ezért nem
+átvenni, hanem az eltérő előfeltevéshez igazítani kellett.
 
 ## A beléptető alkalmazás
 
+A beléptető alkalmazás a rendszer legkritikusabb eleme: ez az egyetlen felület,
+amelyen jelenléti esemény keletkezhet, és kiesése esetén a munkaidő
+adminisztrációja megáll. Működése ugyanakkor a legszűkebb: egyetlen képernyőt
+jelenít meg, felhasználói bejelentkezést nem ismer, és kezelése kimerül a
+kártya odaérintésében. Ez az alfejezet a megvalósítás négy meghatározó
+kérdéskörét tárgyalja.
+
 ### Az NFC-kártya olvasása
 
-<!-- ~400 szó: Web NFC API, NDEFReader, a serialNumber kiolvasása,
-     az UID egységesítése (nagybetűsítés, elválasztók eltávolítása) és hogy
-     miért kritikus ez a kliens és a szerver oldalon egyformán. -->
+A kártya kiolvasását a 2.2. alfejezetben ismertetett Web NFC felület végzi. Az
+olvasás engedélyhez kötött: a böngésző a művelet megkezdésekor megerősítést kér
+a felhasználótól, és az engedély csak felhasználói művelet — jelen esetben
+gombnyomás — hatására kérhető. Ez indokolja, hogy az alkalmazás nem
+automatikusan, hanem kifejezett indítás után kezd olvasni.
+
+Az engedély megadását követően az olvasó folyamatosan figyel, és minden
+érzékelt kártyáról értesítést ad. Az értesítés a rendszer szempontjából
+egyetlen lényeges adatot tartalmaz: a kártya sorozatszámát, amely az
+azonosításra szolgáló egyedi érték.
+
+A sorozatszám feldolgozásánál egy egyszerűnek látszó, mégis lényeges részlet
+igényel figyelmet. Ugyanaz a kártya különböző eszközökön, illetve különböző
+felületeken eltérő írásmóddal jelenhet meg: kisbetűvel vagy nagybetűvel, a
+bájtok között elválasztójellel vagy anélkül. Amennyiben a nyilvántartásba az
+egyik alak kerül be, a beléptetéskor pedig a másik érkezik, az összehasonlítás
+sikertelen lesz, és a rendszer ismeretlen kártyaként utasítja el az érvényes
+azonosítót.
+
+A megoldás az azonosító **egységesítése**, amely nagybetűssé alakítja, és minden
+nem alfanumerikus jelet eltávolít belőle. Az eljárás lényege nem maga a művelet,
+hanem az, hogy minden érintett ponton azonos módon kell megtörténnie: a
+beléptető alkalmazásban, a szerveroldali függvényben és a vezetői felület
+adatrögzítésénél egyaránt. Ha bármelyik eltérne, a hiba csak bizonyos
+kártyáknál jelentkezne, ami a hibakeresést jelentősen megnehezítené.
+
+A visszamenőleges működés érdekében a szerver az egységesített alak mellett a
+kettesével tagolt írásmódot is elfogadja, mivel a korábban, kézzel rögzített
+azonosítók ebben a formában kerültek az adatbázisba.
 
 ### A be- és kiléptetés logikája
 
-<!-- ~400 szó: az utolsó esemény alapján váltakozó irány, a duplikáció-szűrés
-     (30 másodperces ablak), a visszajelzés kialakítása (teljes képernyős
-     színkód, hogy több méterről is olvasható legyen). -->
+A követelmények szerint a dolgozónak nem kell megadnia, hogy érkezik vagy
+távozik: a rendszernek ezt magának kell megállapítania. A megvalósítás ennek
+megfelelően **váltakozó** logikát követ, amely a személy legutolsó eseményét
+veszi alapul. Amennyiben az belépés volt, a következő esemény kilépés lesz, és
+fordítva; ha egyáltalán nincs korábbi esemény, a művelet belépésként
+értelmeződik.
+
+A megoldás előnye, hogy a dolgozó számára nem igényel döntést, és így nem is
+téveszthető el. Ára az, hogy a helyes működés a korábbi események
+teljességétől függ: egy elmulasztott kilépés a következő napi belépést
+fordítja ellenkezőjére. Éppen ezért szükséges a 3.7. alfejezetben tárgyalt
+automatikus kiléptetés, amely a nyitva maradt napokat lezárja, és ezzel a
+váltakozó logika kiindulóállapotát helyreállítja.
+
+A második lényeges kérdés az **ismételt érintés** kezelése. A dolgozó
+bizonytalanság esetén — például mert nem vette észre a visszajelzést —
+másodszor is odaérinti a kártyát, ami két egymást követő eseményt hozna létre,
+és a ledolgozott idő számítását elrontaná. A rendszer ezért harminc másodperces
+ablakon belül nem rögzít újabb, azonos irányú eseményt, hanem hibával utasítja
+el a kérést.
+
+A harminc másodperc arányossági kompromisszum eredménye. Rövidebb ablak nem
+zárná ki megbízhatóan a téves ismétlést, hosszabb viszont akadályozná azt a
+valós helyzetet, amikor a dolgozó néhány perc múlva ténylegesen távozik.
+Lényeges, hogy a szűrés a szerveren történik, nem a kliensben: a beléptető
+eszközök száma nem korlátozott, és két különböző eszközön leadott érintést csak
+a közös háttérrendszer láthat egyszerre.
+
+A **visszajelzés** kialakítását a használat körülményei határozták meg. A
+képernyő teljes felülete színt vált — belépésnél zöldre, kilépésnél pirosra —,
+és nagy betűmérettel jeleníti meg a nevet, valamint a művelet irányát. Ennek oka,
+hogy a készülék falra szerelve, a dolgozó szemmagassága fölött vagy alatt
+helyezkedik el, tehát a visszajelzést több méter távolságból, futó pillantással
+is értelmezhetővé kell tenni. Az információt nem kizárólag a szín hordozza: a
+szöveg önmagában is egyértelmű, ami színtévesztés esetén is olvashatóvá teszi.
+A képernyő három másodperc elteltével automatikusan visszatér olvasásra kész
+állapotba, így a következő dolgozónak nem kell semmit tennie.
 
 ### Fényképes ellenőrzés
 
-<!-- ~400 szó: a visszaélés elleni védelem. A kétlépéses folyamat indoklása:
-     a szerver előbb jelzi, hogy fénykép szükséges, és csak a fényképpel
-     érkező második kéréskor jön létre az esemény — így nem keletkezik
-     félbehagyott bejegyzés. A képek zárt tárolóban, aláírt URL-lel. -->
+A 2.3. alfejezetben tárgyalt visszaélési lehetőség — a kártya átadása egy
+kollégának — ellen a rendszer a belépés pillanatában készített fényképfelvétellel
+védekezik. Fontos pontosan rögzíteni, hogy ez **nem arcfelismerés**: a rendszer
+nem tárol biometrikus mintát, és nem hasonlítja össze a felvételt korábbi
+képekkel. A megoldás nem megakadályozza, hanem utólag ellenőrizhetővé, és ezzel
+kockázatossá teszi a visszaélést.
 
-### Offline működés
+A megkülönböztetés adatvédelmi szempontból meghatározó. Az arcfelismeréshez
+szükséges biometrikus sablon az általános adatvédelmi rendelet szerint a
+személyes adatok különleges kategóriájába tartozik, kezelése tehát szigorúbb
+feltételekhez kötött. Egy fényképfelvétel ezzel szemben — amely az esemény
+dokumentálására szolgál, és zárt tárolóban, korlátozott hozzáféréssel őrződik —
+lényegesen kisebb adatvédelmi terheléssel jár, miközben az elrettentő hatás
+nagyrészt megmarad.
 
-<!-- ~900 szó — ez a dolgozat egyik legerősebb műszaki fejezete.
-     Alfejezetei:
-       - a probléma: hálózatkimaradáskor a beléptetés teljesen leállna
-       - helyi névjegyzék (roster) gyorsítótárazása, hogy offline is
-         felismerhető legyen a kártya és eldönthető a be/ki irány
-       - műveleti sor IndexedDB-ben, az eredeti időbélyeggel
-       - idempotens visszajátszás: kliens által generált azonosító és
-         egyedi index az adatbázisban -> az ismételt küldés sem duplikál
-       - a szolgáltatásfeldolgozó (service worker) szerepe: az alkalmazásnak
-         hálózat nélkül is el kell indulnia újratöltés után
-       - a szinkronizáció hibakezelése: átmeneti vs. végleges hiba -->
+A funkció cégenként külön kapcsolható, mégpedig a kártyás és a PIN-alapú
+belépésre külön-külön. Ennek indoka az azonosítási módok eltérő természete: a
+kártya birtoklást igazol, a PIN viszont tudást, amely szóban is átadható. Egy
+megosztott PIN tehát könnyebben vezet visszaéléshez, ezért indokolt lehet a
+fényképet akkor is megkövetelni, ha a kártyás belépésnél nem szükséges.
+
+A megvalósítás legérdekesebb része a folyamat **kétlépéses** felépítése. A
+kézenfekvő megoldás az volna, hogy az alkalmazás a kártya beolvasása után
+azonnal fényképet készít, majd mindkettőt egyszerre küldi el. Ez azonban
+felesleges felvételeket eredményezne: az alkalmazás a kérés elküldése előtt nem
+tudja, hogy az adott céghez tartozik-e fényképkötelezettség, sőt azt sem, hogy
+a kártya egyáltalán érvényes-e.
+
+A megvalósított folyamat ezért a következő. Az első kérés csak az azonosítót
+küldi el. A szerver ellenőrzi a kártyát, megállapítja a művelet irányát, majd —
+ha a cég beállítása ezt megkívánja — nem hoz létre eseményt, hanem jelzi, hogy
+fényképre van szükség. Az alkalmazás ekkor kapcsolja be a kamerát, és a
+felvétellel együtt küldi el a második kérést, amely nyomán az esemény
+ténylegesen létrejön.
+
+A felépítés lényeges következménye, hogy félbehagyott bejegyzés nem
+keletkezhet. Ha a dolgozó a fényképezést megszakítja, vagy a kamera használatát
+megtagadja, a rendszerben nem marad fénykép nélküli, mégis rögzített esemény. A
+duplikáció-szűrés szintén csak a második kérésben fut le, tehát az előkészítő
+kérés nem használja el a harminc másodperces ablakot.
+
+A képek nyilvánosan nem elérhető tárolóba kerülnek, cégenként és személyenként
+elkülönített útvonalon. A vezetői felület a megjelenítéshez időkorlátos, aláírt
+hivatkozást kér, amely rövid idő elteltével érvényét veszti. Így a felvétel a
+tároló címének ismeretében sem érhető el illetéktelenül.
+
+### Hálózatfüggetlen működés
+
+A nem funkcionális követelmények között megfogalmazott elvárás szerint a
+beléptetésnek hálózati kapcsolat nélkül is működnie kell. Ez a rendszer
+műszakilag legösszetettebb része, mivel négy egymástól független kérdést vet
+fel, és mindegyikre külön válasz szükséges.
+
+**Az első kérdés a kártya felismerése.** Kapcsolat nélkül a szerver nem
+kérdezhető meg arról, hogy az adott azonosító melyik dolgozóhoz tartozik. A
+megoldás egy helyben tárolt **névjegyzék**, amelyet az alkalmazás kapcsolat
+esetén rendszeresen frissít, és amely a kártyaazonosítókat a hozzájuk tartozó
+névvel és szerepkörrel párosítja. Lényeges, hogy a névjegyzék kizárólag a
+megjelenítéshez szükséges adatokat tartalmazza — nevet és szerepkört —, tehát
+az eszköz elvesztése esetén sem kerül ki belőle jelenléti előzmény vagy
+elérhetőség.
+
+**A második kérdés a művelet irányának meghatározása.** A váltakozó logikához a
+személy legutolsó eseményének ismerete szükséges, ez viszont a szerveren
+tárolódik. Az alkalmazás ezért kártyánként nyilvántartja a legutóbb ismert
+irányt is. A nyilvántartás a névjegyzék frissítésekor a szerver adataiból áll
+elő, majd a rendszer **ráolvassa** a még el nem küldött, helyben rögzített
+eseményeket. Erre azért van szükség, mert a szerver azokról még nem tud: nélküle
+egy offline belépés után a következő érintés ismét belépésként értelmeződne.
+
+**A harmadik kérdés a rögzített események megőrzése.** A kapcsolat hiányában
+keletkező eseményeket az alkalmazás a böngésző beágyazott adatbázisában, sorban
+tárolja. A sorba kerülő tétel tartalmazza a művelet irányát és a **rögzítés
+tényleges időpontját** — nem azt, amikor később továbbításra kerül. Ez a
+megkülönböztetés lényegi: ha az időbélyeget a szerver adná a feldolgozás
+pillanatában, egy több órán át tartó hálózatkimaradás után minden esemény a
+helyreállás időpontjára esne, és a ledolgozott idő teljesen hibás lenne.
+
+**A negyedik kérdés a visszajátszás helyessége.** A 2.4. alfejezetben
+tárgyaltaknak megfelelően a kapcsolat helyreállásakor a sor tételei
+egyenként továbbításra kerülnek. Itt merül fel a legkevésbé szembetűnő
+hibalehetőség: a válasz elveszhet azután, hogy a szerver a kérést már
+feldolgozta. Az alkalmazás ilyenkor sikertelennek tekinti a küldést, és a
+tételt a sorban hagyja, a következő próbálkozás pedig ugyanazt az eseményt
+másodszor is rögzítené.
+
+A megoldás az **idempotens** művelet. A sorba kerüléskor az alkalmazás egyedi
+azonosítót állít elő a tételhez, és azt minden küldéssel együtt továbbítja. Az
+adatbázisban erre a mezőre egyedi index épül, így a második beszúrás
+megkötéssértéssel elbukik. A szerver ezt a hibát nem tekinti valódi hibának:
+felismeri, hogy az esemény már rögzítésre került, és sikeres választ ad, amire
+az alkalmazás a tételt eltávolítja a sorból. A helyes végállapot tehát nem az
+üzenetküldés megbízhatóságán múlik, hanem azon, hogy az ismétlés
+következmények nélkül maradjon.
+
+A visszajátszás **sorrendtartó**, és a hibákat két csoportra bontja. Végleges
+hiba esetén — például ha a kártya időközben törlésre került — a tétel
+eltávolításra kerül, mivel ismételt küldése sem vezetne eredményre. Átmeneti
+hiba, azaz szerveroldali üzemzavar vagy hálózati hiba esetén viszont a tétel a
+sorban marad, és a feldolgozás megszakad. Utóbbi azért lényeges: ha a
+feldolgozás a hibás tétel átugrásával folytatódna, az események sorrendje
+felborulna, és a váltakozó irány hibás állapotba kerülne.
+
+#### Az alkalmazás indulása hálózat nélkül
+
+A fenti megoldások mindegyike azt feltételezi, hogy az alkalmazás fut. Ez
+azonban nem magától értetődő: ha az eszköz újraindul vagy az oldal frissítésre
+kerül, a böngészőnek a hálózatról kellene betöltenie az alkalmazást, ami
+kapcsolat nélkül nem lehetséges.
+
+A megoldást a 2.4. alfejezetben ismertetett *service worker* adja, amely a
+kimenő kéréseket elfogja, és eldönti, hogy azokat a hálózatról vagy a helyi
+gyorsítótárból szolgálja ki. Az alkalmazás váza így telepítéskor a
+gyorsítótárba kerül, és onnan hálózat nélkül is betölthető.
+
+Ennek megvalósításánál egy nem nyilvánvaló akadály merült fel. Az építőeszköz a
+kimeneti fájlok nevébe tartalomfüggő azonosítót illeszt, hogy a böngésző a
+frissítést biztosan észrevegye. Ebből következően a fájlnevek minden építéskor
+megváltoznak, tehát előre, név szerint nem lehet felsorolni őket a
+gyorsítótárazandó elemek között.
+
+A megoldás kétrétegű. Az alkalmazás belépési pontja — amelynek neve állandó —
+telepítéskor kerül a gyorsítótárba. A változó nevű állományok ezzel szemben
+**használat közben**, az első betöltésükkor tárolódnak el, mégpedig olyan
+eljárással, amely a gyorsítótárban lévő példányt azonnal kiszolgálja, de a
+hálózati választ a háttérben lekéri, és azzal frissíti a tárolt változatot. Így
+az alkalmazás egyszerre indul gyorsan és marad naprakész.
+
+A megközelítés helyessége a fejlesztés során nem volt magától értetődő: a
+korábbi változat telepítéskor semmit sem tárolt, így a hálózat nélküli
+újratöltés üres képernyőt eredményezett — miközben a hálózatfüggetlen működés
+minden más eleme hibátlanul üzemelt. A hiba azért maradt sokáig észrevétlen,
+mert csak akkor jelentkezett, ha a kapcsolat megszakadása **és** az oldal
+újratöltése egyszerre következett be. A jelenség tárgyalása a 3.8.
+alfejezetben, a tesztelés eredményei között folytatódik.
 
 ### PIN-alapú tartalék belépés
 
