@@ -458,7 +458,7 @@ fordítva; ha egyáltalán nincs korábbi esemény, a művelet belépésként
 A megoldás előnye, hogy a dolgozó számára nem igényel döntést, és így nem is
 téveszthető el. Ára az, hogy a helyes működés a korábbi események
 teljességétől függ: egy elmulasztott kilépés a következő napi belépést
-fordítja ellenkezőjére. Éppen ezért szükséges a 3.7. alfejezetben tárgyalt
+fordítja ellenkezőjére. Éppen ezért szükséges a 3.7.1. alfejezetben tárgyalt
 automatikus kiléptetés, amely a nyitva maradt napokat lezárja, és ezzel a
 váltakozó logika kiindulóállapotát helyreállítja.
 
@@ -626,54 +626,390 @@ alfejezetben, a tesztelés eredményei között folytatódik.
 
 ### PIN-alapú tartalék belépés
 
-<!-- ~400 szó: elfelejtett kártya esete. A PIN-t érték szerint kell
-     visszakeresni, ezért nem használható véletlen sóval képzett hash;
-     helyette cégre sózott, determinisztikus SHA-256. Ennek biztonsági
-     következményei és a mérséklés (egyediségi megkötés, külön fénykép-
-     kényszer, mert a PIN megosztható). -->
+A kártyaalapú azonosítás gyakorlati gyengesége, hogy a kártya otthon
+felejthető. Ilyenkor a dolgozó nem tudja rögzíteni az érkezését, a hiányzó
+bejegyzést pedig utólag a vezetőnek kell pótolnia. Ez nemcsak többletmunka:
+a pótolt időpont már nem mérés, hanem emlékezet. A rendszer ezért tartalék
+azonosítási módot kínál, amelyben a dolgozó a beléptető eszköz
+számbillentyűzetén megadott PIN-kóddal jelzi a jelenlétét.
+
+A megoldás egyetlen felhasználói döntést enged meg: a PIN beírását. Névsor
+nem jelenik meg, és a dolgozónak nem kell kiválasztania magát a listából.
+Ennek nem kényelmi oka van. A készülék nyilvános helyen, falra szerelve
+üzemel, tehát a teljes névsor kiírása minden arra járó számára megmutatná a
+cég alkalmazottait — ez adatvédelmi szempontból indokolatlan, a lista pedig
+nagyobb létszámnál használhatatlanul hosszúvá válna.
+
+Ebből azonban egy nem nyilvánvaló műszaki következmény adódik. Mivel a szerver
+kizárólag magát a PIN-t kapja meg, a hozzá tartozó személyt a tárolt **érték
+alapján** kell megtalálnia. A jelszavaknál bevett eljárás — véletlenszerű
+sóval képzett, egyirányú lenyomat — erre nem alkalmas, mert ugyanahhoz a
+bemenethez minden bejegyzésnél más tárolt értéket rendel. Ilyen tárolás mellett
+a keresés csak úgy volna elvégezhető, hogy a rendszer minden dolgozó
+bejegyzését egyenként megvizsgálja, ami a létszámmal arányosan lassuló és
+nehezen védhető megoldás.
+
+A megvalósítás ezért determinisztikus, a cég azonosítójával sózott SHA-256
+lenyomatot tárol. Ugyanaz a PIN ugyanabban a cégben mindig azonos értéket ad,
+tehát a keresés egyetlen indexelt lekérdezéssel elvégezhető. A nyers PIN
+sehol nem tárolódik. A cégazonosító sóként való használata azt eredményezi,
+hogy két különböző cégben megadott azonos PIN eltérő tárolt értékhez vezet,
+így az egyik adatállomány ismerete a másikhoz nem nyújt segítséget.
+
+A választás kompromisszumát indokolt nyíltan kimondani. Négy–hat számjegyű
+PIN-ből legfeljebb egymillió különböző létezik, tehát az adatbázis
+kikerülése esetén a tárolt értékek kimerítő próbálgatással visszafejthetők.
+A sózás ezt a munkát cégenként külön elvégzendővé teszi, de nem teszi
+lehetetlenné. A PIN ezért nem tekinthető jelszóval egyenértékű védelemnek,
+és a rendszer nem is használja annak: adatmódosításra nem jogosít, és önmagában
+nem ad hozzáférést a vezetői felülethez.
+
+A fennmaradó kockázatot két további megkötés mérsékli. Az első adatbázis
+szintű: egy cégen belül két dolgozónak nem lehet azonos PIN-je. Ezt részleges
+egyediségi megkötés érvényesíti, amely csak a kitöltött értékekre vonatkozik,
+tehát a PIN nélküli dolgozók nem ütköznek egymással. A megkötés nélkül a
+beütött kód több személyhez is vezethetne, és a rendszer nem tudná eldönteni,
+kinek az érkezését rögzítse. A második a 3.4.3. alfejezetben tárgyalt
+fényképkötelezettség, amely a PIN-es belépésre külön előírható: a PIN
+elmondható egy kollégának, a fényképfelvétel viszont a visszaélést utólag
+ellenőrizhetővé teszi.
 
 ## A dolgozói alkalmazás
 
-<!-- ~600 szó. A tartalom a fejlesztés során bővült, ezért a vázlat frissült:
-       - PIN-alapú azonosítás; miért nem a kártya, és miért fontos, hogy
-         munkahelytől függetlenül működjön
-       - a felület három nézete (mai nap, napló egy hét / egy hónap
-         bontásban, hiányzások)
-       - a távollét-kérelem életciklusa: beküldés -> elbírálás -> jóváhagyás
-         vagy indokolt elutasítás; a kérelem visszavonása az elbírálásig
-       - értesítések: a döntést adatbázis-esemény (trigger) rögzíti, nem a
-         vezetői felület, ezért nem lehet elfelejteni; utasítás szintű, hogy
-         egy több napra szóló döntésről EGY értesítés szóljon. Az értesítés
-         tárolt bejegyzés (olvasottság-jelöléssel), nem múló üzenet.
-       - a tartomány napokra bontása a SZERVEREN, és miért nem a kliensen
-       - tétlenségi kiléptetés: a képernyő személyes adatot mutat -->
+A dolgozói alkalmazás célja, hogy a munkavállaló a saját jelenléti adatait a
+vezető megkérdezése nélkül megtekinthesse, és a tervezett távollétét
+bejelenthesse. A felület kizárólag a bejelentkezett személy adatait mutatja, és
+mobiltelefonon történő használatra készült.
+
+### Az azonosítás kérdése
+
+Az eredeti elképzelés szerint a dolgozó a saját telefonját érintette volna a
+beléptető eszközhöz, amely így elektronikus belépőkártyaként működött volna.
+A megoldás vonzereje kézenfekvő: a telefon a kártyánál lényegesen ritkábban
+marad otthon.
+
+A tervezés korai szakaszában azonban kiderült, hogy ez webes technológiával nem
+valósítható meg. A 2.2. alfejezetben ismertetett Web NFC felület kizárólag
+olvasásra és írásra képes; ahhoz, hogy a készülék maga viselkedjen kártyaként,
+kártyaemulációra volna szükség, amely az operációs rendszer szintjén elérhető
+szolgáltatás, böngészőből viszont nem hívható [5]. A képesség tehát nem a
+megvalósítás minőségén, hanem a platform határain múlik.
+
+A korlát felismerése a dolgozói alkalmazás szerepének újrafogalmazásához
+vezetett. Az alkalmazás nem beléptető eszköz, hanem önkiszolgáló felület: a
+jelenléti esemény továbbra is kizárólag a beléptető alkalmazásban, kártyával
+vagy PIN-nel keletkezhet.
+
+Ebből következett az azonosítás módjának megváltoztatása is. A korábbi változat
+a kártya odaérintésével azonosított, ami két problémát hordozott. Egyrészt a
+dolgozó csak akkor férhetett hozzá a saját adataihoz, ha a kártya nála volt —
+holott a felület éppen otthonról, a kártya nélkül a leghasznosabb. Másrészt
+fogalmi zavart keltett, hogy ugyanaz a mozdulat a két alkalmazásban mást
+jelentett: az egyikben munkaidőt rögzített, a másikban csak megjelenítette azt.
+
+A megvalósított azonosítás ezért a 3.4.5. alfejezetben bemutatott PIN-re épül.
+Lényeges megkülönböztetés, hogy a dolgozói alkalmazásban megadott PIN **nem**
+hoz létre jelenléti eseményt. A felületre való belépés és a munkaidő rögzítése
+két különböző művelet, és a rendszer ezeket nem vonja össze — ellenkező esetben
+a dolgozó otthonról is rögzíthetné az érkezését.
+
+### A felület felépítése
+
+A felület három nézetre tagolódik: a mai nap, a napló és a hiányzások. A
+nézetek között a fejlécben elhelyezett választóval, valamint oldalirányú
+húzással lehet váltani, mivel az utóbbi a mobilalkalmazásokban megszokott, és
+egykezes használat mellett kényelmesebb.
+
+A mai nap nézete a belépés és a kilépés időpontját, valamint az eddig
+ledolgozott időt mutatja. A napló ehhez képest visszatekintő: egy hét, illetve
+egy hónap bontásban jeleníti meg a napokat és a hozzájuk tartozó óraszámot. A
+két időtáv közötti váltás lehetősége nem díszítő elem, hanem eltérő kérdésekre
+ad választ. A heti nézet a *mennyit dolgoztam ezen a héten* kérdésre felel, a
+havi pedig a hónap egészének alakulására; egyetlen rögzített időszak a másikat
+mindig használhatatlanná tenné.
+
+A napi óraszám kiszámítása annyiban nem magától értetődő, hogy egy naphoz
+több be- és kilépés is tartozhat: az ebédszünetre távozó dolgozó négy eseményt
+hoz létre. A számítás ezért az eseményeket sorrendben párba állítja, és a párok
+hosszát összegzi. A napközbeni távollét így nem számít bele a ledolgozott
+időbe, a nyitva maradt utolsó belépés pedig a jelen pillanatig tart.
+
+A felület személyes adatot jelenít meg olyan eszközön, amely könnyen kikerül a
+tulajdonosa látóteréből. Ezért kétperces tétlenség után magától
+bejelentkezetlen állapotba tér vissza. A visszaszámlálás minden érintésre
+újraindul, tehát a használatot nem zavarja.
+
+### A távollét-kérelem életciklusa
+
+A rendszer korábbi változatában a dolgozó által beküldött hiányzás azonnal
+rögzített ténnyé vált. Ez a működés a valós folyamattal ellentétes: a szabadság
+kiadása engedélyhez kötött, tehát a bejelentés kérelem, amelyről a vezetőnek
+döntenie kell.
+
+A megvalósított életciklus ennek megfelelően három állapotot ismer. A beküldött
+kérelem függő állapotba kerül, majd a vezető döntése nyomán jóváhagyottá vagy
+elutasítottá válik; elutasítás esetén indoklás is fűzhető hozzá. A kérelmet a
+dolgozó az elbírálásig visszavonhatja.
+
+A visszavonás korlátozása nem a felület elrejtésével valósul meg. A
+szerveroldali művelet csak akkor hajtódik végre, ha az érintett bejegyzés
+állapota függő, **és** a kérelmező a saját sorát vonja vissza. A gomb elrejtése
+a felületen csupán kényelmi kiegészítés; a szabály betartatása nem bízható a
+kliensre, mert a kérés a felület megkerülésével is összeállítható.
+
+Hasonló megfontolásból történik a szerveren a megadott időszak napokra bontása
+is. A dolgozó kezdő és záró dátumot ad meg, és jelezheti, hogy a hétvégék
+kimaradjanak-e; a napok listáját azonban a szerver állítja elő. Ennek két oka
+van. Egyrészt az adatbázis a hiányzást napi bontásban tárolja, mivel a
+naptárnézet, az összesítők és a jelenléti kimutatás egyaránt napokkal dolgozik.
+Másrészt ha a bontást a kliens végezné, minden felület — a dolgozói alkalmazás
+és a vezetői felület — külön valósítaná meg ugyanazt a szabályt, és a két
+megvalósítás előbb-utóbb eltérne egymástól.
+
+A részben átfedő időszakok kezelése külön figyelmet igényelt. Ha a dolgozó
+olyan tartományt küld be, amelynek egyes napjaira már van rögzített hiányzás, a
+művelet nem hiúsul meg: a rendszer a már meglévő napokat kihagyja, a többit
+pedig rögzíti. A teljes elutasítás formailag védhető volna, a gyakorlatban
+azonban a dolgozót arra kényszerítené, hogy maga derítse ki, melyik nap
+ütközik. A kérelem hossza felső korlátot kap, ami a hibás vagy szándékosan
+eltúlzott tartomány ellen véd.
+
+### Értesítések
+
+A döntésről a kérelmezőnek tudomást kell szereznie. Enélkül a folyamat
+felemás marad: a vezető dönt, a dolgozó viszont csak akkor értesül róla, ha
+magától megnyitja a megfelelő nézetet. Egy héttel korábban elutasított kérelem
+így észrevétlen maradhat.
+
+Az értesítés ezért tárolt bejegyzés, nem múló üzenet: visszamenőleg is
+megtekinthető, és a rendszer külön jelöli, mi az, ami még olvasatlan.
+
+A megvalósítás lényeges eleme, hogy az értesítést nem a vezetői felület hozza
+létre, hanem adatbázis-esemény. Ha a felület felelne érte, akkor minden más
+úton született döntés — közvetlen adatbázis-művelet, tömeges jóváhagyás vagy
+egy későbbi felület — értesítés nélkül maradna. Az adatbázisban elhelyezett
+szabály ezzel szemben minden útvonalra egyaránt érvényes [9].
+
+Az eseménykezelő megvalósítása egy további, nem nyilvánvaló kérdést vetett fel.
+Egy kéthetes szabadság tíz napi bejegyzést jelent, amelyekről a vezető egyetlen
+művelettel dönt. A soronként lefutó eseménykezelő ilyenkor tíz különálló
+értesítést hozna létre ugyanarról a döntésről. A megoldás az utasítás szintű
+eseménykezelő, amely a PostgreSQL átmeneti tábláinak segítségével a teljes
+módosításhalmazt egyszerre látja, és abból egyetlen, összevont értesítést állít
+elő: az első és az utolsó érintett nappal, valamint a napok számával.
+
+Az értesítés nem kész szöveget, hanem strukturált adatot tárol. Ennek indoka,
+hogy a megfogalmazás a felület feladata: a nyelv és a megjelenítés formája ott
+változhat, a tárolt tény viszont változatlan marad.
+
+A megjelenítés a fejlécben elhelyezett harang ikonnal történik, amely
+olvasatlan értesítés esetén jelölést és darabszámot kap. 
+
+Az értesítések listája a teljes képernyőt elfoglalja, nem lebegő panelben
+jelenik meg. Mobil képernyőn a lebegő panel a tartalom jelentős részét
+eltakarná, a mögötte lévő felület pedig véletlen érintésre is reagálna. A
+visszatérést ugyanaz a jelölés szolgálja, mint a vezetői felület menüjének
+összecsukását, mivel az azonos jelentésű műveletekhez azonos jelölés
+használata csökkenti a megtanulandó elemek számát.
 
 ## A vezetői felület
 
+A vezetői felület a rendszer legösszetettebb alkalmazása: ez kezeli a
+dolgozókat, a beállításokat és a kimutatásokat, és ez az egyetlen felület,
+amelyhez hitelesített bejelentkezés szükséges. Az alábbiakban három olyan
+része kerül bemutatásra, amely önálló műszaki döntést igényelt.
+
 ### Valós idejű állapotkövetés
 
-<!-- ~300 szó: a Realtime feliratkozás, azonnali frissülés check-inkor. -->
+A követelmények szerint a telephelyen tartózkodók listájának a beléptetés
+pillanatában frissülnie kell. A kézenfekvő megoldás az időzített
+újrakérdezés volna, amelynek során a felület rögzített időközönként ismét
+lekérdezi az adatokat. Ez azonban rossz választásra kényszerít: a hosszú
+időköz késleltetést okoz, a rövid pedig fölösleges terhelést. Az aránytalanság
+szemléletes: egy tíz fős cégnél naponta nagyságrendileg húsz jelenléti esemény
+keletkezik, percenkénti lekérdezés mellett viszont naponta több mint ezernégyszáz
+kérés futna, amelyek túlnyomó többsége változatlan adatot adna vissza.
+
+A megvalósítás ezért a Supabase valós idejű szolgáltatására épül, amely az
+adatbázis írási naplóját figyeli, és a bekövetkezett változásokat állandó
+kapcsolaton keresztül továbbítja a feliratkozott klienseknek [14]. A felület a
+jelenléti események táblájának beszúrásaira iratkozik fel, így az értesítés
+nem a kliens kérdezésére, hanem a tényleges adatváltozásra érkezik.
+
+Egy tervezési döntés külön indoklást érdemel. Az értesítés megérkezésekor a
+felület nem az érkezett sort illeszti be a helyben tárolt állapotba, hanem
+újratölti a nézethez tartozó adatokat. A növekményes beillesztés kétségkívül
+gyorsabb volna, ám meg kellene ismételnie mindazt a származtatást, amelyet a
+teljes betöltés elvégez: a napi ledolgozott idő számítását, a késés
+megállapítását és a bent tartózkodás eldöntését. Két, egymástól függetlenül
+karbantartott számítás előbb-utóbb eltér egymástól, az ebből fakadó
+következetlenség pedig — mivel csak bizonyos sorrendű események után
+jelentkezik — nehezen vehető észre. A teljes újratöltés költsége ehhez képest
+elhanyagolható, éppen azért, mert a kiváltó esemény ritka.
+
+A feliratkozás a nézet megszűnésekor bontásra kerül. Ennek elmulasztása
+lapváltásonként új kapcsolatot hagyna hátra, ami hosszabb használat során a
+kliens és a szolgáltatás oldalán is felhalmozódna.
 
 ### Kimutatások és exportálás
 
-<!-- ~500 szó: időszakos elemzés, havi összesítő, Excel-export.
-     Képernyőkép ide: -->
+A kimutatások két, egymást kiegészítő nézetből állnak: egy kiválasztott dolgozó
+időszaki elemzéséből és a teljes létszámra vonatkozó havi összesítőből. Az
+elemző nézet a 3. ábrán látható.
 
 ![A vezetői felület statisztikai nézete](statisztika.png)
 
+Az elemzés vizsgált időszaka hét nap, harminc nap vagy három hónap lehet. A
+megjelenítés a hosszhoz igazodik: a rövidebb időszakok napi bontásban
+jelennek meg, a háromhavi nézet viszont heti összevonásban, mivel kilencven
+egymás melletti oszlop áttekinthetetlen volna. Ez a döntés jól szemlélteti,
+hogy az adat és a megjelenítése nem ugyanaz: az alapadat mindkét esetben napi
+bontású, csupán az összegzés mértéke tér el.
+
+A megjelenített mutatók a ledolgozott idő, a munkanapok és a jelenléti napok
+száma, a késések száma, az átlagos érkezési időpont, valamint a hiányzások
+igazolt és igazolatlan bontásban. Ezek mellett minden mutatóhoz megjelenik az
+előző, azonos hosszúságú időszakhoz mért változás. Ez utóbbi nem díszítés: az
+abszolút szám önmagában nehezen értelmezhető, mivel a százötven ledolgozott óra
+attól függően sok vagy kevés, hogy mihez viszonyítjuk. A késés megállapítása a
+cég beállított munkakezdési idejéhez és a hozzá tartozó türelmi időhöz
+viszonyítva történik, tehát a mutató cégenként eltérő küszöbbel dolgozik.
+
+Az adatok kivitele két formátumban lehetséges. A vezetőnek gyakran nem a
+felület a célja, hanem maga az adat, amelyet a bérszámfejtésben használ fel; a
+kimutatás ezért nem zárt rendszer. Az egyszerűbb formátum a vesszővel tagolt
+szövegfájl, amelynek használatakor egy gyakorlati részlet igényel figyelmet: a
+magyar nyelvű, ékezetes tartalmat a táblázatkezelők gyakran hibás
+karakterkódolással nyitják meg, ha a fájl nem jelzi kifejezetten a kódolást.
+A rendszer ezért az állomány elejére bájtsorrend-jelet helyez. A másik
+formátum a táblázatkezelők natív állománya, amely a szöveges változattal
+szemben megőrzi az értékek típusát is.
+
+Lényeges, hogy az exportált adat ugyanabból a számításból származik, mint a
+képernyőn megjelenő. Külön exportlogika esetén a két érték eltérhetne, ami a
+kimutatás hitelét ásná alá.
+
 ### Mesterséges intelligencia alapú összefoglaló
 
-<!-- ~500 szó: a kiválasztott dolgozó adott időszaki teljesítményének
-     természetes nyelvű összefoglalása. Mit küld a rendszer a modellnek
-     (aggregált számok, nem személyes azonosítók), hogyan épül fel a prompt,
-     és hogyan kezeli a rendszer a hibát/késleltetést. -->
+A kimutatás önmagában számokat közöl, azok értelmezése viszont gyakorlatot
+igényel. Egy több mutatót tartalmazó táblázatból nem magától értetődő, mi az
+érdemi információ, és mi az, ami az adott időszakban szokásosnak tekinthető. A
+rendszer ezért lehetőséget ad arra, hogy a kiválasztott dolgozó adott időszaki
+adatairól természetes nyelvű, néhány mondatos értékelés készüljön. A megoldás a
+2.5. alfejezetben ismertetett nagy nyelvi modellek szövegalkotó képességére
+épül [10].
+
+A megvalósítás legfontosabb kérdése az volt, hogy mi kerüljön elküldésre. A
+rendszer kizárólag aggregált számokat továbbít: a ledolgozott perceket, a
+munkanapok és jelenléti napok számát, a késések számát, az átlagos érkezést, a
+szünetek számát és hosszát, a hiányzások igazolt és igazolatlan bontását,
+valamint az előző időszakhoz mért változást. Nevet, elektronikus levélcímet,
+kártyaazonosítót és egyedi jelenléti eseményt a kérés nem tartalmaz — a modell
+számára a vizsgált személy megkülönböztethetetlen. Ez az adattakarékosság
+elvének gyakorlati alkalmazása: a feladat elvégzéséhez a személyazonosság
+ismerete nem szükséges, tehát nem is kerül továbbításra.
+
+A modell működését rendszerszintű utasítás határozza meg, amely rögzíti a
+terjedelmet, a hangnemet, és kifejezetten előírja, hogy a szöveg kizárólag a
+megkapott számokra támaszkodhat. Ennek oka a nyelvi modellek ismert
+gyengesége: a szakirodalmi áttekintésben bemutatott módon a modell meggyőző
+hangvételű, de megalapozatlan állítást is előállíthat [11]. A jelen
+alkalmazásban ez akkor
+jelentkezne, ha a modell olyan következtetést fogalmazna meg — például a
+munkavégzés minőségéről vagy a késések okáról —, amely a kapott adatokból nem
+következik. Az utasítás ezt tiltja, a generálás alacsonyra állított
+véletlenszerűsége pedig szűkíti a megfogalmazás szabadságát. A kockázat ezzel
+csökken, de nem szűnik meg, ezért az összefoglaló a felületen kiegészítő
+információként, nem pedig döntés alapjaként jelenik meg.
+
+A hívás nem a böngészőből, hanem szerveroldali függvényből indul. Ennek oka,
+hogy a szolgáltatás hozzáférési kulcsa a kliensbe kerülve bárki számára
+kiolvashatóvá és a cég nevében felhasználhatóvá válna; a kulcs ezért
+kizárólag szerveroldali titokként tárolódik. A függvény emellett ellenőrzi a
+hívó jogosultságát is: az összefoglaló csak vezetői vagy rendszergazdai
+szerepkörrel kérhető le.
+
+A külső szolgáltatásra épülő megoldás hibakezelése a fejlesztés során külön
+tanulsággal szolgált. A szolgáltatás kezdetben minden kérést kvótatúllépésre
+hivatkozva utasított el, jóllehet a beállított modellhez a szolgáltató
+tájékoztatása szerint tartozott ingyenes keret. Az ok mindaddig rejtve maradt,
+amíg a szerveroldali függvény a hibát saját, általános üzenetre cserélte. A
+válasz eredeti szövegének továbbításakor derült ki, hogy az adott modellhez
+ehhez az előfizetéshez ténylegesen nem tartozott felhasználható keret; a
+megoldás egy másik modell beállítása volt. A tanulság általánosítható: a külső
+szolgáltatás hibaüzenetét nem célszerű elnyelni, mert éppen az az információ
+vész el, amely a hiba okára mutat.
 
 ## Automatizált folyamatok
 
-<!-- ~500 szó: ütemezett feladatok (pg_cron):
-       - automatikus kiléptetés a cég által beállított órában, helyi
-         időzóna szerint (nyári/téli időszámítás kezelése)
-       - napi jelenléti összesítő e-mail a vezetőknek -->
+A rendszer bizonyos műveleteket felhasználói beavatkozás nélkül végez el. Ezek
+ütemezését az adatbázisban futó időzítő végzi, tehát nem szükséges hozzá külön
+üzemeltetett szolgáltatás. A döntés a nem funkcionális követelmények között
+megfogalmazott egyszerűséget szolgálja: minden további önálló összetevő újabb
+felügyelendő ponttal bővítené a rendszert.
+
+### Automatikus kiléptetés
+
+A 3.4.2. alfejezetben bemutatott váltakozó logika helyes működése a korábbi
+események teljességén múlik. Egy elmulasztott kilépés nem csupán egyetlen napot
+tesz hiányossá: a következő napi belépést is ellenkezőjére fordítja, és a hiba
+így önmagát tartja fenn. A nyitva maradt napok automatikus lezárása ezért nem
+kényelmi szolgáltatás, hanem a rendszer helyes működésének feltétele.
+
+A kézenfekvő megoldás — a napi egyszeri lefutás rögzített időpontban — két okból
+bizonyult elégtelennek. Az első nyilvánvaló: a cégek eltérő időben végeznek, egy
+közös időpont tehát vagy túl korán zárná le a még dolgozókat, vagy fölöslegesen
+későn zárná a már távozottakat. A második ok kevésbé szembetűnő. Az ütemezés
+egyezményes világidőben történik, a beállított óra viszont helyi idő szerint
+értendő. A két időszámítás közötti eltérés a nyári időszámítás miatt évente
+kétszer megváltozik, tehát egy fix időpontra rögzített művelet fél évig egy
+órával elcsúszva futna.
+
+A megvalósítás ezért óránként fut le, és minden futáskor összeveti az aktuális
+helyi órát a beállítottal. Az időzóna-átváltás ezzel az adatbázisra hárul,
+amely a nyári és téli időszámítás váltásának szabályait ismeri, és így a
+művelet mindkét időszakban a szándékolt helyi órában megy végbe.
+
+A beállítás a fejlesztés során tovább finomodott. Egyetlen cégszintű óra
+ugyanis csak akkor elegendő, ha mindenki azonos műszakban dolgozik: a reggel
+hatkor végző éjszakás és a délután kettőkor végző nappali műszak közös órával
+nem kezelhető. A cég ezért műszaknevekhez rendelhet órát; amelyik műszak nem
+szerepel a hozzárendelésben, arra a cég alapértelmezett órája marad érvényben.
+Ez a megoldás visszafelé is működőképes: a korábban beállított érték
+változatlanul érvényes, és a műszak nélküli dolgozók is kezelve maradnak.
+
+A hozzárendelés szabadon szerkeszthető szerkezetben tárolódik, ezért érvénytelen
+érték is bekerülhet. Ennek kezelése azért lényeges, mert egyetlen lekérdezés
+zárja le valamennyi cég nyitott bejegyzését: ha az átalakítás hibára futna, nem
+csupán az érintett műszak, hanem minden cég automatikus kiléptetése elmaradna.
+A megvalósítás ezért mintaillesztéssel előszűri az értéket, és a nem szám alakú
+bejegyzést az alapértelmezésre cseréli. A hiba hatóköre így egyetlen műszakra
+korlátozódik, és ott is működőképes viselkedésre esik vissza.
+
+Az így létrejött kilépés megjegyzést kap, a vezetői felület pedig külön
+jelöléssel különbözteti meg a valódi kártyaérintéstől. Ez azért szükséges, mert
+az automatikus zárás nem a tényleges távozás időpontját rögzíti, hanem a
+beállított órát; a két adat összemosása téves következtetésekhez vezetne. A
+művelet emellett csak a huszonnégy óránál nem régebbi nyitott bejegyzéseket
+zárja le, mivel egy ennél régebbi bejegyzés már nem az adott naphoz tartozik, és
+utólagos lezárása valótlan munkaidőt keletkeztetne.
+
+### Napi jelenléti összesítő
+
+A második automatizált folyamat naponta egyszer elektronikus levelet küld a cég
+vezetőinek, amely három csoportban foglalja össze a napot: a jelen lévők
+érkezési idővel és a késés jelölésével, az igazolt hiányzók a távollét
+típusával, végül azok, akik nem jelentkeztek be. A levél formájának
+megválasztása tudatos: a vezető nem feltétlenül nyitja meg naponta a felületet,
+az elektronikus levél viszont a meglévő munkafolyamatába illeszkedik.
+
+Az ütemezett feladat magát az összesítőt nem állítja elő, csupán elindítja az
+erre szolgáló szerveroldali függvényt. Ez a szétválasztás két előnnyel jár. A
+levél összeállítása és a levelezőszolgáltatás hívása alkalmazáslogika, amelynek
+adatbázis-eljárásba helyezése nehezen karbantartható megoldás volna. Ezen túl
+ugyanaz a kód kézzel is elindítható a beállítások lapról, ami a tesztelést
+lényegesen egyszerűbbé teszi: az összesítő működése nem csak a következő
+ütemezett lefutáskor ellenőrizhető.
 
 ## Tesztelés és eredmények
 

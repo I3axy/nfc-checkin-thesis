@@ -622,7 +622,7 @@ function AiPanel({ worker, periodText, stats, trendPct, onClose }) {
   )
 }
 
-// A szöveget a védett ai-summary Edge Function állítja elő (Claude Haiku 4.5).
+// A szöveget a védett ai-summary Edge Function állítja elő (Google Gemini 3,5 Flash Lite).
 // A modellnek CSAK aggregált számok mennek — se név, se azonosító.
 async function requestSummary({ periodText, stats, trendPct, signal }) {
   const { data: { session } } = await supabase.auth.getSession()
