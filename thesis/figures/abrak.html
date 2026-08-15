@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="hu">
+<meta charset="utf-8">
+<title>Szakdolgozat-ábrák generálása</title>
+<style>
+  body { font: 15px/1.6 system-ui, sans-serif; max-width: 1000px; margin: 2rem auto; padding: 0 1rem; color: #111; }
+  h1 { font-size: 1.3rem; }
+  h2 { font-size: 1rem; margin-top: 2rem; }
+  canvas { max-width: 100%; border: 1px solid #ccc; display: block; margin: 0.75rem 0; }
+  button { font: inherit; padding: 0.5rem 1rem; cursor: pointer; }
+  .hint { background: #f6f6f6; border-left: 3px solid #888; padding: 0.75rem 1rem; }
+</style>
+
+<h1>Szakdolgozat-ábrák</h1>
+
+<p class="hint">
+  A gombokkal letöltött PNG-ket ebbe a mappába (<code>thesis/figures/</code>) kell menteni,
+  <b>pontosan</b> ezekkel a nevekkel: <code>architektura.png</code>, <code>adatbazis-sema.png</code>.
+  Ezután <code>npm run build</code> — a képek automatikusan bekerülnek a dokumentumba, sorszámmal
+  és felirattal. A harmadik ábra (<code>statisztika.png</code>) képernyőkép: a vezetői felület
+  Statisztika lapját kell lementeni.
+</p>
+
+<h2>1. ábra — A rendszer architektúrája</h2>
+<canvas id="c1"></canvas>
+<button onclick="save('c1','architektura.png')">architektura.png letöltése</button>
+
+<h2>2. ábra — Az adatbázis logikai sémája</h2>
+<canvas id="c2"></canvas>
+<button onclick="save('c2','adatbazis-sema.png')">adatbazis-sema.png letöltése</button>
+
+<script>
+// A nyomtatási minőség érdekében kétszeres felbontással rajzolunk: a
+// dokumentumba a kép a szövegtükör szélességére kicsinyítve kerül be, a
+// pixelek viszont megmaradnak, így nyomtatásban is éles.
+const SCALE = 2
+
+function setup(id, w, h) {
+  const cv = document.getElementById(id)
+  cv.width = w * SCALE; cv.height = h * SCALE
+  cv.style.width = w + 'px'
+  const x = cv.getContext('2d')
+  x.scale(SCALE, SCALE)
+  x.fillStyle = '#fff'; x.fillRect(0, 0, w, h)
+  x.textBaseline = 'middle'
+  return x
+}
+
+function box(x, cx, cy, w, h, title, lines = [], opts = {}) {
+  const l = cx - w / 2, t = cy - h / 2
+  x.fillStyle = opts.fill || '#fff'
+  x.strokeStyle = opts.stroke || '#222'
+  x.lineWidth = opts.bold ? 2 : 1.2
+  if (opts.dashed) x.setLineDash([5, 4])
+  x.fillRect(l, t, w, h); x.strokeRect(l, t, w, h)
+  x.setLineDash([])
+
+  x.fillStyle = '#111'
+  x.textAlign = 'center'
+  const titleY = lines.length ? t + 20 : cy
+  x.font = 'bold 13px system-ui, sans-serif'
+  x.fillText(title, cx, titleY)
+  x.font = '11.5px system-ui, sans-serif'
+  x.fillStyle = '#444'
+  lines.forEach((s, i) => x.fillText(s, cx, titleY + 19 + i * 15))
+}
+
+function arrow(x, x1, y1, x2, y2, label, opts = {}) {
+  x.strokeStyle = opts.color || '#555'
+  x.fillStyle = opts.color || '#555'
+  x.lineWidth = 1.2
+  if (opts.dashed) x.setLineDash([4, 4])
+  x.beginPath(); x.moveTo(x1, y1); x.lineTo(x2, y2); x.stroke()
+  x.setLineDash([])
+  const a = Math.atan2(y2 - y1, x2 - x1), s = 7
+  x.beginPath()
+  x.moveTo(x2, y2)
+  x.lineTo(x2 - s * Math.cos(a - 0.4), y2 - s * Math.sin(a - 0.4))
+  x.lineTo(x2 - s * Math.cos(a + 0.4), y2 - s * Math.sin(a + 0.4))
+  x.closePath(); x.fill()
+  if (label) {
+    x.font = '10.5px system-ui, sans-serif'
+    x.fillStyle = '#666'
+    x.textAlign = 'center'
+    const mx = (x1 + x2) / 2, my = (y1 + y2) / 2
+    const tw = x.measureText(label).width
+    x.save(); x.fillStyle = '#fff'
+    x.fillRect(mx - tw / 2 - 3, my - 7, tw + 6, 14)
+    x.restore()
+    x.fillStyle = '#666'
+    x.fillText(label, mx, my)
+  }
+}
+
+// ── 1. ábra ────────────────────────────────────────────────────────────────
+;(function () {
+  const W = 820, H = 560
+  const x = setup('c1', W, H)
+
+  x.font = '11px system-ui, sans-serif'; x.fillStyle = '#888'; x.textAlign = 'left'
+  x.fillText('Kliens oldal', 30, 28)
+
+  box(x, 150, 90, 210, 74, 'Beléptető alkalmazás',
+      ['kioszk, falra szerelve', 'NFC-olvasás, fénykép'])
+  box(x, 410, 90, 210, 74, 'Dolgozói alkalmazás',
+      ['mobiltelefon', 'PIN-belépés, kérelmek'])
+  box(x, 670, 90, 210, 74, 'Vezetői felület',
+      ['asztali böngésző', 'kimutatások, beállítások'])
+
+  // Offline tároló a beléptető alkalmazás alatt
+  box(x, 150, 190, 190, 44, 'Helyi tároló (IndexedDB)',
+      ['névjegyzék + függő események'], { dashed: true })
+  arrow(x, 150, 127, 150, 168, '')
+
+  x.font = '11px system-ui, sans-serif'; x.fillStyle = '#888'; x.textAlign = 'left'
+  x.fillText('Háttérrendszer (Supabase)', 30, 268)
+
+  // A háttérrendszer kerete
+  x.strokeStyle = '#999'; x.lineWidth = 1; x.setLineDash([6, 4])
+  x.strokeRect(30, 282, W - 60, 180)
+  x.setLineDash([])
+
+  box(x, 150, 330, 200, 58, 'Szerveroldali függvények',
+      ['beléptetés, dolgozói adatok', 'levélküldés, összefoglaló'])
+  box(x, 380, 330, 170, 58, 'Hitelesítés', ['vezetői belépés'])
+  box(x, 600, 330, 170, 58, 'Fájltároló', ['ellenőrző fényképek'])
+
+  box(x, 265, 425, 430, 52, 'PostgreSQL adatbázis',
+      ['sorszintű biztonság (cégek elkülönítése) · pg_cron ütemezés'], { bold: true })
+  box(x, 600, 425, 170, 52, 'Valós idejű csatorna',
+      ['adatváltozás továbbítása'])
+
+  // Kliens -> szerver nyilak
+  arrow(x, 150, 213, 150, 300, 'esemény')
+  arrow(x, 410, 127, 200, 302, 'kérelem')
+  arrow(x, 670, 127, 640, 300, 'lekérdezés')
+  arrow(x, 600, 400, 660, 130, 'értesítés', { dashed: true })
+
+  arrow(x, 150, 359, 200, 399)
+  arrow(x, 380, 359, 300, 399)
+  arrow(x, 600, 359, 600, 399)
+
+  // Külső szolgáltatások
+  x.font = '11px system-ui, sans-serif'; x.fillStyle = '#888'; x.textAlign = 'left'
+  x.fillText('Külső szolgáltatások', 30, 492)
+  box(x, 150, 522, 200, 40, 'Nyelvi modell (Gemini)', [], { dashed: true })
+  box(x, 400, 522, 200, 40, 'Levélküldő szolgáltatás', [], { dashed: true })
+  arrow(x, 150, 451, 150, 502, '', { dashed: true })
+  arrow(x, 300, 451, 380, 502, '', { dashed: true })
+})()
+
+// ── 2. ábra ────────────────────────────────────────────────────────────────
+;(function () {
+  const W = 820, H = 520
+  const x = setup('c2', W, H)
+
+  const table = (cx, cy, title, cols, opts = {}) => {
+    const w = 210, rowH = 16, h = 30 + cols.length * rowH
+    const l = cx - w / 2, t = cy - h / 2
+    x.fillStyle = '#f2f2f2'; x.fillRect(l, t, w, 26)
+    x.fillStyle = '#fff'; x.fillRect(l, t + 26, w, h - 26)
+    x.strokeStyle = '#222'; x.lineWidth = opts.bold ? 2 : 1.2
+    x.strokeRect(l, t, w, h)
+    x.beginPath(); x.moveTo(l, t + 26); x.lineTo(l + w, t + 26); x.stroke()
+    x.font = 'bold 12.5px system-ui, sans-serif'; x.fillStyle = '#111'; x.textAlign = 'center'
+    x.fillText(title, cx, t + 13)
+    x.font = '11px ui-monospace, Consolas, monospace'; x.textAlign = 'left'
+    cols.forEach((c, i) => {
+      const key = c.startsWith('#')
+      x.fillStyle = key ? '#111' : '#444'
+      x.font = (key ? 'bold ' : '') + '11px ui-monospace, Consolas, monospace'
+      x.fillText(key ? c.slice(1) : c, l + 10, t + 26 + 12 + i * rowH)
+    })
+    return { l, t, w, h, cx, cy }
+  }
+
+  const companies = table(150, 90, 'companies',
+    ['#id', 'name, slug', 'work_start, late_thr.', 'auto_checkout_hour', 'auto_checkout_by_shift', 'photo_required'], { bold: true })
+
+  const profiles = table(150, 300, 'profiles',
+    ['#id', 'company_id →', 'auth_user_id', 'name, department', 'nfc_uid, pin', 'role, created_at'])
+
+  const events = table(450, 155, 'events',
+    ['#id', 'company_id →', 'user_id →', 'type, timestamp', 'photo_path, note', 'client_event_id'])
+
+  const absences = table(450, 350, 'absences',
+    ['#id', 'company_id →', 'user_id →', 'date, type', 'status, decision_note'])
+
+  const notifications = table(720, 350, 'notifications',
+    ['#id', 'company_id →', 'user_id →', 'type, data', 'created_at, read_at'])
+
+  const link = (a, b, label) => {
+    let x1, y1, x2, y2
+    if (b.cx > a.cx + 100) { x1 = a.l + a.w; y1 = a.cy; x2 = b.l; y2 = b.cy }
+    else { x1 = a.cx; y1 = a.t + a.h; x2 = b.cx; y2 = b.t }
+    arrow(x, x1, y1, x2, y2, label)
+  }
+
+  link(companies, profiles, '1 : N')
+  link(profiles, events, '1 : N')
+  link(profiles, absences, '1 : N')
+  link(absences, notifications, 'trigger')
+
+  x.font = '11px system-ui, sans-serif'; x.fillStyle = '#666'; x.textAlign = 'left'
+  x.fillText('Minden tábla hordozza a company_id oszlopot — erre épül a cégek elkülönítése.', 30, 470)
+  x.fillText('A → jel idegen kulcsot jelöl.', 30, 490)
+})()
+
+function save(id, name) {
+  const a = document.createElement('a')
+  a.download = name
+  a.href = document.getElementById(id).toDataURL('image/png')
+  a.click()
+}
+</script>
+</html>

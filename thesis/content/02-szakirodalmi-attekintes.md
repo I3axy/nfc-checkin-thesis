@@ -58,9 +58,12 @@ számottevően romolhat.
 
 @@TABLE Az azonosítási technológiák összehasonlítása
 
-<!-- A táblázat vázát Wordben kell beilleszteni, Normal figure-table stílussal.
-     Javasolt oszlopok: Technológia | Költség | Másolhatóság | Kopás |
-     Adatvédelmi kockázat. Sorok: vonalkód/QR, mágnescsík, NFC, biometria. -->
+| Technológia | Hardverköltség | Másolhatóság | Mechanikai kopás | Adatvédelmi kockázat |
+|---|---|---|---|---|
+| Vonalkód, QR-kód | alacsony | egyszerű (fénymásolat) | jelentős | alacsony |
+| Mágnescsík | közepes | egyszerű | jelentős | alacsony |
+| NFC | alacsony | eszközigényes | nincs | alacsony |
+| Biometria | magas | nem értelmezhető | nincs | magas (különleges adat) |
 
 Az áttekintésből látható, hogy egyetlen technológia sem jelent minden
 szempontból optimális megoldást. Az NFC azért képez kedvező kompromisszumot,

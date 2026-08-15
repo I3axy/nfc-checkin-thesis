@@ -9,19 +9,13 @@
 
 # Problémamegoldás
 
-Ebben a fejezetben a megvalósított rendszer bemutatása következik, a
-követelmények meghatározásától a tesztelés eredményeinek értékeléséig. A
-tárgyalás a tervezés természetes sorrendjét követi: először a rendszerrel
-szemben támasztott elvárások kerülnek rögzítésre, majd az ezekből következő
-architekturális döntések, ezt követően az adatmodell, végül az egyes
-alkalmazások működése.
-
-A bemutatás célja nem csupán az elkészült megoldás leírása, hanem a mögötte
-álló döntések indoklása is. Ahol a fejlesztés közben derült ki, hogy
-egy korábbi elképzelés nem tartható, ott ez a körülmény külön jelzésre kerül,
-mivel a tervezési döntések felülvizsgálata a fejlesztési folyamat szerves része.
-A programkód terjedelmi okokból a Mellékletekbe került; a szövegben csak azok a
-részletek szerepelnek, amelyek nélkül az adott megoldás nem érthető meg.
+Ebben a fejezetben a megvalósított rendszer bemutatása következik, a tervezés
+természetes sorrendjét követve: a követelményektől az architekturális
+döntéseken és az adatmodellen át az egyes alkalmazások működéséig. A cél nem
+csupán az elkészült megoldás leírása, hanem a mögötte álló döntések indoklása
+is; ahol a fejlesztés közben derült ki, hogy egy korábbi elképzelés nem
+tartható, ott ez külön jelzésre kerül. A programkód terjedelmi okokból a
+Mellékletekbe került.
 
 ## Követelmények meghatározása
 
@@ -208,11 +202,10 @@ próbánál újra jelentkezne.
 PostgreSQL adatbázis-kezelő. A döntés lényege nem a kényelem, hanem az, hogy a
 szolgáltatás nem rejti el az adatbázist [14]: közvetlen SQL-hozzáférés áll
 rendelkezésre, a sorszintű biztonság, a generált oszlopok, a részleges egyedi
-indexek és az ütemezett feladatok mind használhatók. Ezek a rendszer több
-pontján meghatározó szerepet kaptak, ahogyan az a következő alfejezetekből
-kiderül. A 2.4. alfejezetben tárgyalt szolgáltatói kötődés kockázata ezzel
-mérsékelhető: az adatbázis szabványos PostgreSQL, tehát az adatok és a séma
-átvihetők.
+indexek és az ütemezett feladatok mind használhatók — ezek a rendszer több
+pontján meghatározó szerepet kaptak. A 2.4. alfejezetben tárgyalt szolgáltatói
+kötődés kockázata ezzel mérsékelhető: az adatbázis szabványos PostgreSQL, tehát
+az adatok és a séma átvihetők.
 
 A csomag további elemei közül a **hitelesítés** a vezetői belépést kezeli, a
 **fájltároló** a fényképes ellenőrzés képeit, a **valós idejű szolgáltatás**
@@ -235,11 +228,11 @@ Dexie könyvtár közvetítésével, amely a nyers felület alacsony szintű,
 eseményvezérelt kezelése helyett ígéret-alapú felületet ad. Az alkalmazás
 hálózat nélküli indulását *service worker* biztosítja.
 
-A felsorolt eszközök közös vonása, hogy mindegyik kiforrott, dokumentált és
-széles körben alkalmazott megoldás. Ez a fejlesztési kockázatot csökkenti, ára
-viszont az, hogy a rendszer viselkedése részben olyan komponensektől függ,
-amelyek belső működése nem módosítható. Ezt a függőséget a 3.1.2. alfejezetben
-rögzített elszigetelési követelmény tartja kezelhető szinten.
+A felsorolt eszközök mindegyike kiforrott és széles körben alkalmazott, ami a
+fejlesztési kockázatot csökkenti. Ára viszont, hogy a rendszer viselkedése
+részben olyan összetevőktől függ, amelyek belső működése nem módosítható — ezt
+a 3.1.2. alfejezetben rögzített elszigetelési követelmény tartja kezelhető
+szinten.
 
 ## Az adatmodell
 
@@ -411,7 +404,7 @@ A beléptető alkalmazás a rendszer legkritikusabb eleme: ez az egyetlen felül
 amelyen jelenléti esemény keletkezhet, és kiesése esetén a munkaidő
 adminisztrációja megáll. Működése ugyanakkor a legszűkebb: egyetlen képernyőt
 jelenít meg, felhasználói bejelentkezést nem ismer, és kezelése kimerül a
-kártya odaérintésében. Ez az alfejezet a megvalósítás négy meghatározó
+kártya odaérintésében. Ez az alfejezet a megvalósítás öt meghatározó
 kérdéskörét tárgyalja.
 
 ### Az NFC-kártya olvasása
@@ -617,12 +610,9 @@ hálózati választ a háttérben lekéri, és azzal frissíti a tárolt változ
 az alkalmazás egyszerre indul gyorsan és marad naprakész.
 
 A megközelítés helyessége a fejlesztés során nem volt magától értetődő: a
-korábbi változat telepítéskor semmit sem tárolt, így a hálózat nélküli
-újratöltés üres képernyőt eredményezett — miközben a hálózatfüggetlen működés
-minden más eleme hibátlanul üzemelt. A hiba azért maradt sokáig észrevétlen,
-mert csak akkor jelentkezett, ha a kapcsolat megszakadása **és** az oldal
-újratöltése egyszerre következett be. A jelenség tárgyalása a 3.8.
-alfejezetben, a tesztelés eredményei között folytatódik.
+korábbi változat telepítéskor semmit sem tárolt, ezért a hálózat nélküli
+újratöltés üres képernyőt eredményezett. A hiba tárgyalása a 3.8. alfejezetben,
+a tesztelés eredményei között folytatódik.
 
 ### PIN-alapú tartalék belépés
 
@@ -696,9 +686,7 @@ szolgáltatás, böngészőből viszont nem hívható [5]. A képesség tehát n
 megvalósítás minőségén, hanem a platform határain múlik.
 
 A korlát felismerése a dolgozói alkalmazás szerepének újrafogalmazásához
-vezetett. Az alkalmazás nem beléptető eszköz, hanem önkiszolgáló felület: a
-jelenléti esemény továbbra is kizárólag a beléptető alkalmazásban, kártyával
-vagy PIN-nel keletkezhet.
+vezetett: az alkalmazás nem beléptető eszköz, hanem önkiszolgáló felület.
 
 Ebből következett az azonosítás módjának megváltoztatása is. A korábbi változat
 a kártya odaérintésével azonosított, ami két problémát hordozott. Egyrészt a
@@ -809,8 +797,7 @@ Az értesítések listája a teljes képernyőt elfoglalja, nem lebegő panelben
 jelenik meg. Mobil képernyőn a lebegő panel a tartalom jelentős részét
 eltakarná, a mögötte lévő felület pedig véletlen érintésre is reagálna. A
 visszatérést ugyanaz a jelölés szolgálja, mint a vezetői felület menüjének
-összecsukását, mivel az azonos jelentésű műveletekhez azonos jelölés
-használata csökkenti a megtanulandó elemek számát.
+összecsukását: az azonos jelentésű műveletekhez azonos jelölés tartozik.
 
 ## A vezetői felület
 
@@ -847,9 +834,8 @@ következetlenség pedig — mivel csak bizonyos sorrendű események után
 jelentkezik — nehezen vehető észre. A teljes újratöltés költsége ehhez képest
 elhanyagolható, éppen azért, mert a kiváltó esemény ritka.
 
-A feliratkozás a nézet megszűnésekor bontásra kerül. Ennek elmulasztása
-lapváltásonként új kapcsolatot hagyna hátra, ami hosszabb használat során a
-kliens és a szolgáltatás oldalán is felhalmozódna.
+A feliratkozás a nézet megszűnésekor bontásra kerül; ennek elmulasztása
+lapváltásonként új kapcsolatot hagyna hátra.
 
 ### Kimutatások és exportálás
 
@@ -875,15 +861,13 @@ attól függően sok vagy kevés, hogy mihez viszonyítjuk. A késés megállap�
 cég beállított munkakezdési idejéhez és a hozzá tartozó türelmi időhöz
 viszonyítva történik, tehát a mutató cégenként eltérő küszöbbel dolgozik.
 
-Az adatok kivitele két formátumban lehetséges. A vezetőnek gyakran nem a
-felület a célja, hanem maga az adat, amelyet a bérszámfejtésben használ fel; a
-kimutatás ezért nem zárt rendszer. Az egyszerűbb formátum a vesszővel tagolt
-szövegfájl, amelynek használatakor egy gyakorlati részlet igényel figyelmet: a
-magyar nyelvű, ékezetes tartalmat a táblázatkezelők gyakran hibás
-karakterkódolással nyitják meg, ha a fájl nem jelzi kifejezetten a kódolást.
-A rendszer ezért az állomány elejére bájtsorrend-jelet helyez. A másik
-formátum a táblázatkezelők natív állománya, amely a szöveges változattal
-szemben megőrzi az értékek típusát is.
+Az adatok kivitele két formátumban lehetséges, mivel a vezetőnek gyakran nem a
+felület a célja, hanem maga az adat, amelyet a bérszámfejtésben használ fel. Az
+egyszerűbb formátum a vesszővel tagolt szövegfájl; ennél egy gyakorlati részlet
+igényel figyelmet, mert az ékezetes tartalmat a táblázatkezelők hibás
+kódolással nyitják meg, ha a fájl azt nem jelzi kifejezetten. A rendszer ezért
+az állomány elejére bájtsorrend-jelet helyez. A másik formátum a
+táblázatkezelők natív állománya, amely az értékek típusát is megőrzi.
 
 Lényeges, hogy az exportált adat ugyanabból a számításból származik, mint a
 képernyőn megjelenő. Külön exportlogika esetén a két érték eltérhetne, ami a
@@ -1013,21 +997,77 @@ lényegesen egyszerűbbé teszi: az összesítő működése nem csak a követke
 
 ## Tesztelés és eredmények
 
-<!-- ~700 szó — ez emeli meg a dolgozat színvonalát:
-       - az automatizált egységtesztek (offline sor, szinkronizáció,
-         időzóna-kezelés, munkaidő-számítás) és mit igazoltak
-       - a kézi, eszközön végzett tesztek forgatókönyvei
-       - a fejlesztés során feltárt és javított hibák bemutatása
-         (pl. a szolgáltatásfeldolgozó nem tárolt semmit, ezért hálózat
-         nélküli újratöltéskor az alkalmazás nem indult el)
-       - mérési eredmények: válaszidők, offline szinkronizáció helyessége
-     Táblázat-példa (a felirat a táblázat FÖLÉ kerül):
-     @@TABLE A tesztesetek és eredményeik összefoglalása -->
+Az ellenőrzés két, egymást kiegészítő rétegben történt. A fejlesztés közben
+minden olyan számítás, amely nem magától értetődő — a napi ledolgozott idő
+párokra bontása, a hétvégéket kihagyó tartománybontás, az azonosítók
+egységesítése és a helyi óra meghatározása — külön, futtatható próbákkal
+került ellenőrzésre. A második réteget az eszközön végzett kézi
+forgatókönyvek adják, mivel a rendszer meghatározó képességei — a
+kártyaolvasás, a kamerahasználat és a hálózat megszakadása — csak valódi
+készüléken vizsgálhatók.
+
+A kézi tesztelés kiemelt esetei a következő táblázatban szerepelnek.
+
+@@TABLE A kiemelt tesztesetek és eredményeik
+
+| Azonosító | Amit ellenőriz | Elvárt eredmény |
+|---|---|---|
+| C1 | Kártyás be- és kiléptetés | A művelet iránya külön választás nélkül váltakozik |
+| C2 | Ismételt érintés harminc másodpercen belül | A második érintés nem hoz létre eseményt |
+| C4 | Megszakított fényképezés | Fénykép nélküli esemény nem keletkezik |
+| D1 | Kártyafelismerés hálózat nélkül | A dolgozó neve a helyi névjegyzékből megjelenik |
+| D2 | Újratöltés kapcsolat nélkül | Az alkalmazás elindul, a függő események megmaradnak |
+| D3 | Szinkronizálás a kapcsolat helyreállásakor | Az események ismétlés nélkül, a tényleges időponttal kerülnek be |
+| E2 | Belépés a dolgozói alkalmazásba | Jelenléti esemény nem keletkezik |
+| F5 | Több napra szóló kérelem elbírálása | Egy döntésről egyetlen értesítés szól |
+| H3 | Hibás műszakbeállítás | Az automatikus kiléptetés nem áll le, alapértelmezésre esik vissza |
+
+A fejlesztés során feltárt hibák közül három érdemel külön említést, mert
+mindegyik olyan feltételrendszerben jelentkezett, amely a szokásos használat
+közben nem áll elő.
+
+Az első a 3.4.4. alfejezetben már tárgyalt eset: a szolgáltatásfeldolgozó
+kezdeti változata telepítéskor semmit nem tárolt el, ezért a kapcsolat
+megszakadása **és** az oldal újratöltése együtt üres képernyőt eredményezett.
+A hiba azért maradt sokáig észrevétlen, mert a hálózatfüggetlen működés minden
+más eleme — a kártyafelismerés, az események tárolása és a későbbi
+továbbítása — hibátlanul üzemelt.
+
+A második az automatikus kiléptetés időzítése volt. Az ütemezett feladat
+eredetileg rögzített időpontban futott, ami a nyári időszámítás bevezetésekor
+egy órával elcsúszott a beállított helyi órához képest. A hiba fél évig
+láthatatlan marad, majd az óraátállítás napján, minden magyarázat nélkül
+jelentkezik.
+
+A harmadik a késésszámítás ellenőrzése során derült ki, és nem a rendszert,
+hanem magát a próbát érintette: a vizsgálat a belépés időpontját teljes órára
+kerekítette, és az így kapott, valóban eltérő eredményt tekintette hibának. A
+tanulság az, hogy a hibás eredmény forrása nem feltétlenül a vizsgált kód.
 
 ## A megoldás korlátai
 
-<!-- ~300 szó: őszinte számvetés. Web NFC csak Android/Chrome alatt;
-     a determinisztikus PIN-hash kompromisszuma; a vezetői felület
-     asztali eszközre tervezett; az e-mail küldés tesztüzemben egy
-     címre korlátozott. Ez nem gyengíti a dolgozatot — a korlátok
-     ismerete szakmai érettséget mutat. -->
+A rendszer legsúlyosabb korlátja a beléptető alkalmazás platformfüggősége. A
+kártyaolvasást végző webes felület jelenleg kizárólag Android rendszeren,
+Chromium alapú böngészőben érhető el; iOS eszközön a beléptetés nem
+használható. Mivel a beléptető eszköz falra szerelt, célra kijelölt készülék,
+ez a gyakorlatban ritkán jelent akadályt, elvi korlátként azonban fennáll.
+
+A 3.4.5. alfejezetben tárgyalt PIN-tárolás szintén kompromisszum: a
+determinisztikus lenyomat teszi lehetővé az érték szerinti keresést, egyben
+azonban azt is, hogy az adatbázis kikerülése esetén a rövid kódok kimerítő
+próbálgatással visszafejthetők legyenek. A PIN ezért kifejezetten tartalék
+azonosítási mód, nem jelszóval egyenértékű védelem.
+
+A vezetői felület asztali használatra készült. Telefonon a lényeges műveletek
+elvégezhetők, a részletező kimutatások azonban nem jelennek meg — az adat ott
+az exportált állományban érhető el. Ez tudatos döntés: a hat oszlopos összesítő
+telefonképernyőn olvashatatlan volna.
+
+Az elektronikus levelek küldése egyetlen, előzetesen igazolt címre
+korlátozódik, mivel saját tartomány hitelesítése nem történt meg. Ez a
+szolgáltatás próbaüzemi feltétele, nem a megvalósítás korlátja.
+
+Végül a fényképes ellenőrzés nem akadályozza meg a visszaélést, csupán utólag
+ellenőrizhetővé teszi. Megelőzésre biometrikus azonosítás volna alkalmas, ez
+azonban a 2.1. alfejezetben tárgyalt adatvédelmi következményekkel jár, ezért
+tudatosan nem került megvalósításra.

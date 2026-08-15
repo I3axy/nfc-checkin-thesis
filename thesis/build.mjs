@@ -22,6 +22,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import JSZip from 'jszip'
+import { META } from './meta.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.resolve(HERE, '..')
@@ -88,6 +89,42 @@ const listPara = (text, numId) =>
 
 const pageBreak = () =>
   `<w:p><w:r><w:br w:type="page"/></w:r></w:p>`
+
+// ── Táblázat ─────────────────────────────────────────────────────────────────
+// Markdown csőtáblázatból ( | a | b | ) OOXML táblázat. A cellák a sablon
+// "Normal figure-table" stílusát kapják, a felirat a @@TABLE direktívával
+// külön, a táblázat FÖLÉ kerül — így írja elő a sablon.
+const TEXT_WIDTH_TWIP = 9638   // A4 szélesség mínusz a sablon bal+jobb margója
+
+function tableXml(rows) {
+  const cols = Math.max(...rows.map(r => r.length))
+  const w = Math.floor(TEXT_WIDTH_TWIP / cols)
+  const borders = ['top', 'left', 'bottom', 'right', 'insideH', 'insideV']
+    .map(s => `<w:${s} w:val="single" w:sz="4" w:space="0" w:color="auto"/>`).join('')
+
+  const cell = (text, head) =>
+    `<w:tc><w:tcPr><w:tcW w:w="${w}" w:type="dxa"/></w:tcPr>` +
+    `<w:p><w:pPr><w:pStyle w:val="${ST.figure}"/><w:jc w:val="left"/></w:pPr>` +
+    (head
+      ? `<w:r><w:rPr><w:b/></w:rPr><w:t xml:space="preserve">${esc(text)}</w:t></w:r>`
+      : runs(text)) +
+    `</w:p></w:tc>`
+
+  // A fejlécsor oldaltöréskor megismétlődik (tblHeader) — több oldalas
+  // táblázatnál enélkül olvashatatlanná válna a folytatás.
+  const row = (cs, head) =>
+    `<w:tr>${head ? '<w:trPr><w:tblHeader/></w:trPr>' : ''}` +
+    Array.from({ length: cols }, (_, k) => cell(cs[k] ?? '', head)).join('') +
+    `</w:tr>`
+
+  return `<w:tbl><w:tblPr><w:tblW w:w="0" w:type="auto"/><w:tblBorders>${borders}</w:tblBorders>` +
+    `<w:tblLook w:val="04A0" w:firstRow="1" w:lastRow="0" w:firstColumn="1" w:lastColumn="0" w:noHBand="0" w:noVBand="1"/></w:tblPr>` +
+    `<w:tblGrid>${`<w:gridCol w:w="${w}"/>`.repeat(cols)}</w:tblGrid>` +
+    row(rows[0], true) + rows.slice(1).map(r => row(r, false)).join('') +
+    // Két egymást követő táblázatot a Word összevonna, ezért zárásként üres
+    // bekezdés kerül utána.
+    `</w:tbl><w:p/>`
+}
 
 // ── Képek ────────────────────────────────────────────────────────────────────
 // A kép EMU-ban méretezendő. A szövegtükör szélessége: A4 (11907 twip) mínusz
@@ -212,6 +249,16 @@ function mdToXml(md, figureState) {
       continue
     }
 
+    // Táblázat: | a | b |  — a második sor az elválasztó (|---|---|)
+    if (line.startsWith('|') && /^\|[\s:|-]+\|$/.test((lines[i + 1] ?? '').trim())) {
+      const cells = l => l.trim().replace(/^\||\|$/g, '').split('|').map(c => c.trim())
+      const rows = [cells(line)]
+      i += 2
+      while (i < lines.length && lines[i].trim().startsWith('|')) { rows.push(cells(lines[i])); i++ }
+      out.push(tableXml(rows))
+      continue
+    }
+
     // Fejezetcímek
     if (line.startsWith('#! ')) { out.push(para(ST.h1nonum, line.slice(3))); i++; continue }
     if (line.startsWith('#### ')) { out.push(para(ST.h4, line.slice(5))); i++; continue }
@@ -242,11 +289,150 @@ function mdToXml(md, figureState) {
 }
 
 // ── Szószámlálás ─────────────────────────────────────────────────────────────
-const countWords = md => stripComments(md)
+// Két mérőszám készül. A szigorúbb csak a folyó szöveget számolja; a Word
+// beépített számlálója ezzel szemben a fejezetcímeket, a feliratokat és a
+// táblázatok tartalmát is beleveszi. A kettő különbsége néhány száz szó, ami a
+// felső határ közelében már eldöntheti, belefér-e a dolgozat — ezért mindkettő
+// megjelenik.
+const tokens = s => s.split(/\s+/).filter(w => /[\p{L}\p{N}]/u.test(w)).length
+
+const countWords = md => tokens(stripComments(md)
   .replace(/```[\s\S]*?```/g, ' ')     // kód nem számít bele
   .replace(/^\s*(#|@@|!\[).*$/gm, ' ') // címek, direktívák, képek sem
-  .replace(/[*`>_]/g, ' ')
-  .split(/\s+/).filter(w => /[\p{L}\p{N}]/u.test(w)).length
+  .replace(/[*`>_]/g, ' '))
+
+// Ahogy a Word számolja: a címek és a feliratok is szövegnek minősülnek.
+const countWordsWord = md => tokens(stripComments(md)
+  .replace(/```[\s\S]*?```/g, ' ')
+  .replace(/^\s*!\[.*$/gm, ' ')        // a kép maga nem szöveg
+  .replace(/^\s*@@(BIB|PAGEBREAK)\s*$/gm, ' ')
+  .replace(/^\s*@@TABLE\s+/gm, ' ')    // a felirat szövege viszont igen
+  .replace(/^#+\s+/gm, ' ')
+  .replace(/[*`>_|]/g, ' '))
+
+// ── A sablon előlapjainak kitöltése ──────────────────────────────────────────
+// A címlap, az absztrakt, a jelmagyarázat és a témaleírás helyőrző szöveggel
+// érkezik a sablonból ("cím (MagyarUL)", "leckekönyv SZÁMa" és társai). Ezeket
+// a build a meta.mjs tartalmára cseréli.
+//
+// A csere a helyőrző SZÖVEGÉRE illeszt, nem bekezdés-sorszámra: ha a sablon
+// egyszer módosul, a build hangosan jelzi, mit nem talált, ahelyett hogy némán
+// üresen hagyná a címlapot.
+//
+// Miért nem elég egy egyszerű szövegcsere? A Word a szerkesztési előzmény
+// miatt a helyőrzőt több <w:r> futamra tördeli ("vezeték és " + "UTÓ" +
+// "név"), sőt a cím még kitöltendő mezőt (FILLIN) is tartalmaz. Ezért a
+// bekezdés összes futama lecserélődik egyetlen újra, a bekezdés
+// tulajdonságainak (<w:pPr>, azaz a stílus) megtartásával.
+
+const paraText = p => [...p.matchAll(/<w:t[^>]*>([^<]*)<\/w:t>/g)].map(m => m[1]).join('')
+
+// A bekezdések határai. A <w:pPr> nem illeszkedik, mert utána nem szóköz
+// vagy '>' áll. Az önzáró (üres) bekezdést külön jelöljük — abban nincs mit
+// cserélni.
+function paragraphs(xml) {
+  const out = []
+  const re = /<w:p(?=[ >])[^>]*>/g
+  let m
+  while ((m = re.exec(xml)) !== null) {
+    if (m[0].endsWith('/>')) {
+      out.push({ start: m.index, end: m.index + m[0].length, empty: true })
+      continue
+    }
+    const end = xml.indexOf('</w:p>', re.lastIndex)
+    if (end === -1) continue
+    out.push({ start: m.index, end: end + '</w:p>'.length, empty: false })
+    re.lastIndex = end + '</w:p>'.length
+  }
+  return out
+}
+
+function setParaText(p, text) {
+  const open = p.match(/^<w:p[^>]*>/)[0]
+  const pPr = (p.match(/^<w:p[^>]*>(<w:pPr>[\s\S]*?<\/w:pPr>)/) ?? ['', ''])[1]
+  // A sablon futamai szerb nyelvre vannak jelölve; magyar szövegnél ez téves
+  // helyesírás-ellenőrzést eredményezne.
+  const run = text === ''
+    ? ''
+    : `<w:r><w:rPr><w:lang w:val="hu-HU"/></w:rPr><w:t xml:space="preserve">${esc(text)}</w:t></w:r>`
+  return open + pPr + run + '</w:p>'
+}
+
+// Az első olyan bekezdés cseréje, amelynek szövege a megadott előtaggal
+// kezdődik. A null érték a bekezdés eltávolítását jelenti.
+function replaceParaStartingWith(xml, prefix, value) {
+  for (const q of paragraphs(xml)) {
+    if (q.empty) continue
+    const src = xml.slice(q.start, q.end)
+    if (!paraText(src).trim().startsWith(prefix)) continue
+    const next = value === null ? '' : setParaText(src, value)
+    return { xml: xml.slice(0, q.start) + next + xml.slice(q.end), found: true }
+  }
+  return { xml, found: false }
+}
+
+// A jelmagyarázat táblázata három példasorral érkezik. A sablon fejlécsora
+// megmarad, a példasorok helyére annyi sor kerül, ahány rövidítés van — az
+// első példasor szolgál mintaként, így a cellák formázása változatlan.
+function fillLegendTable(xml, entries) {
+  const at = xml.indexOf('Jel/Rövidítés')
+  if (at === -1) return { xml, found: false }
+  const start = xml.lastIndexOf('<w:tbl>', at)
+  const end = xml.indexOf('</w:tbl>', at) + '</w:tbl>'.length
+  if (start === -1 || end <= start) return { xml, found: false }
+
+  const parts = xml.slice(start, end).split(/(?=<w:tr[ >])/)
+  if (parts.length < 3) return { xml, found: false }
+  const [grid, header, firstRow] = parts
+  const sample = firstRow.slice(0, firstRow.indexOf('</w:tr>') + '</w:tr>'.length)
+
+  const rows = entries.map(([abbr, desc]) => {
+    // A mintasorban cellánként egy bekezdés áll: az első a rövidítés, a
+    // második az értelmezés.
+    const cells = [abbr, desc]
+    let n = 0, out = '', last = 0
+    for (const q of paragraphs(sample)) {
+      if (q.empty || n >= cells.length) continue
+      out += sample.slice(last, q.start) + setParaText(sample.slice(q.start, q.end), cells[n++])
+      last = q.end
+    }
+    return out + sample.slice(last)
+  }).join('')
+
+  return { xml: xml.slice(0, start) + grid + header + rows + '</w:tbl>' + xml.slice(end), found: true }
+}
+
+function fillFrontMatter(xml) {
+  const missing = []
+  const put = (prefix, value) => {
+    const r = replaceParaStartingWith(xml, prefix, value)
+    xml = r.xml
+    if (!r.found) missing.push(prefix)
+  }
+
+  put('cím (Magyar', META.titleHu)
+  put('cím (szerb', META.titleSr)
+  put('cím (angol', META.titleEn)
+  put('vezeték és UTÓnév', META.student)
+  put('dr. vezeték és UTÓnév', META.mentor)
+  put('leckekönyv SZÁMa', META.indexNo)
+  put('Szabadka, 20xx', `${META.place}, ${META.year}`)
+  put('Szabadkán, kelt', META.dateLine)
+
+  put('Az absztrakt a szakdolgozat', META.abstract)
+  put('Kulcsszavak:', `Kulcsszavak: ${META.keywords.join(', ')}`)
+
+  const legend = fillLegendTable(xml, META.legend)
+  xml = legend.xml
+  if (!legend.found) missing.push('jelmagyarázat táblázata')
+  // A táblázat alatti kitöltési útmutató a kész dolgozatban nem maradhat.
+  put('Ebben a részben fel kell sorolni', null)
+
+  put('Ez a fejezet személyes megjegyzéseket', META.thanks)
+  put('A szakdolgozatnak ezen részét a mentor', META.topic)
+
+  return { xml, missing }
+}
 
 // ── Build ────────────────────────────────────────────────────────────────────
 async function main() {
@@ -262,18 +448,27 @@ async function main() {
   }
 
   // Szószám-jelentés
-  const stats = files.map(f => ({ file: f, words: countWords(fs.readFileSync(path.join(CONTENT, f), 'utf8')) }))
-  const core = stats.filter(s => QUOTA.chapters.some(c => s.file.startsWith(c))).reduce((n, s) => n + s.words, 0)
+  const stats = files.map(f => {
+    const md = fs.readFileSync(path.join(CONTENT, f), 'utf8')
+    return { file: f, words: countWords(md), wordsWord: countWordsWord(md) }
+  })
+  const inQuota = s => QUOTA.chapters.some(c => s.file.startsWith(c))
+  const core = stats.filter(inQuota).reduce((n, s) => n + s.words, 0)
+  const coreWord = stats.filter(inQuota).reduce((n, s) => n + s.wordsWord, 0)
 
-  console.log('\nSzószám fejezetenként:')
-  for (const s of stats) console.log(`  ${s.file.padEnd(34)} ${String(s.words).padStart(6)} szó`)
+  console.log('\nSzószám fejezetenként:            folyó szöveg   Word szerint')
+  for (const s of stats) {
+    console.log(`  ${s.file.padEnd(30)} ${String(s.words).padStart(8)} ${String(s.wordsWord).padStart(14)}`)
+  }
   const pct = Math.round((core / QUOTA.max) * 100)
   const bar = '█'.repeat(Math.min(30, Math.round(pct / 3.34))).padEnd(30, '·')
   console.log(`\n  2.+3. fejezet (előírás ${QUOTA.min}–${QUOTA.max} szó):`)
   console.log(`  [${bar}] ${core} szó  (${pct}% a felső határhoz képest)`)
+  console.log(`  Word szerint (címekkel, feliratokkal együtt): ${coreWord} szó`)
   if (core < QUOTA.min) console.log(`  -> még ${QUOTA.min - core} szó kell a minimumhoz`)
   else if (core > QUOTA.max) console.log(`  !! ${core - QUOTA.max} szóval TÚLLÉPTE a felső határt`)
-  else console.log(`  -> az előírt tartományban`)
+  else if (coreWord > QUOTA.max) console.log(`  -> a folyó szöveg belefér, de a Word ${coreWord - QUOTA.max} szóval többet mutat`)
+  else console.log(`  -> az előírt tartományban mindkét mérés szerint`)
 
   if (process.argv.includes('--words')) { console.log(); return }
 
@@ -294,7 +489,11 @@ async function main() {
     process.exit(1)
   }
   const paraStart = body.lastIndexOf('<w:p ', splitAt)
-  const frontMatter = body.slice(0, paraStart === -1 ? splitAt : paraStart)
+  const { xml: frontMatter, missing } = fillFrontMatter(body.slice(0, paraStart === -1 ? splitAt : paraStart))
+  if (missing.length) {
+    console.log('\n  ! a sablonban nem találom ezeket a helyőrzőket:')
+    for (const m of missing) console.log(`      "${m}"`)
+  }
 
   // Tartalom generálása
   const figureState = { figNo: 0, tabNo: 0, media: [] }
@@ -328,6 +527,21 @@ async function main() {
       }
     }
     zip.file('[Content_Types].xml', ct)
+  }
+
+  // A tartalomjegyzék a sablonban Word-mező, amelynek eltárolt eredménye még a
+  // sablon példafejezeteit sorolja fel. A mezőt a Word csak kérésre számolja
+  // újra, ezért a dokumentum megnyitáskori frissítésre kerül megjelölésre —
+  // enélkül a kész dolgozatban is a sablon tartalomjegyzéke látszana.
+  // (A séma szerint az elem a hdrShapeDefaults elé tartozik.)
+  const settingsPath = 'word/settings.xml'
+  let settings = await zip.file(settingsPath).async('string')
+  if (!settings.includes('<w:updateFields')) {
+    const marker = '<w:hdrShapeDefaults>'
+    settings = settings.includes(marker)
+      ? settings.replace(marker, `<w:updateFields w:val="true"/>${marker}`)
+      : settings.replace('</w:settings>', '<w:updateFields w:val="true"/></w:settings>')
+    zip.file(settingsPath, settings)
   }
 
   fs.mkdirSync(path.dirname(OUT), { recursive: true })
