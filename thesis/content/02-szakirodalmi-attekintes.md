@@ -12,7 +12,7 @@ megoldások mégis folyamatosan változnak, ahogy az azonosítási technológiá
 szoftverarchitektúrák fejlődnek. Ebben a fejezetben azok az elméleti alapok és
 létező megoldások kerülnek bemutatásra, amelyek a dolgozat tárgyát képező
 rendszer megértéséhez szükségesek. Először az azonosítási technológiák
-összehasonlítása történik meg, majd részletesen tárgyalásra kerül a választott
+összehasonlítása történik meg, majd részletes tárgyalás következik a választott
 NFC technológia. Ezt követi a jelenlévő piaci és kutatási megoldások áttekintése,
 a webalkalmazás-architektúrák vizsgálata, végül a mesterséges intelligencia
 vezetői kimutatásokban betöltött szerepének bemutatása.

@@ -33,8 +33,8 @@ az eseményeket sorba állítja, és a kapcsolat helyreállásakor továbbítja.
 ismétlés kizárását nem a kliens, hanem a szerver oldali egyediségi megkötés
 biztosítja, mivel a küldés megismétlődhet anélkül, hogy a kliens erről tudna. A
 cél megvalósítása során feltárt hiba — az alkalmazás hálózat nélküli
-újratöltésének sikertelensége — javításra került, és a 3.8. alfejezetben
-bemutatásra is.
+újratöltésének sikertelensége — javítva lett, bemutatása pedig a 3.8.
+alfejezetben olvasható.
 
 **A negyedik cél a visszaélés elleni védelem volt.** A kártya átadásával
 elkövethető helyettesítés ellen a belépéskor készített fényképfelvétel véd,
