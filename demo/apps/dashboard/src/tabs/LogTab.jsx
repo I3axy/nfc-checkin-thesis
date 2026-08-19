@@ -21,7 +21,18 @@ export function LogTab({ events, employees = [], onSaved }) {
   const [search, setSearch]       = useState('')
   const [suggestOpen, setSuggestOpen] = useState(false)
   const [shifts, setShifts]       = useState([])          // [] = mind
+  const [sortKey, setSortKey]     = useState('time')   // time | name | type | dept
   const [sortDir, setSortDir]     = useState('desc')
+
+  // Fejlécre kattintva: azonos oszlopnál irányt vált, újnál arra rendez.
+  // Az új oszlop csökkenő iránnyal indul az időnél (a legfrissebb elöl a
+  // hasznos), a szövegeseknél viszont növekvővel, mert az ábécé eleje a
+  // természetes kezdet.
+  function sortBy(key) {
+    if (key === sortKey) { setSortDir(d => (d === 'desc' ? 'asc' : 'desc')); return }
+    setSortKey(key)
+    setSortDir(key === 'time' ? 'desc' : 'asc')
+  }
   const [pageSize, setPageSize]   = useState(50)
   const [page, setPage]           = useState(1)
   const [rows, setRows]           = useState([])
@@ -66,16 +77,30 @@ export function LogTab({ events, employees = [], onSaved }) {
 
   const filtered = useMemo(() => {
     const q = norm(search.trim())
+    // Az azonos értékű sorok (például egy műszak összes eseménye) időrendben
+    // maradnak — enélkül a névre rendezés a napokat összekeverné.
+    const byTime = (a, b) => new Date(b.timestamp) - new Date(a.timestamp)
+    const cmp = {
+      time: (a, b) => new Date(a.timestamp) - new Date(b.timestamp),
+      name: (a, b) => a.name.localeCompare(b.name, 'hu') || byTime(a, b),
+      type: (a, b) => a.type.localeCompare(b.type) || byTime(a, b),
+      // A műszak nélküli dolgozók a lista végére kerülnek, nem az elejére:
+      // az üres érték nem információ, a rendezés eleje viszont hangsúlyos.
+      dept: (a, b) => {
+        const x = a.department ?? '￿'
+        const y = b.department ?? '￿'
+        return x.localeCompare(y, 'hu') || byTime(a, b)
+      },
+    }[sortKey]
+
     return enriched
       .filter(e => shifts.length === 0 || shifts.includes(e.department))
       .filter(e => !q || norm(e.name).includes(q))
-      .sort((a, b) => sortDir === 'desc'
-        ? new Date(b.timestamp) - new Date(a.timestamp)
-        : new Date(a.timestamp) - new Date(b.timestamp))
-  }, [enriched, shifts, search, sortDir])
+      .sort((a, b) => (sortDir === 'desc' ? -1 : 1) * cmp(a, b))
+  }, [enriched, shifts, search, sortKey, sortDir])
 
   // Reset to the first page whenever the result set changes underneath
-  useEffect(() => { setPage(1) }, [search, shifts, from, to, pageSize, sortDir])
+  useEffect(() => { setPage(1) }, [search, shifts, from, to, pageSize, sortKey, sortDir])
 
   const totalPages = pageSize === 0 ? 1 : Math.max(1, Math.ceil(filtered.length / pageSize))
   const safePage   = Math.min(page, totalPages)
@@ -222,10 +247,10 @@ export function LogTab({ events, employees = [], onSaved }) {
       <Table className="table-compact">
         <thead>
           <tr>
-            <Th>Dolgozó</Th>
-            <Th className="col-secondary">Műszak</Th>
-            <Th>Típus</Th>
-            <Th sortable active dir={sortDir} onClick={() => setSortDir(d => d === 'desc' ? 'asc' : 'desc')}>Időpont</Th>
+            <Th sortable active={sortKey === 'name'} dir={sortDir} onClick={() => sortBy('name')}>Dolgozó</Th>
+            <Th className="col-secondary" sortable active={sortKey === 'dept'} dir={sortDir} onClick={() => sortBy('dept')}>Műszak</Th>
+            <Th sortable active={sortKey === 'type'} dir={sortDir} onClick={() => sortBy('type')}>Típus</Th>
+            <Th sortable active={sortKey === 'time'} dir={sortDir} onClick={() => sortBy('time')}>Időpont</Th>
             <Th></Th>
           </tr>
         </thead>

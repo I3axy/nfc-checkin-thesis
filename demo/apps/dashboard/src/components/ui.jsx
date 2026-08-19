@@ -84,19 +84,26 @@ export function Divider({ label }) {
   )
 }
 
-export function Modal({ title, onClose, children, wide, maxWidth }) {
+// A `headerRight` a bezáró gomb mellé kerül — ide való minden olyan művelet,
+// amely magára az ablak tartalmára vonatkozik (például újratöltés).
+export function Modal({ title, onClose, children, wide, maxWidth, headerRight }) {
   return (
     <div
       style={{ position: 'fixed', inset: 0, zIndex: 200, background: C.overlay, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}
       onClick={e => e.target === e.currentTarget && onClose()}
     >
       <div style={{ background: C.bg1, border: `1px solid ${C.border}`, width: '100%', maxWidth: maxWidth ?? (wide ? 760 : 460), maxHeight: '90dvh', overflowY: 'auto', borderRadius: R.lg, boxShadow: C.shadow }}>
-        <div style={{ borderBottom: `1px solid ${C.border}`, padding: '0.8rem 1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, background: C.bg1, zIndex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <div style={{ width: 3, height: 16, background: C.accent, borderRadius: 0 }} />
-            <span style={{ fontWeight: 700, fontSize: '0.9rem', color: C.text }}>{title}</span>
+        {/* A cím zsugorodhat és tördelhet, a műveletek viszont nem: keskeny
+            képernyőn különben a bezáró gomb szorulna ki a fejlécből. */}
+        <div style={{ borderBottom: `1px solid ${C.border}`, padding: '0.8rem 1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', position: 'sticky', top: 0, background: C.bg1, zIndex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0 }}>
+            <div style={{ width: 3, height: 16, background: C.accent, borderRadius: 0, flexShrink: 0 }} />
+            <span style={{ fontWeight: 700, fontSize: '0.9rem', color: C.text, minWidth: 0, overflowWrap: 'anywhere' }}>{title}</span>
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', fontSize: '1.2rem', lineHeight: 1, padding: '0.1rem 0.3rem', borderRadius: R.sm }}>×</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', flexShrink: 0 }}>
+            {headerRight}
+            <button onClick={onClose} style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', fontSize: '1.2rem', lineHeight: 1, padding: '0.1rem 0.3rem', borderRadius: R.sm }}>×</button>
+          </div>
         </div>
         <div style={{ padding: '1.25rem' }}>{children}</div>
       </div>

@@ -1,0 +1,21 @@
+/* ===========================================================================
+   Általános, képernyőmérettől független szabályok
+   ===========================================================================
+   A felület stílusai beágyazott stílusobjektumként élnek a komponensekben.
+   Ide csak az kerül, amit így nem lehet kifejezni — jelenleg a kulcskockás
+   animációk, mivel azokhoz @keyframes szükséges.
+
+   A képernyőmérethez kötött szabályok külön fájlban, a responsive.css-ben
+   vannak.
+   =========================================================================== */
+
+@keyframes nfc-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* A mozgás csökkentését kérő beállítást tiszteletben tartjuk: a forgó jelzés
+   ilyenkor állva marad, a betöltés tényét a letiltott gomb jelzi. */
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
+}

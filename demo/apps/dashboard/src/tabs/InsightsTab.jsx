@@ -294,8 +294,14 @@ function gridSteps(maxMins) {
 }
 
 // ─── Oszlopdiagram (saját, hogy a kattintás és a hétvége-jelölés kézben legyen)
+// Hány oszloponként jelenjen meg tengelyfelirat. A legszűkebb eszközön
+// (360 képpont körül) tizenkét felirat fér el olvashatóan; ennél többnél
+// ritkítunk, hogy a kétjegyű napok is kiférjenek.
+const MAX_AXIS_LABELS = 12
+
 function BarChart({ bars, maxMins, selectedKey, onSelect, weekly }) {
   const gridHours = gridSteps(maxMins)
+  const labelStep = Math.max(1, Math.ceil(bars.length / MAX_AXIS_LABELS))
   // Heti összegnél a teljes hét (40 óra) a viszonyítás, nem a 8 órás nap.
   const fullMins = weekly ? 2400 : 480
   const legend = weekly
@@ -336,12 +342,27 @@ function BarChart({ bars, maxMins, selectedKey, onSelect, weekly }) {
           )
         })}
       </div>
+      {/* Tengelyfeliratok. Egy oszlop telefonon ~11 képpont széles, amiben egy
+          kétjegyű nap nem fér el: a 10. naptól kezdve a szám második jegye
+          levágódott, és a "10"-ből "1" lett. Ezért egyrészt csak minden
+          n-edik felirat jelenik meg, másrészt a látszó felirat kiléphet a
+          saját oszlopából — a szomszédos hely úgyis üres. A kiválasztott nap
+          felirata mindig látszik, különben a kattintás visszajelzés nélkül
+          maradna. */}
       <div style={{ display: 'flex', gap: 2, marginTop: '0.3rem' }}>
-        {bars.map(b => (
-          <div key={b.key} style={{ flex: 1, minWidth: 0, textAlign: 'center', fontSize: '0.6rem', color: selectedKey === b.key ? C.accent : C.muted, fontWeight: selectedKey === b.key ? 700 : 400, overflow: 'hidden', whiteSpace: 'nowrap' }}>
-            {b.label}
-          </div>
-        ))}
+        {bars.map((b, i) => {
+          const active = selectedKey === b.key
+          const show = active || i % labelStep === 0
+          return (
+            <div key={b.key} style={{
+              flex: 1, minWidth: 0, textAlign: 'center', fontSize: '0.6rem',
+              color: active ? C.accent : C.muted, fontWeight: active ? 700 : 400,
+              overflow: 'visible', whiteSpace: 'nowrap',
+            }}>
+              {show ? b.label : ''}
+            </div>
+          )
+        })}
       </div>
       <div style={{ display: 'flex', gap: '0.8rem', justifyContent: 'center', flexWrap: 'wrap', marginTop: '0.8rem' }}>
         {legend.map(([c, l]) => (

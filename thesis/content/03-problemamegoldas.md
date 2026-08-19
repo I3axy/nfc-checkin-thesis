@@ -62,24 +62,20 @@ A minőségi jellemzők közül négy bizonyult meghatározónak.
 kiesése esetén a munkavégzés adminisztrációja ellehetetlenül. A telepítés helye
 — csarnok, telephelyi bejárat — a szakirodalmi áttekintésben említett módon
 gyakran gyenge lefedettségű, ezért a hálózatkimaradást nem hibaállapotként,
-hanem rendes üzemmenetként kell kezelni. Ebből következően az alkalmazásnak
-kapcsolat nélkül is el kell indulnia, fel kell ismernie a kártyát, meg kell
-határoznia a művelet irányát, és az eseményt későbbi továbbításra el kell
-tárolnia. A kapcsolat helyreállásakor a tárolt események továbbításának
-duplikáció nélkül kell megtörténnie.
+hanem rendes üzemmenetként kell kezelni: a beléptetésnek kapcsolat nélkül is
+teljes értékűen működnie kell, a tárolt eseményeknek pedig a kapcsolat
+helyreállásakor ismétlés nélkül kell továbbítódniuk.
 
 **Válaszidő.** A kártya érintésétől a visszajelzés megjelenéséig eltelt időnek
 két másodpercen belül kell maradnia. Ennél hosszabb várakozás esetén a dolgozó
 bizonytalanná válik a művelet sikerességét illetően, és a kártyát ismét
 odaérinti, ami szükségtelen ismételt eseményt eredményez.
 
-**Adatbiztonság és a cégek elkülönítése.** Mivel a rendszer több cég adatait
-kezeli ugyanabban az adatbázisban, biztosítani kell, hogy egyik cég adata se
-legyen elérhető a másik számára. A követelmény lényeges eleme, hogy ez az
-elkülönítés ne kizárólag az alkalmazás kódjának helyességén múljon: egyetlen
-elfelejtett szűrőfeltétel nem vezethet adatszivárgáshoz. A dolgozókról kezelt
-adatok körét az adattakarékosság elvéhez igazodva a feladat ellátásához
-szükséges minimumra kell szorítani.
+**Adatbiztonság és a cégek elkülönítése.** A rendszer több cég adatát kezeli
+ugyanabban az adatbázisban, és egyik cég adata sem lehet elérhető a másik
+számára. A követelmény lényege, hogy ez ne az alkalmazáskód helyességén
+múljon. A dolgozókról kezelt adatok körét az adattakarékosság elvéhez igazodva
+a feladat ellátásához szükséges minimumra kell szorítani.
 
 **Bővíthetőség és hordozhatóság.** A külső szolgáltatások — a szöveges
 összefoglalót előállító nyelvi modell, a levélküldő — előbb-utóbb cserélődnek,
@@ -116,11 +112,10 @@ beléptető eszközre kizárólag az a kód kerül, amelyre a beléptetéshez t�
 szükség van.
 
 A harmadik szempont a **független telepíthetőség**. A három alkalmazás eltérő
-ütemben változik: a beléptető alkalmazás a legstabilabb, mivel a működése
-egyszerű és jól körülhatárolt, a vezetői felület viszont folyamatosan bővül. Az
-elkülönítés lehetővé teszi, hogy a vezetői felület módosítása ne igényelje a
-beléptető eszközök frissítését, ami üzemszerű körülmények között kifejezetten
-előnyös, hiszen ezek az eszközök nehezen hozzáférhetők.
+ütemben változik: a beléptető a legstabilabb, a vezetői felület viszont
+folyamatosan bővül. Az elkülönítés miatt az utóbbi módosítása nem igényli a
+beléptető eszközök frissítését — ezek ugyanis falra szerelve, nehezen
+hozzáférhetően üzemelnek.
 
 A három alkalmazás szerepét az 1. táblázat foglalja össze.
 
@@ -132,17 +127,11 @@ A három alkalmazás szerepét az 1. táblázat foglalja össze.
 | Dolgozói alkalmazás | saját mobiltelefon | PIN | saját adatok, távollét-kérelmek | nem működik |
 | Vezetői felület | asztali böngésző | e-mail és jelszó | kimutatások, beállítások, elbírálás | nem működik |
 
-A táblázat két sora magyarázatot kíván. A dolgozói alkalmazás eredetileg
-kártyaérintéssel azonosított volna, sőt felmerült, hogy a telefon váltsa ki
-magát a kártyát a terminál előtt — ez utóbbi azonban webes technológiával nem
-megvalósítható, aminek okát a 3.5.1. alfejezet tárgyalja. A PIN itt kizárólag
-azonosít, jelenlétet nem igazol: a dolgozói alkalmazás felől jelenléti esemény
-nem hozható létre, és ezt a szerveroldal érvényesíti.
-
-A hálózatfüggetlenség csak a terminálra vonatkozik. A másik két alkalmazás
-kapcsolat nélkül használhatatlan, ami tudatos döntés: a kimutatás vagy a
-kérelem néhány perccel később is megtekinthető, egy elmaradt érkezési bejegyzés
-viszont pótolhatatlan.
+A táblázat két sora magyarázatot kíván. A dolgozói alkalmazásban a PIN kizárólag
+azonosít, jelenlétet nem igazol — ennek okát a 3.5.1. alfejezet tárgyalja. A
+hálózatfüggetlenség pedig csak a terminálra vonatkozik: a kimutatás néhány
+perccel később is megtekinthető, egy elmaradt érkezési bejegyzés viszont
+pótolhatatlan.
 
 A három alkalmazás közös háttérrendszerrel dolgozik, amely az adatbázist, a
 hitelesítést, a fájltárolást és a szerveroldali függvények futtatását biztosítja.
@@ -259,13 +248,12 @@ kártyaérintéstől. A fényképes ellenőrzés képének elérési útja szint
 szerepel.
 
 A tábla legfontosabb sajátossága a `client_event_id` mező, amelyet nem a
-szerver, hanem a kliens állít elő. Erre a hálózatfüggetlen működés miatt van
-szükség: ha a válasz elveszik azután, hogy a szerver már feldolgozta a kérést,
-az ismételt küldés duplikált bejegyzést hozna létre. A mezőre épített
-**részleges egyedi index** ezt kizárja, a részlegesség pedig azért kell, mert a
-kártyás beléptetés közvetlen, hálózaton keresztüli útján ez az azonosító
-kitöltetlen marad, és az üres értékek egyébként ütköznének. A megoldás a 2.4.
-alfejezetben tárgyalt idempotencia gyakorlati megvalósítása.
+szerver, hanem a kliens állít elő. A rá épített **részleges egyedi index** zárja
+ki, hogy egy megismételt küldés kettőzött bejegyzést hozzon létre — a
+részlegesség pedig azért kell, mert a hálózaton keresztüli, közvetlen
+beléptetésnél ez az azonosító üresen marad, és az üres értékek egyébként
+ütköznének egymással. A mögötte álló megfontolást a 3.4.4. alfejezet
+tárgyalja.
 
 **Az `absences` tábla** a hiányzásokat tartja nyilván, **naponként egy sorban**.
 Ez a döntés magyarázatot igényel, hiszen kézenfekvőbbnek tűnne a kezdő és a
@@ -378,6 +366,13 @@ felhasználási módjában teljesül, a jelen rendszerben azonban nem, mivel a
 nyilvántartott személyek többsége soha nem jelentkezik be. A mintát ezért nem
 átvenni, hanem az eltérő előfeltevéshez igazítani kellett.
 
+A jelszó cseréje kizárólag a fiókhoz tartozó címre küldött, egyszer
+felhasználható hivatkozáson keresztül lehetséges; a felület közvetlen
+jelszóátírásra nem ad módot. Így a művelethez a postafiókhoz való hozzáférés is
+szükséges, ami egy őrizetlenül hagyott, bejelentkezett gép esetén érdemi
+különbség. A hivatkozás egy külön jelszóbeállító képernyőre vezet — enélkül a
+levélben kapott cím pusztán beléptetne, a jelszó pedig változatlan maradna.
+
 ## A beléptető alkalmazás
 
 A beléptető alkalmazás a rendszer legkritikusabb eleme: ez az egyetlen felület,
@@ -485,13 +480,11 @@ nem tárol biometrikus mintát, és nem hasonlítja össze a felvételt korábbi
 képekkel. A megoldás nem megakadályozza, hanem utólag ellenőrizhetővé, és ezzel
 kockázatossá teszi a visszaélést.
 
-A megkülönböztetés adatvédelmi szempontból meghatározó. Az arcfelismeréshez
-szükséges biometrikus sablon az általános adatvédelmi rendelet szerint a
-személyes adatok különleges kategóriájába tartozik, kezelése tehát szigorúbb
-feltételekhez kötött. Egy fényképfelvétel ezzel szemben — amely az esemény
-dokumentálására szolgál, és zárt tárolóban, korlátozott hozzáféréssel őrződik —
-lényegesen kisebb adatvédelmi terheléssel jár, miközben az elrettentő hatás
-nagyrészt megmarad.
+A megkülönböztetés adatvédelmi szempontból meghatározó. A 2.1. alfejezetben
+tárgyalt biometrikus sablon a személyes adatok különleges kategóriájába
+tartozik, kezelése tehát szigorúbb feltételekhez kötött. Egy zárt tárolóban,
+korlátozott hozzáféréssel őrzött fényképfelvétel ezzel szemben lényegesen
+kisebb terheléssel jár, miközben az elrettentő hatás nagyrészt megmarad.
 
 A funkció cégenként külön kapcsolható, mégpedig a kártyás és a PIN-alapú
 belépésre külön-külön. Ennek indoka az azonosítási módok eltérő természete: a
@@ -830,9 +823,8 @@ funkció készült.
 ## A vezetői felület
 
 A vezetői felület a rendszer legösszetettebb alkalmazása: ez kezeli a
-dolgozókat, a beállításokat és a kimutatásokat, és ez az egyetlen felület,
-amelyhez hitelesített bejelentkezés szükséges. Az alábbiakban három olyan
-része kerül bemutatásra, amely önálló műszaki döntést igényelt.
+dolgozókat, a beállításokat és a kimutatásokat. Az alábbiakban három olyan
+része következik, amely önálló műszaki döntést igényelt.
 
 ### Valós idejű állapotkövetés
 
@@ -1016,12 +1008,24 @@ megválasztása tudatos: a vezető nem feltétlenül nyitja meg naponta a felül
 az elektronikus levél viszont a meglévő munkafolyamatába illeszkedik.
 
 Az ütemezett feladat magát az összesítőt nem állítja elő, csupán elindítja az
-erre szolgáló szerveroldali függvényt. Ez a szétválasztás két előnnyel jár. A
-levél összeállítása és a levelezőszolgáltatás hívása alkalmazáslogika, amelynek
-adatbázis-eljárásba helyezése nehezen karbantartható megoldás volna. Ezen túl
-ugyanaz a kód kézzel is elindítható a beállítások lapról, ami a tesztelést
-lényegesen egyszerűbbé teszi: az összesítő működése nem csak a következő
-ütemezett lefutáskor ellenőrizhető.
+erre szolgáló szerveroldali függvényt. A levél összeállítása és a
+levelezőszolgáltatás hívása alkalmazáslogika, amelynek adatbázis-eljárásba
+helyezése nehezen karbantartható volna; ráadásul ugyanaz a kód így kézzel is
+indítható a beállítások lapról, ami a tesztelést lényegesen egyszerűsíti.
+
+A címzettek köre a 3.3.2. alfejezetben tárgyalt szétválasztás következménye: a
+levél azokhoz a vezetői profilokhoz jut el, amelyekhez belépési fiók is
+tartozik. Ha ez a kapcsolat hiányzik, a levélnek nincs címzettje — a függvény
+ezért nem csendben hagyja ki az adott céget, hanem megnevezi az okot, mert a
+hiány a felületen semmiből nem látszana.
+
+A cég ezen a körön belül választhatja ki, kik kapják meg a levelet; üres
+választás esetén a küldés elmarad, tehát külön kapcsoló nélkül is
+kikapcsolható. A választás **nem** jelent szabadon megadható címet, és ez
+lényeges megkötés: a küldő végpont hitelesítés nélkül hívható — az ütemezett
+feladat így indítja —, ezért a szerver minden mentett címet összevet a cég
+vezetői fiókjaival. Enélkül a rendszer tetszőleges címre küldő
+levéltovábbítóként volna felhasználható.
 
 ## Tesztelés és eredmények
 
@@ -1080,11 +1084,10 @@ Chromium alapú böngészőben érhető el; iOS eszközön a beléptetés nem
 használható. Mivel a beléptető eszköz falra szerelt, célra kijelölt készülék,
 ez a gyakorlatban ritkán jelent akadályt, elvi korlátként azonban fennáll.
 
-A 3.4.5. alfejezetben tárgyalt PIN-tárolás szintén kompromisszum: a
-determinisztikus lenyomat teszi lehetővé az érték szerinti keresést, egyben
-azonban azt is, hogy az adatbázis kikerülése esetén a rövid kódok kimerítő
-próbálgatással visszafejthetők legyenek. A PIN ezért kifejezetten tartalék
-azonosítási mód, nem jelszóval egyenértékű védelem.
+A 3.4.5. alfejezetben részletezett PIN-tárolás szintén kompromisszum: ugyanaz a
+determinisztikus lenyomat, amely az érték szerinti keresést lehetővé teszi,
+kimerítő próbálgatással vissza is fejthető. A PIN ezért tartalék azonosítási
+mód, nem jelszóval egyenértékű védelem.
 
 A vezetői felület asztali használatra készült. Telefonon a lényeges műveletek
 elvégezhetők, a részletező kimutatások azonban nem jelennek meg — az adat ott

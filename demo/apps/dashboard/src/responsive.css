@@ -42,15 +42,26 @@
 
   .app-main { padding: 0.75rem 0.7rem; }
 
-  /* --- Oldalsáv: kinyitva a tartalom FÖLÉ kerül -------------------------
+  /* --- Oldalsáv: a tartalom FÖLÉ nyílik ---------------------------------
      Kinyitva 224 képpontot foglalna a 390 képpontos képernyőből, ami a
-     tartalomnak alig hagyna helyet. */
-  .app-nav.is-open {
+     tartalomnak alig hagyna helyet.
+
+     A sáv telefonon MINDIG kiemelt helyzetű, nem csak nyitva. Korábban csak
+     a nyitott állapot volt az, ezért becsukáskor — az `is-open` osztály
+     elvesztésekor — egyetlen képkocka alatt visszaugrott a normál
+     elrendezésbe, és a szélesség-animáció már onnan indult: a tartalom
+     megrándult, majd a menü becsukódott. Így a helyzete végig azonos, csak a
+     szélessége változik, tehát az animáció mindkét irányban ugyanaz. */
+  .app-nav {
     position: absolute;
     inset-block: 0;
     left: 0;
     z-index: 30;
   }
+  /* A becsukott sáv 52 képpontja kiesik a tartalom alól, ezért azt a
+     helyet a fő terület margója tartja fenn. */
+  .app-main { margin-left: 52px; }
+
   .app-nav-scrim { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.5); z-index: 20; }
 
   /* --- Munkások: egyszerre csak az egyik oldal ------------------------- */

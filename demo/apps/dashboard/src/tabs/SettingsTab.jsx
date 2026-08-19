@@ -1,10 +1,9 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { C, S, R, tint } from '../lib/theme'
 import { saveTheme, loadTheme, settingsToCompany } from '../lib/settings'
 import { toast } from '../components/toast'
-import { SelfPasswordChange } from '../components/SelfPasswordChange'
-import { Table, SectionLabel, Badge, SettingsRow } from '../components/ui'
+import { Table, SectionLabel, Badge, SettingsRow, Modal } from '../components/ui'
 
 // Preview swatches are literal colors so each card always shows its own theme,
 // regardless of which theme is currently active.
@@ -51,6 +50,69 @@ export function SettingsTab({ settings, companyId, me, employees = [], onChange 
   const [pwSent,        setPwSent]        = useState(false)
   const [sending,       setSending]       = useState(false)
   const [digestMsg,     setDigestMsg]     = useState('')
+  // A napi összesítő címzettjei. `choices` a választható címek (a cég vezetői
+  // fiókjai), `picked` a kiválasztottak — a null itt azt jelenti, hogy még nem
+  // töltődött be, az üres tömb pedig azt, hogy senkinek nem megy levél.
+  const [choices,       setChoices]       = useState(null)
+  const [picked,        setPicked]        = useState(null)
+  const [savingRcpt,    setSavingRcpt]    = useState(false)
+  const [rcptOpen,      setRcptOpen]      = useState(false)
+  const [rcptBusy,      setRcptBusy]      = useState(false)
+  const [rcptError,     setRcptError]     = useState('')
+
+  // A címzettlista betöltése. Az e-mail címek csak szerveroldalon érhetők el
+  // (a hitelesítési fiókok adatai), ezért a küldő függvény adja vissza őket.
+  const loadRecipients = useCallback(async () => {
+    if (!companyId) return
+    setRcptBusy(true); setRcptError('')
+    try {
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-alerts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ company_id: companyId, action: 'diagnose' }),
+      })
+      const d = await res.json().catch(() => ({}))
+      if (!Array.isArray(d.valaszthato)) {
+        setRcptError('A send-alerts függvény régi változata fut. Telepítsd újra: supabase functions deploy send-alerts --no-verify-jwt')
+        return
+      }
+      setChoices(d.valaszthato)
+      // A null a szerveren azt jelenti: mindenki. A felületen ezt minden
+      // jelölőnégyzet bejelölése mutatja, így a két állapot nem keveredik.
+      setPicked(d.kivalasztott === null
+        ? d.valaszthato.map(v => v.email)
+        : d.kivalasztott)
+      // A vezetői profilok akkor is érdekesek, ha nem lett belőlük címzett:
+      // ebből derül ki, hogy a profil rendben van, és a hitelesítési oldalon
+      // akadt el a keresés.
+      if (d.valaszthato.length === 0) {
+        const m = d.manager_vagy_admin ?? []
+        setRcptError(
+          m.length === 0
+            ? 'Nincs manager vagy admin szerepkörű profil ebben a cégben.'
+            : `${m.length} vezetői profil van (${m.map(x => `${x.nev} — ${x.van_fiokja ? 'van fiókja' : 'nincs fiókja'}`).join('; ')}), ` +
+              `de egyikhez sem sikerült e-mail címet találni.` +
+              (d.auth_lista_hiba ? ` Hiba: ${d.auth_lista_hiba}` : ''),
+        )
+      }
+    } catch (e) {
+      setRcptError('Hálózati hiba: ' + e.message)
+    } finally { setRcptBusy(false) }
+  }, [companyId])
+
+  useEffect(() => { loadRecipients() }, [loadRecipients])
+
+  async function saveRecipients(next) {
+    setPicked(next)
+    setSavingRcpt(true)
+    const { error } = await supabase
+      .from('companies')
+      .update({ digest_recipients: next })
+      .eq('id', companyId)
+    setSavingRcpt(false)
+    if (error) { toast('A címzettek mentése nem sikerült', 'error'); loadRecipients(); return }
+    toast(next.length ? `Címzettek mentve (${next.length})` : 'A napi összesítő kikapcsolva')
+  }
 
   async function handleSave(e) {
     e.preventDefault()
@@ -95,6 +157,12 @@ export function SettingsTab({ settings, companyId, me, employees = [], onChange 
       const data = await res.json().catch(() => ({}))
       if (!res.ok) { setDigestMsg('Hiba: ' + (data.error ?? res.status)); toast('Az email küldése nem sikerült', 'error') }
       else if (data.errors?.length) { setDigestMsg(`Küldve: ${data.sent}. Resend válasz: ${data.errors[0]}`); toast('Az email küldése részben sikertelen', 'error') }
+      // A nulla elküldött levél nem siker. Korábban zöld visszajelzést kapott,
+      // holott a levélnek nem volt címzettje — a szerver most megmondja, miért.
+      else if (!data.sent) {
+        setDigestMsg(data.skipped?.[0] ?? 'Nem ment ki levél: nincs címzett.')
+        toast('Nem ment ki levél', 'error')
+      }
       else { setDigestMsg(`✓ Elküldve (${data.sent} email)`); toast(`Napi összesítő elküldve (${data.sent} email)`) }
     } catch (e) {
       setDigestMsg('Hálózati hiba: ' + e.message)
@@ -107,9 +175,14 @@ export function SettingsTab({ settings, companyId, me, employees = [], onChange 
   async function handlePasswordReset() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user?.email) return
-    await supabase.auth.resetPasswordForEmail(user.email)
+    // A visszairányítás nélkül a szolgáltatás a projekt alapcímére küld, ahol
+    // a hivatkozás csak beléptet — a jelszóbeállító képernyő így soha nem
+    // jelenne meg. Ez volt a korábbi hiba oka.
+    await supabase.auth.resetPasswordForEmail(user.email, {
+      redirectTo: window.location.origin,
+    })
     setPwSent(true)
-    setTimeout(() => setPwSent(false), 5000)
+    setTimeout(() => setPwSent(false), 8000)
   }
 
   return (
@@ -216,15 +289,126 @@ export function SettingsTab({ settings, companyId, me, employees = [], onChange 
       <Table>
         <tbody>
           <tr style={{ borderBottom: `1px solid ${C.border}` }}>
-            <td style={{ ...S.td, color: C.muted }}>Napi összesítő</td>
-            <td style={{ ...S.td, fontSize: '0.78rem', color: C.muted }}>Jelenléti riport a menedzserek email-címére</td>
+            <td style={{ ...S.td, color: C.muted }}>
+              Napi összesítő
+              {/* Telefonon a magyarázó oszlop kimarad, ezért a címzettek száma
+                  ide is kikerül — enélkül a beállítás állapota csak az ablak
+                  megnyitásával volna ellenőrizhető. */}
+              {picked !== null && (
+                <div className="only-phone" style={{ fontSize: '0.72rem', marginTop: '0.15rem', color: picked.length === 0 ? C.warn : C.muted }}>
+                  {picked.length === 0 ? 'nincs címzett' : `${picked.length} címzett`}
+                </div>
+              )}
+            </td>
+            <td className="col-secondary" style={{ ...S.td, fontSize: '0.78rem', color: C.muted }}>
+              Jelenléti riport
+              {picked !== null && (
+                <span style={{ color: picked.length === 0 ? C.warn : C.muted }}>
+                  {' · '}{picked.length === 0 ? 'nincs címzett' : `${picked.length} címzett`}
+                </span>
+              )}
+            </td>
+            {/* A két gomb telefonon egymás alá kerül, különben kiszorítanák
+                egymást a sorból. */}
             <td style={{ ...S.td, textAlign: 'right' }}>
-              <button type="button" onClick={handleSendDigest} disabled={sending} style={S.btnSecondary}>{sending ? 'Küldés…' : 'Küldés most →'}</button>
+              <div style={{ display: 'flex', gap: '0.4rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                <button type="button" onClick={() => setRcptOpen(true)} style={S.btnSecondary}>Címzettek</button>
+                <button type="button" onClick={handleSendDigest} disabled={sending || picked?.length === 0} style={{ ...S.btnSecondary, opacity: picked?.length === 0 ? 0.5 : 1 }}>
+                  {sending ? 'Küldés…' : 'Küldés most →'}
+                </button>
+              </div>
             </td>
           </tr>
         </tbody>
       </Table>
+
       {digestMsg && <div style={{ fontSize: '0.78rem', color: digestMsg.startsWith('✓') ? C.green : C.warn, marginTop: '0.5rem', wordBreak: 'break-word' }}>{digestMsg}</div>}
+
+      {/* Címzettek. Csak a cég vezetői fiókjaihoz tartozó címek választhatók:
+          a küldő végpont hitelesítés nélkül hívható, ezért szabadon megadható
+          cím esetén a rendszer levéltovábbítóként volna felhasználható. */}
+      {rcptOpen && (
+        <Modal
+          title="Napi összesítő — címzettek"
+          onClose={() => setRcptOpen(false)}
+          headerRight={
+            <button
+              type="button"
+              onClick={loadRecipients}
+              disabled={rcptBusy}
+              title="Lista frissítése"
+              style={{
+                background: 'none', border: 'none', cursor: rcptBusy ? 'default' : 'pointer',
+                color: C.muted, fontSize: '1rem', lineHeight: 1, padding: '0.2rem 0.35rem',
+                borderRadius: R.sm,
+                // Forgás töltés közben — enélkül nem volna látható, hogy a
+                // kattintás egyáltalán elindított valamit.
+                animation: rcptBusy ? 'nfc-spin 0.8s linear infinite' : 'none',
+                display: 'inline-block',
+              }}
+            >
+              ⟳
+            </button>
+          }
+        >
+          {rcptBusy && choices === null ? (
+            <div style={{ color: C.muted, fontSize: '0.85rem', padding: '1rem 0', textAlign: 'center' }}>Betöltés…</div>
+          ) : (
+            <>
+              <div style={{ fontSize: '0.78rem', color: C.muted, lineHeight: 1.55, marginBottom: '0.9rem' }}>
+                A lista a cég vezetői fiókjait tartalmazza. Más cím nem adható meg: a levelet küldő
+                végpont hitelesítés nélkül hívható, ezért csak ismert fiókokhoz tartozó címre küld.
+              </div>
+
+              {rcptError && (
+                <div style={{ ...S.errorBox, marginBottom: '0.9rem', whiteSpace: 'pre-wrap' }}>{rcptError}</div>
+              )}
+
+              {(choices ?? []).length === 0 ? (
+                !rcptError && <div style={{ fontSize: '0.85rem', color: C.muted }}>Nincs megjeleníthető fiók.</div>
+              ) : (
+                <>
+                  {choices.map(c => {
+                    const on = picked?.includes(c.email)
+                    const self = me?.email && c.email?.toLowerCase() === me.email.toLowerCase()
+                    return (
+                      <label key={c.email} style={{
+                        display: 'flex', alignItems: 'center', gap: '0.6rem',
+                        padding: '0.6rem 0.7rem', cursor: savingRcpt ? 'default' : 'pointer',
+                        border: `1px solid ${on ? tint(C.accent, 35) : C.border}`,
+                        background: on ? tint(C.accent, 7) : 'transparent',
+                        marginBottom: '0.4rem',
+                      }}>
+                        <input
+                          type="checkbox"
+                          checked={!!on}
+                          disabled={savingRcpt}
+                          onChange={() => saveRecipients(
+                            on ? picked.filter(e => e !== c.email) : [...(picked ?? []), c.email],
+                          )}
+                          style={{ accentColor: C.accent, width: 16, height: 16, flexShrink: 0 }}
+                        />
+                        <span style={{ fontSize: '0.85rem', color: C.text, minWidth: 0, wordBreak: 'break-word' }}>
+                          {c.email}
+                          {c.nev && <span style={{ color: C.muted }}> · {c.nev}</span>}
+                          {/* A saját cím megjelölése: ez az, amit a vezető biztosan olvas */}
+                          {self && <span style={{ marginLeft: '0.4rem', fontSize: '0.62rem', color: C.accent, border: `1px solid ${tint(C.accent, 30)}`, padding: '0.05rem 0.3rem', fontWeight: 700, whiteSpace: 'nowrap' }}>SAJÁT</span>}
+                        </span>
+                      </label>
+                    )
+                  })}
+
+                  <div style={{ fontSize: '0.75rem', color: picked?.length === 0 ? C.warn : C.muted, marginTop: '0.8rem', lineHeight: 1.5 }}>
+                    {picked?.length === 0
+                      ? 'Nincs kiválasztva senki — a napi összesítő így nem megy ki. Ezzel kikapcsolható a napi levél.'
+                      : `A napi levél ${picked.length} címre megy ki. A módosítás azonnal mentésre kerül.`}
+                  </div>
+                </>
+              )}
+            </>
+          )}
+        </Modal>
+      )}
 
       <div style={{ height: '1.5rem' }} />
       <SectionLabel color={C.accent}>Fiók</SectionLabel>
@@ -255,16 +439,19 @@ export function SettingsTab({ settings, companyId, me, employees = [], onChange 
           <tr style={{ borderBottom: `1px solid ${C.border}` }}>
             <td style={{ ...S.td, color: C.muted, verticalAlign: 'top' }}>Jelszó</td>
             <td style={{ ...S.td }} colSpan={2}>
-              {/* Csak a saját jelszó módosítható — más vezetőé sem itt,
-                  sem a szerveren (a manage-user függvény elutasítja). */}
-              <SelfPasswordChange />
-              <div style={{ marginTop: '0.6rem', fontSize: '0.75rem', color: C.muted }}>
-                Elfelejtetted? {pwSent
-                  ? <span style={{ color: C.green }}>✓ Visszaállító e-mail elküldve</span>
-                  : <button type="button" onClick={handlePasswordReset} style={{ background: 'none', border: 'none', color: C.accent, cursor: 'pointer', padding: 0, fontSize: '0.75rem', textDecoration: 'underline' }}>
-                      Küldünk egy linket a fiókhoz tartozó címre
-                    </button>
-                }
+              {/* A jelszó itt nem írható át közvetlenül. A csere a fiókhoz
+                  tartozó címre küldött, egyszer felhasználható hivatkozáson
+                  keresztül történik — így a postafiókhoz való hozzáférés is
+                  igazolja, hogy a fiók gazdája kéri a módosítást. Egy őrizetlen,
+                  bejelentkezve hagyott gépnél ez a különbség számít. */}
+              {pwSent
+                ? <span style={{ color: C.green, fontSize: '0.82rem' }}>✓ A visszaállító hivatkozás elküldve a fenti címre</span>
+                : <button type="button" onClick={handlePasswordReset} style={S.btnSecondary}>
+                    Jelszó megváltoztatása →
+                  </button>
+              }
+              <div style={{ marginTop: '0.6rem', fontSize: '0.75rem', color: C.muted, lineHeight: 1.55 }}>
+                A hivatkozás a fiókhoz tartozó e-mail címre érkezik, és egy jelszóbeállító oldalra vezet.
               </div>
             </td>
           </tr>

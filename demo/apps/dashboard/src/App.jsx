@@ -2,10 +2,12 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from './lib/supabase'
 import { C, S, R, tint } from './lib/theme'
 import { DEFAULT_SETTINGS, loadTheme, companyToSettings } from './lib/settings'
+import './app.css'
 import './responsive.css'
 import { getDaySummary, calcRangeMinutes, countRangeEvents } from './lib/utils'
 import { Field } from './components/ui'
 import { ToastHost } from './components/toast'
+import { PasswordRecovery } from './components/PasswordRecovery'
 import { WorkersTab }  from './tabs/WorkersTab'
 import { StatusTab }   from './tabs/StatusTab'
 import { LogTab }      from './tabs/LogTab'
@@ -13,19 +15,44 @@ import { InsightsTab } from './tabs/InsightsTab'
 import { RegisterTab } from './tabs/RegisterTab'
 import { SettingsTab } from './tabs/SettingsTab'
 
+// A jelszó-visszaállító hivatkozás a válaszjelben (hash) hozza a jogosultságot,
+// `type=recovery` jelöléssel. Ezt már az induláskor tudni kell: a Supabase
+// kliens ugyan PASSWORD_RECOVERY eseményt is küld, de ha a felhasználó
+// újratölti az oldalt, az az esemény többé nem érkezik meg.
+const isRecoveryLink = () => {
+  const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+  const query = new URLSearchParams(window.location.search)
+  return hash.get('type') === 'recovery' || query.get('type') === 'recovery'
+}
+
 export default function App() {
   const [session, setSession] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [recovery, setRecovery] = useState(isRecoveryLink)
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session); setLoading(false)
     })
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, s) => setSession(s))
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, s) => {
+      // A helyreállító hivatkozás munkamenetet nyit. Enélkül a felhasználó
+      // egyszerűen bejelentkezve találta magát, a jelszava pedig változatlan
+      // maradt — vagyis a művelet, amiért a levelet kérte, elmaradt.
+      if (event === 'PASSWORD_RECOVERY') setRecovery(true)
+      setSession(s)
+    })
     return () => subscription.unsubscribe()
   }, [])
 
+  function finishRecovery() {
+    // A jel eltávolítása, különben egy újratöltés visszadobna a jelszóbeállító
+    // képernyőre egy már felhasznált hivatkozással.
+    window.history.replaceState({}, '', window.location.pathname)
+    setRecovery(false)
+  }
+
   if (loading) return <Splash />
+  if (recovery && session) return <PasswordRecovery email={session.user?.email} onDone={finishRecovery} />
   return session ? <Dashboard /> : <Login />
 }
 
@@ -42,6 +69,7 @@ function Login() {
   const [password, setPassword] = useState('')
   const [error, setError]       = useState('')
   const [loading, setLoading]   = useState(false)
+  const [mode, setMode]         = useState('login')   // login | forgot | sent
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -49,6 +77,26 @@ function Login() {
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) setError(error.message)
     setLoading(false)
+  }
+
+  // Az elfelejtett jelszó kérése bejelentkezés NÉLKÜL is kell — korábban erre
+  // csak a beállítások lapon volt mód, ahová viszont épp belépni nem tudott,
+  // aki elfelejtette a jelszavát.
+  async function handleForgot(e) {
+    e.preventDefault()
+    setLoading(true); setError('')
+    // A visszairányítás az alkalmazás saját címére mutat, ahol a
+    // jelszóbeállító képernyő fogadja. A cím a Supabase projekt engedélyezett
+    // átirányítási listáján is szerepeljen, különben a szolgáltatás a
+    // beállított alapcímre küld.
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin,
+    })
+    setLoading(false)
+    // A válasz szándékosan nem árulja el, létezik-e a cím: ellenkező esetben
+    // a bejelentkező oldal felhasználható volna a fiókok felderítésére.
+    if (error && !/rate|limit/i.test(error.message)) setError(error.message)
+    else setMode('sent')
   }
 
   return (
@@ -60,18 +108,53 @@ function Login() {
           <div style={{ fontSize: '0.8rem', color: C.muted, marginTop: '0.25rem' }}>Manager Dashboard</div>
         </div>
         <div style={{ background: C.bg1, border: `1px solid ${C.border}`, borderRadius: R.lg, boxShadow: C.shadow }}>
-          <form onSubmit={handleSubmit} style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <Field label="Email">
-              <input type="email" value={email} onChange={e => setEmail(e.target.value)} required autoComplete="email" style={S.input} placeholder="you@example.com" />
-            </Field>
-            <Field label="Jelszó">
-              <input type="password" value={password} onChange={e => setPassword(e.target.value)} required style={S.input} placeholder="••••••••" />
-            </Field>
-            {error && <div style={S.errorBox}>{error}</div>}
-            <button type="submit" disabled={loading} style={{ ...S.btnPrimary, opacity: loading ? 0.6 : 1 }}>
-              {loading ? 'Bejelentkezés…' : 'Bejelentkezés →'}
-            </button>
-          </form>
+          {mode === 'sent' ? (
+            <div style={{ padding: '1.75rem 1.5rem', textAlign: 'center' }}>
+              <div style={{ fontSize: '0.95rem', fontWeight: 700, color: C.text }}>Elküldtük a levelet</div>
+              <div style={{ fontSize: '0.82rem', color: C.muted, marginTop: '0.5rem', lineHeight: 1.6 }}>
+                Ha a(z) <strong style={{ color: C.text }}>{email}</strong> címhez tartozik fiók, percen belül
+                megérkezik a jelszó-visszaállító hivatkozás. A levelet a levélszemét mappában is érdemes keresni.
+              </div>
+              <button type="button" onClick={() => { setMode('login'); setError('') }} style={{ ...S.btnSecondary, marginTop: '1.25rem', width: '100%' }}>
+                Vissza a bejelentkezéshez
+              </button>
+            </div>
+          ) : mode === 'forgot' ? (
+            <form onSubmit={handleForgot} style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div>
+                <div style={{ fontSize: '0.95rem', fontWeight: 700, color: C.text }}>Elfelejtett jelszó</div>
+                <div style={{ fontSize: '0.8rem', color: C.muted, marginTop: '0.3rem', lineHeight: 1.55 }}>
+                  Add meg a fiókodhoz tartozó e-mail címet, és küldünk egy hivatkozást, amellyel új jelszót állíthatsz be.
+                </div>
+              </div>
+              <Field label="Email">
+                <input type="email" value={email} onChange={e => setEmail(e.target.value)} required autoFocus autoComplete="email" style={S.input} placeholder="you@example.com" />
+              </Field>
+              {error && <div style={S.errorBox}>{error}</div>}
+              <button type="submit" disabled={loading || !email} style={{ ...S.btnPrimary, opacity: loading || !email ? 0.6 : 1 }}>
+                {loading ? 'Küldés…' : 'Hivatkozás küldése'}
+              </button>
+              <button type="button" onClick={() => { setMode('login'); setError('') }} style={{ background: 'none', border: 'none', color: C.muted, cursor: 'pointer', fontSize: '0.78rem', padding: 0 }}>
+                ← Mégsem
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={handleSubmit} style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <Field label="Email">
+                <input type="email" value={email} onChange={e => setEmail(e.target.value)} required autoComplete="email" style={S.input} placeholder="you@example.com" />
+              </Field>
+              <Field label="Jelszó">
+                <input type="password" value={password} onChange={e => setPassword(e.target.value)} required style={S.input} placeholder="••••••••" />
+              </Field>
+              {error && <div style={S.errorBox}>{error}</div>}
+              <button type="submit" disabled={loading} style={{ ...S.btnPrimary, opacity: loading ? 0.6 : 1 }}>
+                {loading ? 'Bejelentkezés…' : 'Bejelentkezés →'}
+              </button>
+              <button type="button" onClick={() => { setMode('forgot'); setError('') }} style={{ background: 'none', border: 'none', color: C.accent, cursor: 'pointer', fontSize: '0.78rem', padding: 0, textDecoration: 'underline' }}>
+                Elfelejtettem a jelszavam
+              </button>
+            </form>
+          )}
         </div>
       </div>
     </div>
@@ -119,13 +202,6 @@ function Dashboard() {
       return !prev
     })
   }
-
-  useEffect(() => {
-    if (tab === 'workers') {
-      setCollapsed(true)
-      localStorage.setItem('nfc_nav_collapsed', '1')
-    }
-  }, [tab])
 
   const loadData = useCallback(async () => {
     const [{ data: profiles }, { data: allEvents }] = await Promise.all([
