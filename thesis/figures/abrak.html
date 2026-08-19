@@ -3,44 +3,55 @@
 <meta charset="utf-8">
 <title>Szakdolgozat-ábrák generálása</title>
 <style>
-  body { font: 15px/1.6 system-ui, sans-serif; max-width: 1000px; margin: 2rem auto; padding: 0 1rem; color: #111; }
+  body { font: 15px/1.6 system-ui, sans-serif; max-width: 1040px; margin: 2rem auto; padding: 0 1rem; color: #111; }
   h1 { font-size: 1.3rem; }
   h2 { font-size: 1rem; margin-top: 2rem; }
   canvas { max-width: 100%; border: 1px solid #ccc; display: block; margin: 0.75rem 0; }
   button { font: inherit; padding: 0.5rem 1rem; cursor: pointer; }
   .hint { background: #f6f6f6; border-left: 3px solid #888; padding: 0.75rem 1rem; }
+  .hint.alt { border-left-color: #c90; background: #fffaf0; }
 </style>
 
 <h1>Szakdolgozat-ábrák</h1>
 
 <p class="hint">
-  A gombokkal letöltött PNG-ket ebbe a mappába (<code>thesis/figures/</code>) kell menteni,
-  <b>pontosan</b> ezekkel a nevekkel: <code>architektura.png</code>, <code>adatbazis-sema.png</code>.
-  Ezután <code>npm run build</code> — a képek automatikusan bekerülnek a dokumentumba, sorszámmal
+  A gombbal letöltött PNG-t ebbe a mappába (<code>thesis/figures/</code>) kell menteni,
+  <b>pontosan</b> ezzel a névvel: <code>architektura.png</code>.
+  Ezután <code>npm run build</code> — a kép automatikusan bekerül a dokumentumba, sorszámmal
   és felirattal.
 </p>
 
 <p class="hint">
-  <b>A másik négy ábra képernyőkép</b>, ezeket neked kell lementened ugyanide:
+  <b>A többi ábra képernyőkép</b>, ezeket neked kell lementened ugyanide:
+  <br><code>adatbazis-sema.png</code> — a Supabase séma-nézete (Database → Schema Visualizer)
   <br><code>scanner-visszajelzes.png</code> — a beléptető alkalmazás zöld „CHECKED IN” képernyője a névvel
   <br><code>worker-app.png</code> — a dolgozói alkalmazás Ma és Napló nézete (telefonon)
   <br><code>worker-ertesitesek.png</code> — az értesítések teljes képernyős listája, benne egy elutasítás indoklással
-  <br><code>statisztika.png</code> — a vezetői felület Statisztika lapja a grafikonnal és a KPI-kártyákkal
+  <br><code>statisztika.png</code> — a vezetői felület Statisztika lapja a grafikonnal és az MI-összefoglalóval
 </p>
 
 <h2>1. ábra — A rendszer architektúrája</h2>
 <canvas id="c1"></canvas>
 <button onclick="save('c1','architektura.png')">architektura.png letöltése</button>
 
-<h2>2. ábra — Az adatbázis logikai sémája</h2>
+<h2>Tartalék — rajzolt adatbázisséma</h2>
+<p class="hint alt">
+  Ez a változat csak akkor kell, ha a Supabase séma-nézetéről nem készíthető olvasható
+  képernyőkép. A letöltött fájl neve szándékosan <b>nem</b> <code>adatbazis-sema.png</code>,
+  hogy ne írja felül a képernyőképet — átnevezés után használható.
+</p>
 <canvas id="c2"></canvas>
-<button onclick="save('c2','adatbazis-sema.png')">adatbazis-sema.png letöltése</button>
+<button onclick="save('c2','adatbazis-sema-rajzolt.png')">adatbazis-sema-rajzolt.png letöltése</button>
 
 <script>
 // A nyomtatási minőség érdekében kétszeres felbontással rajzolunk: a
 // dokumentumba a kép a szövegtükör szélességére kicsinyítve kerül be, a
 // pixelek viszont megmaradnak, így nyomtatásban is éles.
 const SCALE = 2
+
+const TITLE_H = 17   // a címsor sormagassága
+const LINE_H  = 15   // az alsorok sormagassága
+const PAD_Y   = 22   // a szövegblokk fölött-alatt hagyott hely
 
 function setup(id, w, h) {
   const cv = document.getElementById(id)
@@ -53,8 +64,28 @@ function setup(id, w, h) {
   return x
 }
 
+// A megadott betűméretet addig csökkenti, amíg a szöveg elfér a keretben.
+// Így egyetlen felirat sem lóghat ki a dobozból akkor sem, ha a szöveget
+// később átírjuk vagy más rendszeren más betűtípus áll rendelkezésre.
+function fit(x, text, maxW, font, minPx) {
+  let px = parseFloat(font.match(/([\d.]+)px/)[1])
+  let f = font
+  for (;;) {
+    x.font = f
+    if (x.measureText(text).width <= maxW || px <= minPx) return f
+    px -= 0.5
+    f = font.replace(/[\d.]+px/, px + 'px')
+  }
+}
+
+// A szövegblokkot függőlegesen középre igazítja, és ha a megadott magasság
+// kevés lenne, megnöveli a dobozt.
 function box(x, cx, cy, w, h, title, lines = [], opts = {}) {
+  const blockH = TITLE_H + lines.length * LINE_H
+  h = Math.max(h, blockH + PAD_Y)
   const l = cx - w / 2, t = cy - h / 2
+  const inner = w - 20
+
   x.fillStyle = opts.fill || '#fff'
   x.strokeStyle = opts.stroke || '#222'
   x.lineWidth = opts.bold ? 2 : 1.2
@@ -62,155 +93,199 @@ function box(x, cx, cy, w, h, title, lines = [], opts = {}) {
   x.fillRect(l, t, w, h); x.strokeRect(l, t, w, h)
   x.setLineDash([])
 
-  x.fillStyle = '#111'
   x.textAlign = 'center'
-  const titleY = lines.length ? t + 20 : cy
-  x.font = 'bold 13px system-ui, sans-serif'
-  x.fillText(title, cx, titleY)
-  x.font = '11.5px system-ui, sans-serif'
+  let y = cy - blockH / 2 + TITLE_H / 2
+  x.fillStyle = '#111'
+  x.font = fit(x, title, inner, 'bold 13px system-ui, sans-serif', 10)
+  x.fillText(title, cx, y)
+
   x.fillStyle = '#444'
-  lines.forEach((s, i) => x.fillText(s, cx, titleY + 19 + i * 15))
+  y += TITLE_H / 2 + LINE_H / 2
+  lines.forEach((s, i) => {
+    x.font = fit(x, s, inner, '11.5px system-ui, sans-serif', 9)
+    x.fillText(s, cx, y + i * LINE_H)
+  })
+  return { l, t, w, h, cx, cy, r: l + w, b: t + h }
 }
 
-function arrow(x, x1, y1, x2, y2, label, opts = {}) {
+// A nyílfeliratok gyűjtője. A feliratokat csak minden vonal megrajzolása
+// után tesszük a képre, különben egy később rajzolt nyíl áthúzódna egy
+// korábbi felirat fehér hátterén.
+const PENDING = []
+
+function head(x, px, py, qx, qy) {
+  const a = Math.atan2(qy - py, qx - px), s = 7.5
+  x.beginPath()
+  x.moveTo(qx, qy)
+  x.lineTo(qx - s * Math.cos(a - 0.42), qy - s * Math.sin(a - 0.42))
+  x.lineTo(qx - s * Math.cos(a + 0.42), qy - s * Math.sin(a + 0.42))
+  x.closePath(); x.fill()
+}
+
+// Derékszögű útvonal töréspontok listájából. A felirat a leghosszabb
+// szakasz közepére kerül, hogy ne csússzon rá egy sarokra.
+function path(x, pts, label, opts = {}) {
   x.strokeStyle = opts.color || '#555'
   x.fillStyle = opts.color || '#555'
-  x.lineWidth = 1.2
-  if (opts.dashed) x.setLineDash([4, 4])
-  x.beginPath(); x.moveTo(x1, y1); x.lineTo(x2, y2); x.stroke()
-  x.setLineDash([])
-  const a = Math.atan2(y2 - y1, x2 - x1), s = 7
+  x.lineWidth = 1.3
+  x.lineJoin = 'round'
+  if (opts.dashed) x.setLineDash([5, 4])
   x.beginPath()
-  x.moveTo(x2, y2)
-  x.lineTo(x2 - s * Math.cos(a - 0.4), y2 - s * Math.sin(a - 0.4))
-  x.lineTo(x2 - s * Math.cos(a + 0.4), y2 - s * Math.sin(a + 0.4))
-  x.closePath(); x.fill()
+  x.moveTo(pts[0][0], pts[0][1])
+  for (let i = 1; i < pts.length; i++) x.lineTo(pts[i][0], pts[i][1])
+  x.stroke()
+  x.setLineDash([])
+  const n = pts.length
+  head(x, pts[n - 2][0], pts[n - 2][1], pts[n - 1][0], pts[n - 1][1])
+
   if (label) {
-    x.font = '10.5px system-ui, sans-serif'
-    x.fillStyle = '#666'
-    x.textAlign = 'center'
-    const mx = (x1 + x2) / 2, my = (y1 + y2) / 2
-    const tw = x.measureText(label).width
-    x.save(); x.fillStyle = '#fff'
-    x.fillRect(mx - tw / 2 - 3, my - 7, tw + 6, 14)
-    x.restore()
-    x.fillStyle = '#666'
-    x.fillText(label, mx, my)
+    let k = 1, best = -1
+    for (let i = 1; i < n; i++) {
+      const d = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1])
+      if (d > best) { best = d; k = i }
+    }
+    PENDING.push([label, (pts[k][0] + pts[k - 1][0]) / 2, (pts[k][1] + pts[k - 1][1]) / 2])
   }
+}
+
+function flush(x) {
+  x.font = '11px system-ui, sans-serif'
+  x.textAlign = 'center'
+  for (const [t, mx, my] of PENDING) {
+    const w = x.measureText(t).width
+    x.fillStyle = '#fff'
+    x.fillRect(mx - w / 2 - 4, my - 8, w + 8, 16)
+    x.fillStyle = '#666'
+    x.fillText(t, mx, my)
+  }
+  PENDING.length = 0
+}
+
+// A rétegcímkék a bal margón állnak, ahol nyíl is futhat: ezért fehér
+// hátteret kapnak, és minden vonal után rajzoljuk őket.
+function layer(x, text, y) {
+  x.font = '11px system-ui, sans-serif'
+  x.textAlign = 'left'
+  const w = x.measureText(text).width
+  x.fillStyle = '#fff'
+  x.fillRect(28, y - 8, w + 8, 16)
+  x.fillStyle = '#888'
+  x.fillText(text, 30, y)
 }
 
 // ── 1. ábra ────────────────────────────────────────────────────────────────
 ;(function () {
-  const W = 820, H = 560
+  const W = 960, H = 620
   const x = setup('c1', W, H)
 
-  x.font = '11px system-ui, sans-serif'; x.fillStyle = '#888'; x.textAlign = 'left'
-  x.fillText('Kliens oldal', 30, 28)
-
-  box(x, 150, 90, 210, 74, 'Beléptető alkalmazás',
+  // Kliens réteg
+  box(x, 160, 96, 240, 76, 'Beléptető alkalmazás',
       ['kioszk, falra szerelve', 'NFC-olvasás, fénykép'])
-  box(x, 410, 90, 210, 74, 'Dolgozói alkalmazás',
+  box(x, 480, 96, 240, 76, 'Dolgozói alkalmazás',
       ['mobiltelefon', 'PIN-belépés, kérelmek'])
-  box(x, 670, 90, 210, 74, 'Vezetői felület',
+  box(x, 800, 96, 240, 76, 'Vezetői felület',
       ['asztali böngésző', 'kimutatások, beállítások'])
 
-  // Offline tároló a beléptető alkalmazás alatt
-  box(x, 150, 190, 190, 44, 'Helyi tároló (IndexedDB)',
+  box(x, 160, 200, 220, 56, 'Helyi tároló (IndexedDB)',
       ['névjegyzék + függő események'], { dashed: true })
-  arrow(x, 150, 127, 150, 168, '')
 
-  x.font = '11px system-ui, sans-serif'; x.fillStyle = '#888'; x.textAlign = 'left'
-  x.fillText('Háttérrendszer (Supabase)', 30, 268)
-
-  // A háttérrendszer kerete
+  // Háttérrendszer
   x.strokeStyle = '#999'; x.lineWidth = 1; x.setLineDash([6, 4])
-  x.strokeRect(30, 282, W - 60, 180)
+  x.strokeRect(30, 296, W - 60, 208)
   x.setLineDash([])
 
-  box(x, 150, 330, 200, 58, 'Szerveroldali függvények',
-      ['beléptetés, dolgozói adatok', 'levélküldés, összefoglaló'])
-  box(x, 380, 330, 170, 58, 'Hitelesítés', ['vezetői belépés'])
-  box(x, 600, 330, 170, 58, 'Fájltároló', ['ellenőrző fényképek'])
+  const fn   = box(x, 144, 358, 200, 86, 'Szerveroldali függvények',
+                   ['beléptetés, dolgozói adatok', 'felhasználókezelés', 'levélküldés, összefoglaló'])
+  const file = box(x, 368, 358, 200, 86, 'Fájltároló', ['ellenőrző fényképek'])
+  const auth = box(x, 592, 358, 200, 86, 'Hitelesítés', ['vezetői belépés'])
+  const rt   = box(x, 816, 358, 200, 86, 'Valós idejű csatorna', ['adatváltozás továbbítása'])
 
-  box(x, 265, 425, 430, 52, 'PostgreSQL adatbázis',
+  const db = box(x, 480, 452, 872, 56, 'PostgreSQL adatbázis',
       ['sorszintű biztonság (cégek elkülönítése) · pg_cron ütemezés'], { bold: true })
-  box(x, 600, 425, 170, 52, 'Valós idejű csatorna',
-      ['adatváltozás továbbítása'])
 
-  // Kliens -> szerver nyilak
-  arrow(x, 150, 213, 150, 300, 'esemény')
-  arrow(x, 410, 127, 200, 302, 'kérelem')
-  arrow(x, 670, 127, 640, 300, 'lekérdezés')
-  arrow(x, 600, 400, 660, 130, 'értesítés', { dashed: true })
+  // Kliens → háttérrendszer. A két derékszögű útvonal külön magasságban fut,
+  // így sehol nem keresztezik egymást.
+  path(x, [[160, 134], [160, 172]])
+  path(x, [[160, 228], [160, 315]], 'esemény')
+  path(x, [[480, 134], [480, 260], [200, 260], [200, 315]], 'kérelem')
+  path(x, [[760, 134], [760, 284], [230, 284], [230, 315]], 'lekérdezés')
+  path(x, [[850, 315], [850, 134]], 'értesítés', { dashed: true })
 
-  arrow(x, 150, 359, 200, 399)
-  arrow(x, 380, 359, 300, 399)
-  arrow(x, 600, 359, 600, 399)
+  // Háttérrendszeren belül
+  path(x, [[fn.r, 358], [file.l, 358]], 'fénykép')
+  path(x, [[144, 401], [144, 424]])
+  path(x, [[592, 401], [592, 424]])
+  path(x, [[816, 424], [816, 401]], '', { dashed: true })
 
   // Külső szolgáltatások
-  x.font = '11px system-ui, sans-serif'; x.fillStyle = '#888'; x.textAlign = 'left'
-  x.fillText('Külső szolgáltatások', 30, 492)
-  box(x, 150, 522, 200, 40, 'Nyelvi modell (Gemini)', [], { dashed: true })
-  box(x, 400, 522, 200, 40, 'Levélküldő szolgáltatás', [], { dashed: true })
-  arrow(x, 150, 451, 150, 502, '', { dashed: true })
-  arrow(x, 300, 451, 380, 502, '', { dashed: true })
+  box(x, 220, 566, 240, 46, 'Nyelvi modell (Gemini)', [], { dashed: true })
+  box(x, 520, 566, 240, 46, 'Levélküldő szolgáltatás', [], { dashed: true })
+  path(x, [[220, 504], [220, 543]], '', { dashed: true })
+  path(x, [[520, 504], [520, 543]], '', { dashed: true })
+
+  flush(x)
+  layer(x, 'Kliens oldal', 28)
+  layer(x, 'Háttérrendszer (Supabase)', 270)
+  layer(x, 'Külső szolgáltatások', 528)
 })()
 
-// ── 2. ábra ────────────────────────────────────────────────────────────────
+// ── Tartalék: rajzolt adatbázisséma ────────────────────────────────────────
 ;(function () {
-  const W = 820, H = 520
+  const W = 860, H = 540
   const x = setup('c2', W, H)
 
   const table = (cx, cy, title, cols, opts = {}) => {
-    const w = 210, rowH = 16, h = 30 + cols.length * rowH
+    const w = 220, rowH = 16, h = 30 + cols.length * rowH
     const l = cx - w / 2, t = cy - h / 2
     x.fillStyle = '#f2f2f2'; x.fillRect(l, t, w, 26)
     x.fillStyle = '#fff'; x.fillRect(l, t + 26, w, h - 26)
     x.strokeStyle = '#222'; x.lineWidth = opts.bold ? 2 : 1.2
     x.strokeRect(l, t, w, h)
     x.beginPath(); x.moveTo(l, t + 26); x.lineTo(l + w, t + 26); x.stroke()
-    x.font = 'bold 12.5px system-ui, sans-serif'; x.fillStyle = '#111'; x.textAlign = 'center'
+    x.textAlign = 'center'; x.fillStyle = '#111'
+    x.font = fit(x, title, w - 20, 'bold 12.5px system-ui, sans-serif', 10)
     x.fillText(title, cx, t + 13)
-    x.font = '11px ui-monospace, Consolas, monospace'; x.textAlign = 'left'
+    x.textAlign = 'left'
     cols.forEach((c, i) => {
       const key = c.startsWith('#')
+      const txt = key ? c.slice(1) : c
       x.fillStyle = key ? '#111' : '#444'
-      x.font = (key ? 'bold ' : '') + '11px ui-monospace, Consolas, monospace'
-      x.fillText(key ? c.slice(1) : c, l + 10, t + 26 + 12 + i * rowH)
+      x.font = fit(x, txt, w - 20, (key ? 'bold ' : '') + '11px ui-monospace, Consolas, monospace', 8.5)
+      x.fillText(txt, l + 10, t + 26 + 12 + i * rowH)
     })
-    return { l, t, w, h, cx, cy }
+    return { l, t, w, h, cx, cy, r: l + w, b: t + h }
   }
 
-  const companies = table(150, 90, 'companies',
-    ['#id', 'name, slug', 'work_start, late_thr.', 'auto_checkout_hour', 'auto_checkout_by_shift', 'photo_required'], { bold: true })
+  const companies = table(160, 100, 'companies',
+    ['#id', 'name, slug', 'work_start, late_thr.', 'auto_checkout_hour', 'auto_checkout_by_shift',
+     'photo_required', 'digest_recipients'], { bold: true })
 
-  const profiles = table(150, 300, 'profiles',
+  const profiles = table(160, 320, 'profiles',
     ['#id', 'company_id →', 'auth_user_id', 'name, department', 'nfc_uid, pin', 'role, created_at'])
 
-  const events = table(450, 155, 'events',
+  const events = table(470, 170, 'events',
     ['#id', 'company_id →', 'user_id →', 'type, timestamp', 'photo_path, note', 'client_event_id'])
 
-  const absences = table(450, 350, 'absences',
+  const absences = table(470, 370, 'absences',
     ['#id', 'company_id →', 'user_id →', 'date, type', 'status, decision_note'])
 
-  const notifications = table(720, 350, 'notifications',
+  const notifications = table(740, 370, 'notifications',
     ['#id', 'company_id →', 'user_id →', 'type, data', 'created_at, read_at'])
 
   const link = (a, b, label) => {
-    let x1, y1, x2, y2
-    if (b.cx > a.cx + 100) { x1 = a.l + a.w; y1 = a.cy; x2 = b.l; y2 = b.cy }
-    else { x1 = a.cx; y1 = a.t + a.h; x2 = b.cx; y2 = b.t }
-    arrow(x, x1, y1, x2, y2, label)
+    if (b.cx > a.cx + 100) path(x, [[a.r, a.cy], [b.l, b.cy]], label)
+    else path(x, [[a.cx, a.b], [b.cx, b.t]], label)
   }
 
   link(companies, profiles, '1 : N')
   link(profiles, events, '1 : N')
   link(profiles, absences, '1 : N')
   link(absences, notifications, 'trigger')
+  flush(x)
 
   x.font = '11px system-ui, sans-serif'; x.fillStyle = '#666'; x.textAlign = 'left'
-  x.fillText('Minden tábla hordozza a company_id oszlopot — erre épül a cégek elkülönítése.', 30, 470)
-  x.fillText('A → jel idegen kulcsot jelöl.', 30, 490)
+  x.fillText('Minden tábla hordozza a company_id oszlopot — erre épül a cégek elkülönítése.', 30, 490)
+  x.fillText('A → jel idegen kulcsot jelöl.', 30, 510)
 })()
 
 function save(id, name) {

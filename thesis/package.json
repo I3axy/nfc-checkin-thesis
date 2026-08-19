@@ -5,7 +5,8 @@
   "private": true,
   "scripts": {
     "build": "node build.mjs",
-    "words": "node build.mjs --words"
+    "words": "node build.mjs --words",
+    "frissit": "node build.mjs && node frissit.mjs"
   },
   "dependencies": {
     "jszip": "^3.10.1"

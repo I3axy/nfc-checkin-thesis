@@ -1029,6 +1029,18 @@ levéltovábbítóként volna felhasználható.
 
 ## Tesztelés és eredmények
 
+[Ez az alfejezet a rendszeren végzett kézi tesztelés után készül el. Tartalma:
+az automatizált próbák és amit igazoltak; az eszközön végrehajtott
+forgatókönyvek táblázata a mért eredményekkel; a fejlesztés során feltárt és
+javított hibák bemutatása; végül a mérési adatok — válaszidő, a hálózat nélkül
+rögzített események szinkronizálásának helyessége.]
+
+<!-- ===========================================================================
+     A MEGÍRT VÁLTOZAT — a kézi teszt után ez kerül vissza a fenti helyőrző
+     helyére, kiegészítve a tényleges eredményekkel (a táblázat egy további,
+     "Megfelelt" oszlopot kap) és a mért adatokkal.
+     A keretből erre nagyjából 130 szó áll rendelkezésre.
+
 Az ellenőrzés két, egymást kiegészítő rétegben történt. A fejlesztés közben
 minden olyan számítás, amely nem magától értetődő — a napi ledolgozott idő
 párokra bontása, a hétvégéket kihagyó tartománybontás, az azonosítók
@@ -1075,6 +1087,7 @@ A harmadik a késésszámítás ellenőrzése során derült ki, és nem a rends
 hanem magát a próbát érintette: a vizsgálat a belépés időpontját teljes órára
 kerekítette, és az így kapott, valóban eltérő eredményt tekintette hibának. A
 tanulság az, hogy a hibás eredmény forrása nem feltétlenül a vizsgált kód.
+     =========================================================================== -->
 
 ## A megoldás korlátai
 

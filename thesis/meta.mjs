@@ -82,11 +82,13 @@ export const META = {
   ],
 
   // ── Köszönetnyilvánítás (legfeljebb 100 szó; a sablon szerint elhagyható) ──
+  // Egyelőre a sablon eredeti útmutató szövege áll itt: a személyes rész a
+  // leadás előtt írandó meg. A véleményezésre küldött változatban így
+  // egyértelmű, hogy ez a fejezet még nem készült el.
   thanks:
-    'Köszönet illeti a szakdolgozat mentorát, dr. Zlatko Čović tanár urat a ' +
-    'témavezetésért és a munka során nyújtott szakmai észrevételekért. Külön ' +
-    'köszönet a mesterséges intelligencia alapú összefoglaló ötletéért, amely ' +
-    'a dolgozat egyik önálló megoldásának kiindulópontja lett.',
+    'Ez a fejezet személyes megjegyzéseket tartalmaz (köszönetnyilvánítások és ' +
+    'hasonlók). Terjedelme legfeljebb 100 szó. Nem kötelező jellegű, tehát ' +
+    'kihagyható.',
 
   // ── A szakdolgozat témája (a mentor határozza meg) ─────────────────────────
   topic:

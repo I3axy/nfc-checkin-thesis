@@ -225,8 +225,14 @@ function mdToXml(md, figureState) {
     if (img) {
       const [, capText, file] = img
       const abs = path.join(FIGURES, file)
+      // A hiányzó képet NEM hagyjuk ki: a sorszáma megmarad, a helyére látható
+      // helyőrző kerül. Kihagyás esetén ugyanis minden későbbi ábra sorszáma
+      // eggyel csúszna, a szövegbeli hivatkozások pedig rossz ábrára mutatnának.
       if (!fs.existsSync(abs)) {
-        console.warn(`  ! hiányzó kép: ${file}`)
+        figureState.missing.push(file)
+        figureState.figNo++
+        out.push(para(ST.figure, `[ide kerül a képernyőkép: ${file}]`))
+        out.push(para(ST.caption, `${figureState.figNo}. ábra: ${capText}`))
         i++; continue
       }
       const buf = fs.readFileSync(abs)
@@ -434,6 +440,65 @@ function fillFrontMatter(xml) {
   return { xml, missing }
 }
 
+// ── Tartalomjegyzék ──────────────────────────────────────────────────────────
+// A sablon tartalomjegyzéke Word-mező, amelynek EREDMÉNYE is el van tárolva a
+// fájlban — méghozzá a sablon példafejezeteivel és azok oldalszámaival. Ezt az
+// eredményt a szövegszerkesztő csak külön kérésre számolja újra, ezért a kész
+// dolgozatban is a sablon tartalomjegyzéke látszana.
+//
+// Az oldalszámokat itt kiszámolni nem lehet: azok a tördeléstől függenek,
+// amit csak a szövegszerkesztő ismer. Amit tehetünk: a hamis eredményt
+// töröljük (rossz adat semmiképp ne maradjon a dokumentumban), a mezőt pedig
+// „elavult”-ra jelöljük, hogy megnyitáskor újraszámolásra kerüljön.
+function resetToc(doc) {
+  const marks = []
+  const re = /<w:fldChar\b[^>]*w:fldCharType="(begin|separate|end)"[^>]*>/g
+  for (let m; (m = re.exec(doc));) {
+    marks.push({ type: m[1], start: m.index, end: re.lastIndex, tag: m[0] })
+  }
+
+  const instr = doc.indexOf('TOC \\o')
+  if (instr < 0) return null
+
+  // A mezőt nyitó jel az utasítás előtti utolsó „begin”.
+  let bi = -1
+  for (let n = marks.length - 1; n >= 0; n--) {
+    if (marks[n].start < instr && marks[n].type === 'begin') { bi = n; break }
+  }
+  if (bi < 0) return null
+
+  const si = marks.findIndex((k, n) => n > bi && k.type === 'separate')
+  if (si < 0) return null
+
+  // A tárolt eredményben az egyes sorok oldalszámai önálló PAGEREF-mezők,
+  // ezért a mező végét mélységszámlálással kell megkeresni.
+  let depth = 1, ei = -1
+  for (let n = si + 1; n < marks.length; n++) {
+    if (marks[n].type === 'begin') depth++
+    else if (marks[n].type === 'end' && --depth === 0) { ei = n; break }
+  }
+  if (ei < 0) return null
+
+  const hint = '<w:r><w:rPr><w:i/><w:lang w:val="hu-HU"/></w:rPr><w:t xml:space="preserve">' +
+    esc('A tartalomjegyzék még nem frissült. Word: Ctrl+A, majd F9. ' +
+        'LibreOffice: jobb gomb a jegyzéken → Tárgymutató frissítése.') +
+    '</w:t></w:r>'
+
+  // A vágás határai FUTTATÁS-határok, nem a jelek maga: a fldChar a run
+  // belsejében áll, így a jel mellett vágva run kerülne runba (sémasértés).
+  const cut = doc.indexOf('</w:r>', marks[si].end)
+  const paste = Math.max(doc.lastIndexOf('<w:r ', marks[ei].start),
+                         doc.lastIndexOf('<w:r>', marks[ei].start))
+  if (cut < 0 || paste < 0 || paste <= cut) return null
+
+  // A kivágott rész bekezdéshatárai kiegyensúlyozottan tűnnek el: a mező első
+  // bekezdésének nyitó, az utolsóénak záró jele marad meg, közte minden pár.
+  let out = doc.slice(0, cut + '</w:r>'.length) + hint + doc.slice(paste)
+  // A „begin” az elvágott rész ELŐTT van, indexe tehát nem csúszott el.
+  const dirty = marks[bi].tag.replace(/<w:fldChar\b/, '<w:fldChar w:dirty="true"')
+  return out.slice(0, marks[bi].start) + dirty + out.slice(marks[bi].end)
+}
+
 // ── Build ────────────────────────────────────────────────────────────────────
 async function main() {
   if (!fs.existsSync(TEMPLATE)) {
@@ -496,7 +561,7 @@ async function main() {
   }
 
   // Tartalom generálása
-  const figureState = { figNo: 0, tabNo: 0, media: [] }
+  const figureState = { figNo: 0, tabNo: 0, media: [], missing: [] }
   let generated = ''
   for (const f of files) {
     const md = fs.readFileSync(path.join(CONTENT, f), 'utf8')
@@ -505,7 +570,10 @@ async function main() {
     generated += mdToXml(md, figureState)
   }
 
-  const newDoc = docXml.slice(0, bodyStart) + frontMatter + generated + sectPr + '</w:body></w:document>'
+  let newDoc = docXml.slice(0, bodyStart) + frontMatter + generated + sectPr + '</w:body></w:document>'
+  const toc = resetToc(newDoc)
+  if (toc) newDoc = toc
+  else console.warn('  ! a tartalomjegyzék-mezőt nem találom — a sablon szerkezete változhatott')
   zip.file('word/document.xml', newDoc)
 
   // Képek beillesztése + kapcsolatok
@@ -549,6 +617,10 @@ async function main() {
 
   console.log(`\nKész: ${path.relative(ROOT, OUT)}`)
   console.log(`  ${figureState.figNo} ábra, ${figureState.tabNo} táblázat-felirat, ${figureState.media.length} beágyazott kép`)
+  if (figureState.missing.length) {
+    console.log(`  ! ${figureState.missing.length} ábra HELYŐRZŐVEL került be (a sorszámozás helyes marad):`)
+    for (const f of figureState.missing) console.log(`      thesis/figures/${f}`)
+  }
   console.log('  A sablon érintetlen maradt.\n')
 }
 

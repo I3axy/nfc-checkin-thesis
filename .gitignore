@@ -25,3 +25,8 @@ sablon/
 
 # A dolgozatból csak a generált .docx marad ki — a Markdown forrás verziózott
 thesis/out/
+
+# Élő rendszerről készült képernyőképek (valós adatokkal) — nem verziózzuk.
+# A build hangosan jelzi, ha hiányoznak, tehát nem tűnnek el észrevétlenül.
+thesis/figures/statisztika.png
+thesis/figures/adatbazis-sema.png
