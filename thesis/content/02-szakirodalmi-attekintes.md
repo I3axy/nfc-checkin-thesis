@@ -51,7 +51,7 @@ elvi előnye, hogy az azonosító nem adható át másnak, így a helyettesíté
 elkövetett visszaélés kizárható. Alkalmazását ugyanakkor jelentős adatvédelmi
 megfontolások korlátozzák: a biometrikus adat az Európai Unió általános
 adatvédelmi rendelete értelmében a személyes adatok különleges kategóriájába
-tartozik, kezeléséhez szigorúbb feltételek teljesülése szükséges. Ehhez járul a
+tartozik [2], kezeléséhez szigorúbb feltételek teljesülése szükséges. Ehhez járul a
 magasabb hardverköltség, valamint a téves elutasítás és a téves elfogadás
 kockázata, amely ipari környezetben — szennyezett kéz, védőkesztyű mellett —
 számottevően romolhat.
@@ -83,7 +83,7 @@ energiaforrásra, ami rendkívül hosszú élettartamot és alacsony előállít
 költséget eredményez.
 
 Az elméleti hatótávolság mintegy tíz centiméter, a gyakorlatban azonban
-jellemzően négy centiméter alatt marad. Ez a korlát jelenléti rendszerben nem
+jellemzően négy centiméter alatt marad [1]. Ez a korlát jelenléti rendszerben nem
 hátrány, hanem előny: a rövid hatótávolság biztosítja, hogy a regisztráció
 kizárólag szándékos művelet eredménye lehessen, szemben a nagyobb hatótávolságú
 UHF-es RFID megoldásokkal, ahol egy elhaladó személy kártyája akaratlanul is
@@ -91,8 +91,8 @@ kiolvasásra kerülhet.
 
 A technológia szabványosítása két fő dokumentumcsaládra épül. Az érintés nélküli
 közelségi kártyák fizikai és átviteli rétegét az ISO/IEC 14443 szabvány
-határozza meg [2], míg az eszközök közötti kommunikáció felületét az ISO/IEC
-18092 szabvány írja le [3]. Az adatátviteli sebesség 106, 212 vagy 424 kbit/s
+határozza meg [3], míg az eszközök közötti kommunikáció felületét az ISO/IEC
+18092 szabvány írja le [4]. Az adatátviteli sebesség 106, 212 vagy 424 kbit/s
 lehet — ez a jelenléti adatok továbbításához bőségesen elegendő, hiszen
 mindössze néhány bájtnyi azonosító átviteléről van szó.
 
@@ -105,9 +105,10 @@ két aktív eszköz cserél adatot egymással.
 A gyakorlatban használt kártyatípusok közül a MIFARE család terjedt el a
 legszélesebb körben. Fontos ugyanakkor megjegyezni, hogy a MIFARE Classic
 kártyákban alkalmazott Crypto-1 titkosítási eljárást a kutatók visszafejtették,
-és gyakorlatban is kivitelezhető támadásokat mutattak be ellene [4]. Ebből
-következően a kártya azonosítója (UID) **nem tekinthető titkos információnak**:
-megfelelő eszközzel kiolvasható, és üres kártyára másolható.
+és gyakorlatban is kivitelezhető támadásokat mutattak be ellene [5]. Ettől
+függetlenül is igaz, hogy a kártya azonosítója (UID) **nem tekinthető titkos
+információnak**: az ütközésfeloldás során titkosítás nélkül kerül átvitelre [3],
+és írható azonosítójú kártyára átmásolható.
 
 Ez a megállapítás közvetlen tervezési következménnyel jár. Amennyiben a rendszer
 kizárólag az UID-re alapozza az azonosítást, a kártya lemásolásával a jelenlét
@@ -119,7 +120,7 @@ ellenőrzést tesz lehetővé.
 
 A webes alkalmazások szempontjából lényeges fejlemény a **Web NFC** felület,
 amely lehetővé teszi, hogy a böngészőben futó alkalmazás közvetlenül hozzáférjen
-az eszköz NFC-olvasójához [5]. A felület jelentősége abban áll, hogy natív
+az eszköz NFC-olvasójához [6]. A felület jelentősége abban áll, hogy natív
 alkalmazás fejlesztése és telepítése nélkül készíthető beléptető megoldás.
 Korlátja, hogy jelenleg kizárólag a Chromium alapú böngészők Android
 rendszeren futó változatai támogatják, továbbá a felület csak biztonságos
@@ -139,7 +140,10 @@ megbízhatóság és a zárt működés, hátrányuk a magas beszerzési ár, va
 hogy az adatok kinyerése gyakran a gyártó saját szoftverén keresztül lehetséges.
 A **mobileszköz-alapú megoldások** ezzel szemben meglévő okostelefonokat vagy
 táblagépeket használnak olvasóként, így a hardverköltség jelentősen csökken, a
-rendszer pedig rugalmasabban telepíthető.
+rendszer pedig rugalmasabban telepíthető. Ezt a felépítést a szakirodalom is
+vizsgálta: az NFC-olvasóval és távoli adatbázissal működő jelenléti rendszer
+valós idejű nyilvántartást és távoli lekérdezést tesz lehetővé, kiváltva a kézi
+adminisztrációt [7].
 
 A kereskedelmi forgalomban elérhető rendszerek jellemzően előfizetéses
 konstrukcióban, zárt forráskóddal érhetők el. Ez több szempontból is korlátozó:
@@ -156,9 +160,9 @@ alapú ellenőrzés, valamint a belépéskor készített fényképfelvétel. Az 
 megoldás sajátossága, hogy önmagában nem akadályozza meg a visszaélést, hanem
 utólag ellenőrizhetővé és ezáltal kockázatossá teszi azt.
 
-Az adatkezelés jogi kereteit az általános adatvédelmi rendelet határozza meg,
-amelynek egyik alapelve az **adattakarékosság**: kizárólag a célhoz feltétlenül
-szükséges adatok kezelhetők. Jelenléti rendszer esetében ez azt jelenti, hogy a
+Az adatkezelés jogi kereteit az általános adatvédelmi rendelet határozza meg
+[2], amelynek egyik alapelve az **adattakarékosság**: kizárólag a célhoz
+feltétlenül szükséges adatok kezelhetők. Jelenléti rendszer esetében ez azt jelenti, hogy a
 be- és kilépés időpontjának rögzítése indokolt, a dolgozó folyamatos
 helymeghatározása vagy tevékenységének megfigyelése azonban már nem. Ez a
 szempont a rendszer tervezésekor is figyelembe veendő, például úgy, hogy a
@@ -173,7 +177,7 @@ fogalma olyan webalkalmazást jelöl, amely telepíthető az eszközre, teljes
 képernyőn futtatható, és hálózati kapcsolat nélkül is működőképes marad. Ennek
 technikai alapját a *service worker* képezi: egy háttérben futó szkript, amely
 elfogadja az alkalmazás hálózati kéréseit, és eldönti, hogy azokat a hálózatról
-vagy a helyi gyorsítótárból szolgálja ki [6].
+vagy a helyi gyorsítótárból szolgálja ki [8].
 
 A **hálózatfüggetlen (offline-first) tervezés** ennél tovább megy: nem
 kivételes állapotként kezeli a kapcsolat hiányát, hanem alapértelmezésként. Az
@@ -193,7 +197,7 @@ oldalán érvényesített egyediségi megkötéssel. Másrészt az események so
 felborulhat, ezért az eredeti időbélyeget a kliensnek kell rögzítenie és
 továbbítania, nem pedig a szervernek a feldolgozás pillanatában. Az így
 kialakuló, átmenetileg eltérő, majd fokozatosan egyező állapotot a szakirodalom
-**eventual consistency** néven tárgyalja [7].
+**eventual consistency** néven tárgyalja [9].
 
 A háttérrendszerek területén az utóbbi években elterjedt a **BaaS**
 (*Backend as a Service*) modell, amely kész szolgáltatásként kínálja az
@@ -204,7 +208,7 @@ szolgáltatóhoz való kötődés.
 Több cég egyidejű kiszolgálása esetén a **több bérlős** (multi-tenant)
 adatmodell kialakítása külön mérlegelést igényel. Három bevett minta létezik:
 bérlőnként külön adatbázis, közös adatbázison belül külön séma, illetve közös
-táblák bérlőazonosítóval megkülönböztetett sorokkal [8]. Az első a legerősebb
+táblák bérlőazonosítóval megkülönböztetett sorokkal [10]. Az első a legerősebb
 elkülönítést adja, de a legdrágább üzemeltetni; a harmadik a
 leggazdaságosabb, viszont a legnagyobb figyelmet igényli, mivel egyetlen
 hiányzó szűrőfeltétel adatszivárgáshoz vezethet.
@@ -213,7 +217,7 @@ Ez utóbbi kockázat csökkenthető a **sorszintű biztonság** (Row Level Secur
 alkalmazásával, amelyet a PostgreSQL adatbázis-kezelő is támogat. Ennek lényege,
 hogy a szűrési szabály nem az alkalmazás kódjában, hanem az adatbázisban kerül
 meghatározásra, így akkor is érvényesül, ha a lekérdezésből véletlenül kimarad a
-feltétel [9]. A védelem ezáltal a rendszer olyan rétegébe kerül, amely a
+feltétel [11]. A védelem ezáltal a rendszer olyan rétegébe kerül, amely a
 fejlesztői hibától függetlenül hat.
 
 ## Mesterséges intelligencia alkalmazása vezetői kimutatásokban
@@ -229,7 +233,7 @@ ponton kínál új lehetőséget. Ezek a modellek nagy mennyiségű szövegen ta
 transzformer architektúrájú neurális hálózatok, amelyek képesek úgynevezett
 *few-shot* módon, azaz kifejezetten az adott feladatra irányuló betanítás nélkül
 is elfogadható eredményt adni, pusztán a bemenetben megfogalmazott utasítás
-alapján [10]. A gyakorlati jelentőség abban áll, hogy egy strukturált
+alapján [12]. A gyakorlati jelentőség abban áll, hogy egy strukturált
 adathalmaz természetes nyelvű összefoglalásához nem szükséges saját modellt
 tanítani; elegendő az adatokat és az elvárt kimenet leírását a modellnek
 átadni.
@@ -249,7 +253,7 @@ során figyelembe kell venni.
 A legsúlyosabb kockázatot a **konfabuláció** — a szakirodalomban gyakran
 *hallucináció* néven tárgyalt jelenség — jelenti: a modell olyan állítást is
 megfogalmazhat, amely nyelvileg meggyőző, tartalmilag viszont nem támasztja alá
-a bemenet [11]. Munkaidő-nyilvántartásban ez közvetlen kárt okozhat, hiszen egy
+a bemenet [13]. Munkaidő-nyilvántartásban ez közvetlen kárt okozhat, hiszen egy
 kitalált adat munkajogi következménnyel járó döntés alapjául szolgálhat. A
 kockázat mérséklésének bevett módja, hogy a modell kizárólag a ténylegesen
 átadott adatokra támaszkodhat, és az utasítás kifejezetten megtiltja a
