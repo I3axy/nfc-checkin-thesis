@@ -35,8 +35,7 @@ mód szükséges. A dolgozó a saját jelenléti adatait a terminálhoz kötött
 nélkül eléri, hiszen a tervezett távollétet jellemzően otthonról jelenti be. A
 bejelentés **kérelem**, nem tény: a dolgozó követi a sorsát, az elbírálásig
 vissza is vonhatja, a döntésről pedig értesítést kap. Az értesítésnek
-visszamenőleg is megtekinthetőnek kell maradnia — aki nem a döntés napján nyitja
-meg az alkalmazást, annak egy múló üzenet semmit nem ér.
+visszamenőleg is megtekinthetőnek kell maradnia.
 
 **A vezetővel kapcsolatos követelmények.** A vezetői felület valós időben
 mutatja, kik tartózkodnak a telephelyen, és visszakereshető naplót vezet, amely
@@ -375,7 +374,7 @@ egy őrizetlenül hagyott, bejelentkezett gép esetén érdemi különbség.
 A beléptető alkalmazás az egyetlen felület, amelyen jelenléti esemény
 keletkezhet. Működése ugyanakkor a legszűkebb: egyetlen képernyőt
 jelenít meg, felhasználói bejelentkezést nem ismer, és kezelése kimerül a
-kártya odaérintésében. Ez az alfejezet a megvalósítás öt meghatározó
+kártya odaérintésében. Ez az alfejezet a megvalósítás hat meghatározó
 kérdéskörét tárgyalja.
 
 ### Az NFC-kártya olvasása
@@ -476,11 +475,10 @@ nem tárol biometrikus mintát, és nem hasonlítja össze a felvételt korábbi
 képekkel. A megoldás nem megakadályozza, hanem utólag ellenőrizhetővé, és ezzel
 kockázatossá teszi a visszaélést.
 
-A megkülönböztetés adatvédelmi szempontból meghatározó. A 2.1. alfejezetben
-tárgyalt biometrikus sablon a személyes adatok különleges kategóriájába
-tartozik, kezelése tehát szigorúbb feltételekhez kötött. Egy zárt tárolóban,
-korlátozott hozzáféréssel őrzött fényképfelvétel ezzel szemben lényegesen
-kisebb terheléssel jár, miközben az elrettentő hatás nagyrészt megmarad.
+A megkülönböztetés adatvédelmi szempontból meghatározó: a 2.1. alfejezetben
+tárgyalt biometrikus sablon különleges kategóriájú adat, szigorúbb feltételekkel,
+míg a zárt tárolóban, korlátozott hozzáféréssel őrzött fényképfelvétel lényegesen
+kisebb terheléssel jár — az elrettentő hatás mellett.
 
 A funkció cégenként külön kapcsolható, mégpedig a kártyás és a PIN-alapú
 belépésre külön-külön. Ennek indoka az azonosítási módok eltérő természete: a
@@ -589,10 +587,9 @@ eljárással, amely a gyorsítótárban lévő példányt azonnal kiszolgálja, 
 hálózati választ a háttérben lekéri, és azzal frissíti a tárolt változatot. Így
 az alkalmazás egyszerre indul gyorsan és marad naprakész.
 
-A megközelítés helyessége a fejlesztés során nem volt magától értetődő: a
-korábbi változat telepítéskor semmit sem tárolt, ezért a hálózat nélküli
-újratöltés üres képernyőt eredményezett. A hiba tárgyalása a 3.8. alfejezetben,
-a tesztelés eredményei között folytatódik.
+A megközelítés helyessége nem volt magától értetődő: a korábbi változat
+telepítéskor semmit sem tárolt, ezért a hálózat nélküli újratöltés üres
+képernyőt eredményezett — a hiba tárgyalása a 3.8. alfejezetben folytatódik.
 
 ### PIN-alapú tartalék belépés
 
@@ -645,14 +642,34 @@ PIN-ből összesen alig több mint egymillió különböző létezik, tehát az 
 kikerülése esetén a tárolt értékek kimerítő próbálgatással visszafejthetők.
 A sózás ezt a munkát cégenként külön elvégzendővé teszi, de nem teszi
 lehetetlenné. A PIN ezért nem tekinthető jelszóval egyenértékű védelemnek,
-és a rendszer nem is használja annak: adatmódosításra nem jogosít, és önmagában
-nem ad hozzáférést a vezetői felülethez.
+és a rendszer nem is használja annak: önmagában nem ad hozzáférést a vezetői
+felülethez.
 
 A fennmaradó kockázatot két megkötés mérsékli. Az egyik az adatmodellben
 tárgyalt egyediség: egy cégen belül két dolgozónak nem lehet azonos PIN-je,
 különben a beütött kód több személyhez vezetne, és a rendszer nem tudná
 eldönteni, kinek az érkezését rögzítse. A másik a 3.4.3. alfejezetben
 előírható fényképkötelezettség.
+
+### A kártya párosítása
+
+A kártyaazonosító nyilvántartásba vétele eredetileg kizárólag a vezető
+feladata volt. Ez a megoldás **némán hibázik**: egyetlen elgépelt karakter
+esetén a kártya működik, csak éppen rossz személyhez rendelve, és a hiba addig
+rejtve marad, amíg valaki össze nem veti a naplót a valósággal.
+
+A rendszer ezért felajánlja a párosítást. Ha a PIN-nel belépő dolgozóhoz még
+nem tartozik kártya, a beléptető a sikeres belépés után felszólítja, hogy
+érintse oda; az azonosító így nem gépelésből, hanem magából a kártyából
+származik. A felajánlás szándékosan a belépés **után** jelenik meg, tehát a
+jelenlét rögzítése nem függ attól, hogy a dolgozó végigviszi-e a műveletet.
+
+Ez az egyetlen adatmódosítás, amelyre a PIN jogosít, és szűkre szabott: üres
+mezőt tölthet ki, meglévőt nem írhat felül, és a cégen belül már használt
+azonosítót nem vehet át. Egy kiszivárgott PIN tehát nem alkalmas a kolléga
+kártyájának elvételére; legrosszabb esetben kártya nélküli profilhoz rendel
+egyet — ezt a párosítás időbélyege megőrzi, az érintett pedig azonnal észleli,
+hiszen ő maga már nem tud párosítani. A lehetőség cégenként kikapcsolható.
 
 ## A dolgozói alkalmazás
 
@@ -700,10 +717,9 @@ mobilon megszokott, és egy kézzel is kényelmes.
 ![A dolgozói alkalmazás mai és napló nézete](worker-app.png)
 
 A mai nap a belépés és a kilépés időpontját, valamint az eddig ledolgozott időt
-mutatja. A napló visszatekintő: egy hét vagy egy hónap bontásban sorolja a
-napokat és az óraszámokat. A két időtáv eltérő kérdésre válaszol — a heti arra,
-hogy *mennyit dolgoztam ezen a héten*, a havi a hónap egészének alakulására —,
-ezért egyetlen rögzített időszak az egyiket mindig használhatatlanná tenné. A
+mutatja. A napló visszatekintő: hét vagy hónap bontásban sorolja a
+napokat és az óraszámokat. A két időtáv eltérő kérdésre válaszol, ezért
+egyetlen rögzített időszak az egyiket mindig használhatatlanná tenné. A
 szerver mindkét nézethez egyszerre küldi a harmincegy napnyi eseményt, így a
 váltás nem igényel újabb kérést.
 
@@ -854,9 +870,8 @@ elemző nézet a 6. ábrán látható.
 Az elemzés vizsgált időszaka hét nap, harminc nap vagy három hónap lehet. A
 megjelenítés a hosszhoz igazodik: a rövidebb időszakok napi bontásban
 jelennek meg, a háromhavi nézet viszont heti összevonásban, mivel kilencven
-egymás melletti oszlop áttekinthetetlen volna. Ez a döntés jól szemlélteti,
-hogy az adat és a megjelenítése nem ugyanaz: az alapadat mindkét esetben napi
-bontású, csupán az összegzés mértéke tér el.
+egymás melletti oszlop áttekinthetetlen volna. Az alapadat mindkét esetben napi
+bontású; csupán az összegzés mértéke tér el.
 
 A megjelenített mutatók a ledolgozott idő, a munkanapok és a jelenléti napok
 száma, a késések száma, az átlagos érkezési időpont, valamint a hiányzások
@@ -918,14 +933,13 @@ kizárólag szerveroldali titokként tárolódik. A függvény emellett ellenőr
 hívó jogosultságát is: az összefoglaló csak vezetői vagy rendszergazdai
 szerepkörrel kérhető le.
 
-A külső szolgáltatásra épülő megoldás hibakezelése külön tanulsággal szolgált.
-A szolgáltatás kezdetben minden kérést kvótatúllépésre hivatkozva utasított el,
-és az ok mindaddig rejtve maradt, amíg a szerveroldali függvény a hibát saját,
-általános üzenetre cserélte. A válasz eredeti szövegének továbbításakor derült
-ki, hogy az adott modellhez ehhez az előfizetéshez nem tartozott felhasználható
-keret; a megoldás egy másik modell beállítása volt. A tanulság általánosítható:
-a külső szolgáltatás hibaüzenetét nem célszerű elnyelni, mert éppen az az
-információ vész el, amely a hiba okára mutat.
+A külső szolgáltatás hibakezelése külön tanulsággal szolgált. A kérések
+kezdetben kvótatúllépésre hivatkozva bukdácsoltak, és az ok mindaddig rejtve
+maradt, amíg a függvény a hibát saját, általános üzenetre cserélte: a válasz
+eredeti szövegéből derült ki, hogy az adott modellhez nem tartozott
+felhasználható keret. A tanulság általánosítható — a külső szolgáltatás
+hibaüzenetét nem célszerű elnyelni, mert éppen az az információ vész el, amely
+a hiba okára mutat.
 
 ## Automatizált folyamatok
 
@@ -970,12 +984,11 @@ megvalósítás ezért mintaillesztéssel előszűri az értéket, és a nem sz�
 az alapértelmezésre cseréli.
 
 Az így létrejött kilépés megjegyzést kap, a vezetői felület pedig külön
-jelöléssel különbözteti meg a valódi kártyaérintéstől. Ez azért szükséges, mert
-az automatikus zárás nem a tényleges távozás időpontját rögzíti, hanem a
-beállított órát; a két adat összemosása téves következtetésekhez vezetne. A
-művelet emellett csak a huszonnégy óránál nem régebbi nyitott bejegyzéseket
-zárja le, mivel egy ennél régebbi bejegyzés már nem az adott naphoz tartozik, és
-utólagos lezárása valótlan munkaidőt keletkeztetne.
+jelöléssel különbözteti meg a valódi kártyaérintéstől: az automatikus zárás nem
+a tényleges távozás időpontját rögzíti, hanem a beállított órát, a két adat
+összemosása pedig téves következtetésekhez vezetne. A művelet emellett csak a
+huszonnégy óránál nem régebbi nyitott bejegyzéseket zárja le — a régebbi már
+nem az adott naphoz tartozik, lezárása valótlan munkaidőt keletkeztetne.
 
 ### Napi jelenléti összesítő
 
@@ -987,10 +1000,9 @@ megválasztása tudatos: a vezető nem feltétlenül nyitja meg naponta a felül
 az elektronikus levél viszont a meglévő munkafolyamatába illeszkedik.
 
 Az ütemezett feladat magát az összesítőt nem állítja elő, csupán elindítja az
-erre szolgáló szerveroldali függvényt. A levél összeállítása és a
-levelezőszolgáltatás hívása alkalmazáslogika, amelynek adatbázis-eljárásba
-helyezése nehezen karbantartható volna; ráadásul ugyanaz a kód így kézzel is
-indítható a beállítások lapról, ami a tesztelést lényegesen egyszerűsíti.
+erre szolgáló szerveroldali függvényt. A levél összeállítása alkalmazáslogika,
+amelynek adatbázis-eljárásba helyezése nehezen karbantartható volna; ráadásul
+ugyanaz a kód így kézzel is indítható a beállítások lapról.
 
 A címzettek köre a 3.3.2. alfejezetben tárgyalt szétválasztás következménye: a
 levél azokhoz a vezetői profilokhoz jut el, amelyekhez belépési fiók is

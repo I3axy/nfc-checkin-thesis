@@ -41,6 +41,7 @@ export function SettingsTab({ settings, companyId, me, employees = [], onChange 
   }, [employees, settings.autoCheckoutByShift])
   const [photoRequired, setPhotoRequired] = useState(settings.photoRequired ?? false)
   const [pinPhotoRequired, setPinPhotoRequired] = useState(settings.pinPhotoRequired ?? false)
+  const [cardSelfEnroll, setCardSelfEnroll] = useState(settings.cardSelfEnroll ?? true)
   // Read the theme from its real source (localStorage) — the App-level settings
   // state isn't updated by the instant theme switch, so it can go stale.
   const [theme,         setTheme]         = useState(() => loadTheme())
@@ -122,7 +123,7 @@ export function SettingsTab({ settings, companyId, me, employees = [], onChange 
     const next = {
       startHour, startMinute, lateThresholdMinutes: lateThreshold,
       autoCheckoutHour: autoCheckout, autoCheckoutByShift: shiftHours,
-      photoRequired, pinPhotoRequired, theme,
+      photoRequired, pinPhotoRequired, cardSelfEnroll, theme,
     }
     const { data, error } = await supabase.from('companies').update(settingsToCompany(next)).eq('id', companyId).select()
     setSaving(false)
@@ -138,7 +139,7 @@ export function SettingsTab({ settings, companyId, me, employees = [], onChange 
       startHour: Number(startHour), startMinute: Number(startMinute),
       lateThresholdMinutes: Number(lateThreshold), autoCheckoutHour: Number(autoCheckout),
       autoCheckoutByShift: savedShifts,
-      photoRequired, pinPhotoRequired, theme,
+      photoRequired, pinPhotoRequired, cardSelfEnroll, theme,
     })
     setSaved(true)
     toast('Beállítások elmentve')
@@ -276,6 +277,22 @@ export function SettingsTab({ settings, companyId, me, employees = [], onChange 
             <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', justifyContent: 'flex-end' }}>
               <span style={{ fontSize: '0.78rem', color: pinPhotoRequired ? C.green : C.muted, minWidth: 24 }}>{pinPhotoRequired ? 'Be' : 'Ki'}</span>
               <Toggle on={pinPhotoRequired} onClick={() => setPinPhotoRequired(v => !v)} />
+            </div>
+          </SettingsRow>
+        </tbody>
+      </Table>
+
+      <div style={{ height: '1.5rem' }} />
+      <SectionLabel color={C.accent}>Kártya párosítása</SectionLabel>
+      <Table>
+        <tbody>
+          <SettingsRow
+            label="Dolgozó párosíthatja a kártyáját"
+            hint="PIN-es belépés után a scanner felajánlja a kártya hozzárendelését, ha a dolgozónak még nincs. Meglévő kártyát nem írhat felül."
+          >
+            <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', justifyContent: 'flex-end' }}>
+              <span style={{ fontSize: '0.78rem', color: cardSelfEnroll ? C.green : C.muted, minWidth: 24 }}>{cardSelfEnroll ? 'Be' : 'Ki'}</span>
+              <Toggle on={cardSelfEnroll} onClick={() => setCardSelfEnroll(v => !v)} />
             </div>
           </SettingsRow>
         </tbody>

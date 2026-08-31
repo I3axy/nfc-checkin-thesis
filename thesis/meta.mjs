@@ -17,9 +17,16 @@
 
 export const META = {
   // ── Címlap ────────────────────────────────────────────────────────────────
-  titleHu: 'NFC-alapú jelenléti nyilvántartó rendszer fejlesztése',
-  titleSr: 'Razvoj sistema za evidenciju prisutnosti zasnovanog na NFC tehnologiji',
-  titleEn: 'Development of an NFC-based attendance tracking system',
+  // A sablon HÁROM címhelyet tartalmaz: magyar, szerb (LATIN betűkkel) és
+  // angol. A cirill betűs változatnak a címlapon nincs helye — ha máshol
+  // (pl. jelentkezési lapon) szükséges, innen másolható:
+  //
+  //   ПРОЈЕКТОВАЊЕ И РАЗВОЈ ИНТЕГРИСАНОГ ИНФОРМАЦИОНОГ СИСТЕМА ЗА ЕВИДЕНЦИЈУ
+  //   ПРИСУСТВА ПРИМЕНОМ NFC И PWA ТЕХНОЛОГИЈА
+  //
+  titleHu: 'INTEGRÁLT INFORMÁCIÓS JELENLÉTKEZELŐ RENDSZER TERVEZÉSE ÉS FEJLESZTÉSE NFC ÉS PWA TECHNOLÓGIÁK ALKALMAZÁSÁVAL',
+  titleSr: 'PROJEKTOVANJE I RAZVOJ INTEGRISANOG INFORMACIONOG SISTEMA ZA EVIDENCIJU PRISUSTVA PRIMENOM NFC I PWA TEHNOLOGIJA',
+  titleEn: 'DESIGN AND DEVELOPMENT OF AN INTEGRATED INFORMATION SYSTEM FOR ATTENDANCE TRACKING USING NFC AND PWA TECHNOLOGIES',
 
   student:  'Barát Balázs',
   mentor:   'dr. Zlatko Čović',
@@ -27,8 +34,13 @@ export const META = {
   place:    'Szabadka',
   year:     '2026',
 
-  // A nyilatkozat keltezése. A pontos nap a leadáskor írandó be.
-  dateLine: 'Szabadkán, kelt 2026. ______________',
+  // A nyilatkozat keltezése.
+  // FIGYELEM: ez a szöveg egy 1668 twip (2,94 cm) széles táblázatcellába
+  // kerül. Bármit írunk ide a sablon eredeti szövegén felül, az több sorba
+  // tördelődik és szétfeszíti az aláírás-táblázatot. A dátumnak a MELLETTE
+  // lévő cella van fenntartva — oda a kinyomtatott példányon kézzel kerül,
+  // az aláírással együtt.
+  dateLine: 'Szabadkán, kelt',
 
   // ── Absztrakt (a sablon szerint 100–200 szó) ──────────────────────────────
   abstract:
@@ -37,7 +49,8 @@ export const META = {
     'hogy a kézzel vezetett jelenléti ív utólag módosítható és nehezen ' +
     'ellenőrizhető, a meglévő zárt rendszerek költségesek, hálózatkimaradás ' +
     'esetén pedig használhatatlanná válnak. A megvalósított rendszer három ' +
-    'webalkalmazásból áll — beléptető terminál, dolgozói önkiszolgáló felület ' +
+    'progresszív webalkalmazásból (PWA) áll — beléptető terminál, dolgozói ' +
+    'önkiszolgáló felület ' +
     'és vezetői irányítópult —, amelyek közös, több bérlős háttérrendszert ' +
     'használnak. A beléptetés a dolgozó kártyájának érintésével történik, a ' +
     'művelet iránya pedig automatikusan meghatározásra kerül. A terminál ' +

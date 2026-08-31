@@ -98,6 +98,16 @@ async function main() {
     console.warn(`  (az ideiglenes profil nem törölhető: ${profile})`)
   }
 
+  // A leggyakoribb ok az, hogy a célfájl épp meg van nyitva, és ezért zárolt.
+  // Ezt érdemes néven nevezni, mert a UNO nyers hibaüzenete nem árulja el.
+  const locked = r.out.split('\n').filter(l => l.startsWith('FAIL'))
+  if (locked.length) {
+    console.error('\nHIBA: ezeket a fájlokat nem sikerült felülírni:')
+    for (const l of locked) console.error('  ' + l.split('\t')[1])
+    console.error('\n  Szinte biztosan nyitva vannak — zárd be őket (PDF-olvasó,\n' +
+                  '  Word, LibreOffice), és futtasd újra.')
+    process.exit(1)
+  }
   if (r.code !== 0 || !r.out.includes('OK')) {
     console.error('HIBA a frissítés közben:')
     console.error((r.err || r.out || '(nincs kimenet)').trim())

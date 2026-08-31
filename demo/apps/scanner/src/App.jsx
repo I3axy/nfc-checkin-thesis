@@ -6,6 +6,9 @@ import {
 import { syncQueue } from './sync.js'
 
 const RESET_DELAY = 3000
+// A kártyapárosítás felajánlása tovább marad a képernyőn, mint egy sima
+// visszajelzés: a dolgozónak elő kell vennie a kártyáját.
+const ENROLL_DELAY = 15000
 const CAMERA_TIMEOUT = 20000
 const SYNC_INTERVAL = 20000
 const FUNCTION_URL = import.meta.env.VITE_CHECKIN_FUNCTION_URL
@@ -23,6 +26,7 @@ export default function App() {
   const [syncingUi, setSyncingUi] = useState(false)
   const [savedOffline, setSavedOffline] = useState(false)
   const [pinInput, setPinInput] = useState('')
+  const [enrollOffer, setEnrollOffer] = useState(false)
   const nfcSupported = 'NDEFReader' in window
   const processing = useRef(false)
   const resetTimer = useRef(null)
@@ -33,6 +37,9 @@ export default function App() {
   const cameraTimeout = useRef(null)
   const captureMode = useRef('online')   // 'online' | 'offline'
   const offlineCtx = useRef(null)        // { uid, name, type } during offline photo capture
+  // Amíg ez ki van töltve, a következő kártyaérintés NEM beléptetés, hanem a
+  // saját kártya párosítása. A PIN azért kell, mert a szerver abból azonosít.
+  const enrollCtx = useRef(null)         // { pin } while the pairing offer is up
   const syncing = useRef(false)
 
   // --- background: roster refresh + queue sync --------------------------------
@@ -111,13 +118,16 @@ export default function App() {
       const data = await res.json()
       if (!res.ok) return { ok: false, code: data.code, error: data.error, user: data.user }
       if (data.needs_photo) return { ok: true, needsPhoto: true, user: data.user }
-      return { ok: true, event: data.event, user: data.user }
+      return { ok: true, event: data.event, user: data.user, canEnrollCard: !!data.can_enroll_card }
     } catch {
       return { ok: false, offline: true }   // network failure — fall back to offline
     }
   }
 
   async function handleCard(rawUid) {
+    // A párosítási felajánlás elsőbbséget élvez: ilyenkor az érintés nem
+    // beléptetés, hanem a kártya hozzárendelése a PIN-nel azonosított profilhoz.
+    if (enrollCtx.current) { await enrollCard(rawUid); return }
     if (processing.current) return
     processing.current = true
     if (resetTimer.current) clearTimeout(resetTimer.current)
@@ -133,6 +143,51 @@ export default function App() {
     if (result.offline) { await recordOffline(uid); return }   // died mid-request
     if (result.ok && result.needsPhoto) { openCamera('online'); return }
     finishResult(result)
+  }
+
+  // --- kártya párosítása (a belépés UTÁN, PIN-nel azonosítva) -----------------
+  // A beléptetés ekkor már megtörtént: ha a dolgozó meggondolja magát vagy
+  // elsétál, a jelenléte akkor is rögzítve van.
+  async function enrollCard(rawUid) {
+    const ctx = enrollCtx.current
+    enrollCtx.current = null
+    setEnrollOffer(false)
+    processing.current = true
+    if (resetTimer.current) clearTimeout(resetTimer.current)
+
+    const uid = normalizeUid(rawUid)
+    setLastUid(uid)
+    pendingUid.current = uid
+
+    try {
+      const res = await fetch(FUNCTION_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pin: ctx.pin, nfc_uid: uid, company_slug: COMPANY_SLUG, action: 'enroll_card',
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        flash(data.code === 'ENROLL_TAKEN' ? 'cardtaken' : 'enrollfail', '')
+        return
+      }
+      flash('enrolled', data.user?.name ?? '')
+      // A helyi névjegyzék még nem ismeri az új kártyát; enélkül egy közvetlenül
+      // ezután bekövetkező hálózatkimaradás ismeretlen kártyaként utasítaná el.
+      if (navigator.onLine) refreshRoster()
+    } catch {
+      flash('noconn', '')
+    }
+  }
+
+  function skipEnroll() {
+    enrollCtx.current = null
+    setEnrollOffer(false)
+    if (resetTimer.current) clearTimeout(resetTimer.current)
+    setScreen('ready')
+    setName('')
+    processing.current = false
   }
 
   // --- PIN keypad (online only; a PIN can't be verified offline) --------------
@@ -204,6 +259,13 @@ export default function App() {
       else if (result.code === 'UNKNOWN_PIN') { flash('badpin', '') }
       else if (result.code === 'GUEST_EXPIRED') { flash('expired', result.user?.name ?? '') }
       else { flash('unknown', '') }
+      return
+    }
+    // Nincs még kártyája: a sikeres belépés képernyőjén felajánljuk a párosítást.
+    const pin = pendingIdentity.current?.pin
+    if (result.canEnrollCard && pin) {
+      enrollCtx.current = { pin }
+      flash(result.event.type, result.user.name, { enroll: true })
       return
     }
     flash(result.event.type, result.user.name)
@@ -286,12 +348,18 @@ export default function App() {
     setSavedOffline(!!opts.offline)
     setScreen(screenKey)
     setName(personName)
+    setEnrollOffer(!!opts.enroll)
+    // Párosítási felajánlás alatt a következő érintést azonnal fogadni kell,
+    // ezért a zárat nem a visszaállításig tartjuk fenn.
+    if (opts.enroll) processing.current = false
     resetTimer.current = setTimeout(() => {
       setScreen('ready')
       setName('')
       setSavedOffline(false)
+      setEnrollOffer(false)
+      enrollCtx.current = null
       processing.current = false
-    }, RESET_DELAY)
+    }, opts.enroll ? ENROLL_DELAY : RESET_DELAY)
   }
 
   function addLog(uid, result, personName, offline) {
@@ -374,9 +442,9 @@ export default function App() {
     </Screen>
   )
 
-  const bg    = { ready: 'var(--bg)', checkin: '#10b981', checkout: '#ef4444', unknown: '#f59e0b', expired: '#b45309', badpin: '#f59e0b', noconn: '#3f3f46' }[screen] ?? 'var(--bg)'
-  const emoji = { ready: '📡', checkin: '✅', checkout: '🔴', unknown: '❓', expired: '⏰', badpin: '🔒', noconn: '📵' }[screen]
-  const title = { ready: 'Tap your NFC card', checkin: 'CHECKED IN', checkout: 'CHECKED OUT', unknown: 'Card not registered', expired: 'Guest pass expired', badpin: 'Wrong PIN', noconn: 'No connection' }[screen]
+  const bg    = { ready: 'var(--bg)', checkin: '#10b981', checkout: '#ef4444', unknown: '#f59e0b', expired: '#b45309', badpin: '#f59e0b', noconn: '#3f3f46', enrolled: '#0ea5e9', cardtaken: '#f59e0b', enrollfail: '#f59e0b' }[screen] ?? 'var(--bg)'
+  const emoji = { ready: '📡', checkin: '✅', checkout: '🔴', unknown: '❓', expired: '⏰', badpin: '🔒', noconn: '📵', enrolled: '💳', cardtaken: '⛔', enrollfail: '⚠️' }[screen]
+  const title = { ready: 'Tap your NFC card', checkin: 'CHECKED IN', checkout: 'CHECKED OUT', unknown: 'Card not registered', expired: 'Guest pass expired', badpin: 'Wrong PIN', noconn: 'No connection', enrolled: 'CARD REGISTERED', cardtaken: 'Card belongs to someone else', enrollfail: 'Pairing failed' }[screen]
 
   return (
     <Screen bg={bg}>
@@ -389,6 +457,14 @@ export default function App() {
 
       {savedOffline && (screen === 'checkin' || screen === 'checkout') && (
         <div style={S.offlineNote}>💾 Elmentve offline · szinkron később</div>
+      )}
+
+      {enrollOffer && (
+        <div style={S.enrollBox}>
+          <div style={S.enrollTitle}>💳 Nincs kártyád regisztrálva</div>
+          <div style={S.enrollText}>Érintsd oda most, és a rendszer hozzád rendeli.</div>
+          <button onClick={skipEnroll} style={S.enrollSkip}>Most nem</button>
+        </div>
       )}
 
       {screen === 'ready' && online && (
@@ -454,6 +530,12 @@ const S = {
   badgePending: { color: 'var(--warn)' },
   pinBtn:     { marginTop: '0.5rem', padding: '0.7rem 1.6rem', fontSize: 'clamp(0.95rem, 4vw, 1.15rem)', fontWeight: 600, background: 'var(--surface-2)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 999, cursor: 'pointer' },
   pinDots:    { fontSize: '2.4rem', letterSpacing: '0.4rem', minHeight: '3rem', fontWeight: 700, color: 'var(--text)', fontFamily: MONO },
+  // A felajánlás a sikeres belépés színes képernyőjén ül, ezért áttetsző
+  // fehér alapot kap: minden háttérszínen olvasható marad.
+  enrollBox:  { marginTop: '1.2rem', padding: '0.9rem 1.2rem', borderRadius: 14, background: 'rgba(255,255,255,0.92)', color: '#111', textAlign: 'center', maxWidth: '22rem' },
+  enrollTitle:{ fontSize: 'clamp(1rem, 4.2vw, 1.2rem)', fontWeight: 700 },
+  enrollText: { fontSize: 'clamp(0.85rem, 3.4vw, 1rem)', marginTop: '0.25rem', color: '#3f3f46' },
+  enrollSkip: { marginTop: '0.7rem', padding: '0.5rem 1.2rem', fontSize: '0.95rem', fontWeight: 600, background: '#e4e4e7', color: '#111', border: 'none', borderRadius: 999, cursor: 'pointer' },
   keypad:     { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.6rem', width: 'min(86vw, 320px)' },
   key:        { padding: '1rem 0', fontSize: '1.4rem', fontWeight: 600, background: 'var(--surface-2)', color: 'var(--text)', border: '1px solid var(--border)', borderRadius: 12, cursor: 'pointer', fontFamily: MONO },
   keyOk:      { background: '#10b981', border: 'none', color: '#052e22' },

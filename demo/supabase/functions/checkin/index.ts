@@ -50,7 +50,7 @@ Deno.serve(async (req) => {
     // Lookup company
     const { data: company, error: companyErr } = await supabase
       .from('companies')
-      .select('id, photo_required, pin_photo_required')
+      .select('id, photo_required, pin_photo_required, card_self_enroll')
       .eq('slug', company_slug)
       .single()
 
@@ -98,13 +98,16 @@ Deno.serve(async (req) => {
     // From here on we need to identify a person: by PIN (keypad fallback) or by
     // NFC card. viaPin drives whether the PIN-specific photo policy applies.
     const viaPin = !!pin
-    let profile: { id: string; name: string; role: string; guest_expires_at: string | null } | null = null
+    let profile:
+      | { id: string; name: string; role: string; guest_expires_at: string | null; nfc_uid?: string | null }
+      | null = null
 
     if (viaPin) {
       const pinHash = await hashPin(company.id, String(pin))
       const { data } = await supabase
         .from('profiles')
-        .select('id, name, role, guest_expires_at')
+        // nfc_uid is needed here to decide whether a card can still be paired
+        .select('id, name, role, guest_expires_at, nfc_uid')
         .eq('company_id', company.id)
         .eq('pin', pinHash)
         .maybeSingle()
@@ -132,6 +135,62 @@ Deno.serve(async (req) => {
 
     // Photo policy differs for card vs PIN (a PIN can be shared with a colleague)
     const photoRequired = viaPin ? company.pin_photo_required : company.photo_required
+
+    // Can this person still pair a card? Only over PIN (the card branch already
+    // has one by definition), only when the company allows it, and only while
+    // the profile has no card yet.
+    const canEnrollCard = viaPin && company.card_self_enroll && !profile.nfc_uid
+
+    // -------------------------------------------------------------------------
+    // action:'enroll_card' — the worker pairs their own card, identified by PIN.
+    //
+    // This is the ONLY write the PIN authorises, and it is deliberately narrow:
+    // it can fill an empty field, never overwrite a populated one. A leaked PIN
+    // therefore cannot take over a colleague's existing card; at worst it claims
+    // a card for someone who has none — which the audit column below records,
+    // and which the real worker notices immediately (they can no longer pair).
+    // -------------------------------------------------------------------------
+    if (action === 'enroll_card') {
+      if (!viaPin) {
+        return json({ error: 'PIN required to pair a card', code: 'ENROLL_NEEDS_PIN' }, 400)
+      }
+      if (!company.card_self_enroll) {
+        return json({ error: 'Card pairing is disabled for this company', code: 'ENROLL_DISABLED' }, 403)
+      }
+      if (profile.nfc_uid) {
+        return json({ error: 'This profile already has a card', code: 'ENROLL_HAS_CARD' }, 409)
+      }
+      if (!nfc_uid) {
+        return json({ error: 'nfc_uid required', code: 'ENROLL_NO_UID' }, 400)
+      }
+
+      const uid = normalizeUid(nfc_uid)
+      if (!uid) {
+        return json({ error: 'Unreadable card', code: 'ENROLL_BAD_UID' }, 400)
+      }
+
+      // The card must be free within this company. Both spellings are checked,
+      // because manually entered identifiers may carry the colon-separated form.
+      const variants = [uid, uid.replace(/(.{2})/g, '$1:').slice(0, -1)]
+      const { data: taken } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('company_id', company.id)
+        .in('nfc_uid', variants)
+        .maybeSingle()
+      if (taken) {
+        return json({ error: 'This card belongs to someone else', code: 'ENROLL_TAKEN' }, 409)
+      }
+
+      const { error: updErr } = await supabase
+        .from('profiles')
+        .update({ nfc_uid: uid, nfc_uid_enrolled_at: new Date().toISOString() })
+        .eq('id', profile.id)
+        .is('nfc_uid', null)          // last-line guard against a concurrent pairing
+      if (updErr) throw updErr
+
+      return json({ ok: true, code: 'ENROLLED', user: { name: profile.name } })
+    }
 
     // -------------------------------------------------------------------------
     // action:'sync' — replay a single event recorded while the scanner was
@@ -281,6 +340,9 @@ Deno.serve(async (req) => {
     return json({
       user: { id: profile.id, name: profile.name, role: profile.role },
       event: { id: event.id, type: event.type, timestamp: event.timestamp },
+      // The scanner offers card pairing AFTER a successful check-in, so the
+      // attendance record never depends on whether the worker goes through with it.
+      can_enroll_card: canEnrollCard,
     })
   } catch (err) {
     return json({ error: 'Internal server error' }, 500)

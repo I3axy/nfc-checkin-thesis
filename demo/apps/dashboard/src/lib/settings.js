@@ -10,6 +10,7 @@ export const DEFAULT_SETTINGS = {
   autoCheckoutByShift: {},
   photoRequired: false,
   pinPhotoRequired: false,
+  cardSelfEnroll: true,
   theme: 'dark',
 }
 
@@ -36,6 +37,7 @@ export function companyToSettings(company) {
     autoCheckoutByShift:  company.auto_checkout_by_shift ?? {},
     photoRequired:        company.photo_required,
     pinPhotoRequired:     company.pin_photo_required,
+    cardSelfEnroll:       company.card_self_enroll ?? true,
   }
 }
 
@@ -49,6 +51,7 @@ export function settingsToCompany(s) {
     auto_checkout_by_shift: sanitizeShiftHours(s.autoCheckoutByShift),
     photo_required:         !!s.photoRequired,
     pin_photo_required:     !!s.pinPhotoRequired,
+    card_self_enroll:       !!s.cardSelfEnroll,
   }
 }
 

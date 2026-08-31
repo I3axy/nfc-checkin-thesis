@@ -83,9 +83,20 @@ def main():
             indexes.getByIndex(i).update()
         doc.refresh()
 
-        doc.storeToURL(url(pdf_out), (prop('FilterName', 'writer_pdf_Export'),))
-        doc.storeToURL(url(docx_out), (prop('FilterName', 'MS Word 2007 XML'),))
-        print('OK')
+        # A két mentés egymástól függetlenül fut le: ha az egyik célfájl épp
+        # meg van nyitva (és ezért zárolt), a másik akkor is elkészüljön.
+        failed = []
+        for path, filt in ((pdf_out, 'writer_pdf_Export'),
+                           (docx_out, 'MS Word 2007 XML')):
+            try:
+                doc.storeToURL(url(path), (prop('FilterName', filt),))
+            except Exception as exc:
+                failed.append('%s\t%s' % (path, exc))
+        if failed:
+            for f in failed:
+                print('FAIL\t' + f)
+        else:
+            print('OK')
     finally:
         try:
             doc.close(False)
