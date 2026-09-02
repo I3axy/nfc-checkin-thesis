@@ -12,8 +12,8 @@ megoldások mégis folyamatosan változnak, ahogy az azonosítási technológiá
 szoftverarchitektúrák fejlődnek. Ebben a fejezetben azok az elméleti alapok és
 létező megoldások kerülnek bemutatásra, amelyek a dolgozat tárgyát képező
 rendszer megértéséhez szükségesek. Először az azonosítási technológiák
-összehasonlítása történik meg, majd részletes tárgyalás következik a választott
-NFC technológia. Ezt követi a jelenlévő piaci és kutatási megoldások áttekintése,
+összehasonlítása történik meg, majd a választott NFC technológia részletes
+tárgyalása. Ezt követi a jelenlegi piaci és kutatási megoldások áttekintése,
 a webalkalmazás-architektúrák vizsgálata, végül a mesterséges intelligencia
 vezetői kimutatásokban betöltött szerepének bemutatása.
 
@@ -55,6 +55,8 @@ tartozik [2], kezeléséhez szigorúbb feltételek teljesülése szükséges. Eh
 magasabb hardverköltség, valamint a téves elutasítás és a téves elfogadás
 kockázata, amely ipari környezetben — szennyezett kéz, védőkesztyű mellett —
 számottevően romolhat.
+
+A négy technológia főbb jellemzőit az 1. táblázat veti össze.
 
 @@TABLE Az azonosítási technológiák összehasonlítása
 

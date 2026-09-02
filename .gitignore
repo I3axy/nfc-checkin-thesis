@@ -1,6 +1,9 @@
 # Dependencies
 node_modules/
+
+# Mások dolgozatai — nem a mi anyagunk, nem verziózzuk
 Ricsié
+szakdolgozat_Vass_Richard*.docx
 # Build outputs
 dist/
 build/

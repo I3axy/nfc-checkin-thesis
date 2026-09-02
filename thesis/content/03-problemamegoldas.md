@@ -118,7 +118,7 @@ folyamatosan bővül. Az elkülönítés miatt az utóbbi módosítása nem igé
 beléptető eszközök frissítését — ezek ugyanis falra szerelve, nehezen
 hozzáférhetően üzemelnek.
 
-A három alkalmazás szerepét az 1. táblázat foglalja össze.
+A három alkalmazás szerepét a 2. táblázat foglalja össze.
 
 @@TABLE A három alkalmazás szerepe és üzemi körülményei
 
@@ -497,7 +497,9 @@ küldi el. A szerver ellenőrzi a kártyát, megállapítja a művelet irányát
 ha a cég beállítása ezt megkívánja — nem hoz létre eseményt, hanem jelzi, hogy
 fényképre van szükség. Az alkalmazás ekkor kapcsolja be a kamerát, és a
 felvétellel együtt küldi el a második kérést, amely nyomán az esemény
-ténylegesen létrejön.
+ténylegesen létrejön. A folyamatot a 4. ábra szemlélteti.
+
+![A fényképes ellenőrzés kétlépéses folyamata](fenykep-folyamat.png)
 
 A felépítés lényeges következménye, hogy félbehagyott bejegyzés nem
 keletkezhet. Ha a dolgozó a fényképezést megszakítja, vagy a kamera használatát
@@ -560,7 +562,9 @@ ismételt küldése sem vezetne eredményre. Átmeneti hibánál, azaz szerverol
 üzemzavarnál vagy hálózati hibánál viszont a tétel marad, és a feldolgozás
 megszakad. Ez utóbbi azért fontos, mert ha a sor a hibás tétel átugrásával
 folytatódna, az események sorrendje felborulna, és a váltakozó irány hibás
-állapotba kerülne.
+állapotba kerülne. A négy kérdésre adott választ az 5. ábra foglalja össze.
+
+![A hálózatfüggetlen működés négy kérdése és megoldásuk](offline-mukodes.png)
 
 #### Az alkalmazás indulása hálózat nélkül
 
@@ -710,7 +714,7 @@ a dolgozó otthonról is rögzíthetné az érkezését.
 
 ### A felület felépítése
 
-A felület három nézetre tagolódik: a mai nap, a napló és a hiányzások (4. ábra).
+A felület három nézetre tagolódik: a mai nap, a napló és a hiányzások (6. ábra).
 Váltani a fejléc választójával vagy oldalirányú húzással lehet; az utóbbi
 mobilon megszokott, és egy kézzel is kényelmes.
 
@@ -809,7 +813,7 @@ változhat, a tárolt tény viszont változatlan marad.
 
 A megjelenítés a fejléc harang ikonjával történik, amely olvasatlan értesítés
 esetén jelölést és darabszámot kap. A lista a teljes képernyőt elfoglalja, nem
-lebegő panelben nyílik meg (5. ábra): mobilon a lebegő panel a tartalom jelentős
+lebegő panelben nyílik meg (7. ábra): mobilon a lebegő panel a tartalom jelentős
 részét eltakarná, a mögötte lévő felület pedig véletlen érintésre is reagálna.
 A visszatérést ugyanaz a jelölés szolgálja, mint a vezetői felület menüjének
 összecsukását — az azonos jelentésű műveletekhez azonos jelölés tartozik.
@@ -863,7 +867,7 @@ kapcsolatot hagyna hátra.
 
 A kimutatások két, egymást kiegészítő nézetből állnak: egy kiválasztott dolgozó
 időszaki elemzéséből és a teljes létszámra vonatkozó havi összesítőből. Az
-elemző nézet a 6. ábrán látható.
+elemző nézet a 8. ábrán látható.
 
 ![A vezetői felület statisztikai nézete](statisztika.png)
 
@@ -1099,9 +1103,10 @@ A PIN-es azonosítás a 3.4.5. alfejezetben kifejtett okból tartalék mód, nem
 jelszóval egyenértékű védelem.
 
 A vezetői felület asztali használatra készült. Telefonon a lényeges műveletek
-elvégezhetők, a részletező kimutatások azonban nem jelennek meg — az adat ott
-az exportált állományban érhető el. Ez tudatos döntés: a hat oszlopos összesítő
-telefonképernyőn olvashatatlan volna.
+elvégezhetők, a havi összesítő viszont szűkített nézetben jelenik meg: a
+részletező oszlopok — részleg, késések, hiányzások — kimaradnak, és asztali
+gépen, illetve az exportált állományban érhetők el. A hét oszlop
+telefonképernyőn olvashatatlanul összenyomódna.
 
 Az elektronikus levelek küldése egyetlen, előzetesen igazolt címre
 korlátozódik, mivel saját tartomány hitelesítése nem történt meg. Ez a

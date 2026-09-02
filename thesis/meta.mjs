@@ -21,12 +21,12 @@ export const META = {
   // angol. A cirill betűs változatnak a címlapon nincs helye — ha máshol
   // (pl. jelentkezési lapon) szükséges, innen másolható:
   //
-  //   ПРОЈЕКТОВАЊЕ И РАЗВОЈ ИНТЕГРИСАНОГ ИНФОРМАЦИОНОГ СИСТЕМА ЗА ЕВИДЕНЦИЈУ
-  //   ПРИСУСТВА ПРИМЕНОМ NFC И PWA ТЕХНОЛОГИЈА
+  //   Развој информационог система за евиденцију присуства применом NFC и
+  //   PWA технологија
   //
-  titleHu: 'INTEGRÁLT INFORMÁCIÓS JELENLÉTKEZELŐ RENDSZER TERVEZÉSE ÉS FEJLESZTÉSE NFC ÉS PWA TECHNOLÓGIÁK ALKALMAZÁSÁVAL',
-  titleSr: 'PROJEKTOVANJE I RAZVOJ INTEGRISANOG INFORMACIONOG SISTEMA ZA EVIDENCIJU PRISUSTVA PRIMENOM NFC I PWA TEHNOLOGIJA',
-  titleEn: 'DESIGN AND DEVELOPMENT OF AN INTEGRATED INFORMATION SYSTEM FOR ATTENDANCE TRACKING USING NFC AND PWA TECHNOLOGIES',
+  titleHu: 'Információs jelenlétkezelő rendszer fejlesztése NFC és PWA technológiák alkalmazásával',
+  titleSr: 'Razvoj informacionog sistema za evidenciju prisustva primenom NFC i PWA tehnologija',
+  titleEn: 'Development of an Information System for Attendance Tracking Using NFC and PWA Technologies',
 
   student:  'Barát Balázs',
   mentor:   'dr. Zlatko Čović',
@@ -95,13 +95,13 @@ export const META = {
   ],
 
   // ── Köszönetnyilvánítás (legfeljebb 100 szó; a sablon szerint elhagyható) ──
-  // Egyelőre a sablon eredeti útmutató szövege áll itt: a személyes rész a
-  // leadás előtt írandó meg. A véleményezésre küldött változatban így
-  // egyértelmű, hogy ez a fejezet még nem készült el.
   thanks:
-    'Ez a fejezet személyes megjegyzéseket tartalmaz (köszönetnyilvánítások és ' +
-    'hasonlók). Terjedelme legfeljebb 100 szó. Nem kötelező jellegű, tehát ' +
-    'kihagyható.',
+    'Köszönettel tartozom mentoromnak, dr. Zlatko Čovićnak a szakdolgozat ' +
+    'készítése során nyújtott iránymutatásért, és azért, hogy a felmerülő ' +
+    'kérdésekkel bármikor fordulhattam hozzá. Köszönöm a Szabadkai Műszaki ' +
+    'Szakfőiskola oktatóinak az elmúlt évek munkáját. Végül köszönöm a ' +
+    'családomnak a türelmet azokban a hónapokban, amikor a fejlesztés a ' +
+    'szabad estéket is elvitte.',
 
   // ── A szakdolgozat témája (a mentor határozza meg) ─────────────────────────
   topic:

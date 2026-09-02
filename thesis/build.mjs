@@ -131,14 +131,24 @@ function tableXml(rows) {
 // bal+jobb margó (1418+851) = 9638 twip = 6.12 M EMU. Ennél szélesebb kép
 // arányosan kicsinyítve kerül be.
 const MAX_W_EMU = 6120000
+// A szövegtükör MAGASSÁGA: A4 (16838 twip) mínusz felső+alsó margó (2×1418)
+// = 14002 twip = 24,7 cm. Ennél magasabb kép nem fér ki, a szövegszerkesztő
+// pedig ilyenkor átlöki a következő oldalra, és ott is túllógna. A korlátot
+// ezért 18 cm-ben húzzuk meg, hogy a képaláírásnak és néhány sor szövegnek is
+// maradjon hely. Ez az álló tájolású telefonos képernyőképeknél számít: egy
+// 1080×2340 pixeles felvétel szélességre igazítva 36,8 cm magas lenne.
+const MAX_H_EMU = 6480000                              // 18 cm
 let imgSeq = 0
 const imageRels = []   // { id, target }
+const imageSizes = []  // { file, cm } — a build jelentéséhez
 
 function imageParagraph(file, widthPx, heightPx) {
   const id = `rIdImg${++imgSeq}`
   imageRels.push({ id, target: `media/${file}` })
   let w = widthPx * 9525, h = heightPx * 9525          // px -> EMU (96 DPI)
   if (w > MAX_W_EMU) { h = Math.round(h * (MAX_W_EMU / w)); w = MAX_W_EMU }
+  if (h > MAX_H_EMU) { w = Math.round(w * (MAX_H_EMU / h)); h = MAX_H_EMU }
+  imageSizes.push({ file, w: w / 360000, h: h / 360000 })
   const docPr = imgSeq
   return `<w:p><w:pPr><w:pStyle w:val="${ST.figure}"/></w:pPr><w:r><w:drawing>` +
     `<wp:inline distT="0" distB="0" distL="0" distR="0">` +
@@ -617,6 +627,13 @@ async function main() {
 
   console.log(`\nKész: ${path.relative(ROOT, OUT)}`)
   console.log(`  ${figureState.figNo} ábra, ${figureState.tabNo} táblázat-felirat, ${figureState.media.length} beágyazott kép`)
+  // A méret kiírása azért kell, mert egy álló tájolású képernyőkép a
+  // szövegtükör szélességére igazítva magasabb lenne a lapnál. A korlátozás
+  // némán történik, tehát csak itt látszik, ha egy kép a maximumra ütközött.
+  for (const s of imageSizes) {
+    const jel = s.h >= 17.99 ? '  (magasságra korlátozva)' : ''
+    console.log(`      ${s.file.padEnd(26)} ${s.w.toFixed(1)} × ${s.h.toFixed(1)} cm${jel}`)
+  }
   if (figureState.missing.length) {
     console.log(`  ! ${figureState.missing.length} ábra HELYŐRZŐVEL került be (a sorszámozás helyes marad):`)
     for (const f of figureState.missing) console.log(`      thesis/figures/${f}`)

@@ -87,7 +87,7 @@
      a szűrősávban továbbra is szűrhető rá. */
   .col-secondary { display: none !important; }
 
-  /* Részletező oszlopok. A havi összesítő hat oszlopa telefonon akkor sem
+  /* Részletező oszlopok. A havi összesítő hét oszlopa telefonon akkor sem
      fér el, ha minden térköz szűkül: már a fejlécek szélesebbek, mint a
      bennük álló számok. Telefonon ezért csak arra a kérdésre válaszol,
      amelyért megnyitják — ki mennyit dolgozott —, a részletezés asztali

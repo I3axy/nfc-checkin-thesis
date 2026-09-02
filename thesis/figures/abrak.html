@@ -30,9 +30,23 @@
   <br><code>statisztika.png</code> — a vezetői felület Statisztika lapja a grafikonnal és az MI-összefoglalóval
 </p>
 
+<p class="hint">
+  <b>Álló tájolású telefonképnél nem kell méretre vágni.</b> A build 17 cm szélességre
+  és legfeljebb 18 cm magasságra igazítja a képet, az oldalarány megtartásával, és
+  kiírja a tényleges méretet. Egy 1080×2340 pixeles felvételből így 8,3 × 18,0 cm lesz.
+</p>
+
 <h2>1. ábra — A rendszer architektúrája</h2>
 <canvas id="c1"></canvas>
 <button onclick="save('c1','architektura.png')">architektura.png letöltése</button>
+
+<h2>4. ábra — A kétlépéses fényképes ellenőrzés</h2>
+<canvas id="c3"></canvas>
+<button onclick="save('c3','fenykep-folyamat.png')">fenykep-folyamat.png letöltése</button>
+
+<h2>5. ábra — A hálózatfüggetlen működés</h2>
+<canvas id="c4"></canvas>
+<button onclick="save('c4','offline-mukodes.png')">offline-mukodes.png letöltése</button>
 
 <h2>Tartalék — rajzolt adatbázisséma</h2>
 <p class="hint alt">
@@ -227,6 +241,123 @@ function layer(x, text, y) {
   layer(x, 'Kliens oldal', 28)
   layer(x, 'Háttérrendszer (Supabase)', 270)
   layer(x, 'Külső szolgáltatások', 528)
+})()
+
+// ── Segédek a folyamatábrákhoz ─────────────────────────────────────────────
+
+// Szaggatott keret egy csoport köré, a bal felső sarokba írt címkével. A
+// címke fehér hátteret kap, hogy ne fusson össze a keret vonalával.
+function frame(x, l, t, w, h, label) {
+  x.strokeStyle = '#aaa'; x.lineWidth = 1; x.setLineDash([6, 4])
+  x.strokeRect(l, t, w, h)
+  x.setLineDash([])
+  x.font = 'bold 11.5px system-ui, sans-serif'
+  x.textAlign = 'left'
+  const tw = x.measureText(label).width
+  x.fillStyle = '#fff'; x.fillRect(l + 12, t - 8, tw + 10, 16)
+  x.fillStyle = '#777'; x.fillText(label, l + 17, t)
+}
+
+// Szereplő az idővonalas ábrán: fejlécdoboz, alatta szaggatott életvonal.
+function lifeline(x, cx, top, bottom, title, sub) {
+  const b = box(x, cx, top, 250, 54, title, sub ? [sub] : [])
+  x.strokeStyle = '#bbb'; x.lineWidth = 1; x.setLineDash([4, 4])
+  x.beginPath(); x.moveTo(cx, b.b); x.lineTo(cx, bottom); x.stroke()
+  x.setLineDash([])
+  return b
+}
+
+// Üzenet két életvonal között. A felirat a vonal FÖLÉ kerül, nem rá, mert
+// idővonalas ábrán a vonalra írt szöveg megtöri a nyilat.
+const MSGS = []
+function msg(x, fromX, toX, y, label, opts = {}) {
+  const d = Math.sign(toX - fromX)
+  path(x, [[fromX + d * 3, y], [toX - d * 3, y]], null, opts)
+  if (label) MSGS.push([label, (fromX + toX) / 2, y - 11])
+}
+function flushMsgs(x) {
+  x.textAlign = 'center'
+  for (const [t, mx, my] of MSGS) {
+    x.font = fit(x, t, 300, '11px system-ui, sans-serif', 8.5)
+    const w = x.measureText(t).width
+    x.fillStyle = '#fff'; x.fillRect(mx - w / 2 - 4, my - 8, w + 8, 16)
+    x.fillStyle = '#555'; x.fillText(t, mx, my)
+  }
+  MSGS.length = 0
+}
+
+// ── 4. ábra: a kétlépéses fényképes ellenőrzés ─────────────────────────────
+;(function () {
+  const W = 920, H = 600
+  const x = setup('c3', W, H)
+  const A = 160, B = 460, C = 770        // a három szereplő életvonala
+  const TOP = 42, BOT = 500
+
+  lifeline(x, A, TOP, BOT, 'Beléptető alkalmazás', 'a falra szerelt eszközön')
+  lifeline(x, B, TOP, BOT, 'Beléptető függvény', 'a szerveren')
+  lifeline(x, C, TOP, BOT, 'Adatbázis és fájltároló')
+
+  // A szereplőn belüli műveletek: doboz az életvonalon.
+  box(x, B, 178, 290, 58, 'a kártya ellenőrzése',
+      ['az irány és a cég beállításának olvasása'], { fill: '#f7f7f7' })
+  box(x, A, 318, 250, 58, 'a kamera bekapcsolása',
+      ['a felvétel elkészítése'], { fill: '#f7f7f7' })
+
+  msg(x, A, B, 120, '1. kérés — csak a kártyaazonosító')
+  msg(x, B, A, 248, '„fénykép szükséges” — esemény még nem jön létre', { dashed: true })
+  msg(x, A, B, 388, '2. kérés — az azonosító és a fénykép')
+  msg(x, B, C, 432, 'a kép mentése, az esemény rögzítése')
+  msg(x, B, A, 476, 'az eredmény: a név és a művelet iránya', { dashed: true })
+
+  flush(x); flushMsgs(x)
+
+  // A lényeg: a két kérés között megszakítható a folyamat.
+  box(x, W / 2, 552, 840, 46,
+      'A két kérés között megszakítva a rendszerben nem marad fénykép nélküli esemény.',
+      [], { dashed: true })
+})()
+
+// ── 6. ábra: a hálózatfüggetlen működés ────────────────────────────────────
+;(function () {
+  const W = 960, H = 650
+  const x = setup('c4', W, H)
+
+  frame(x, 30, 60, 425, 495, 'Kapcsolat nélkül')
+  frame(x, 505, 60, 425, 495, 'A kapcsolat helyreállásakor')
+
+  const L = 242, R = 717                 // a két oszlop középvonala
+
+  box(x, L, 122, 330, 48, 'Kártyaérintés')
+  box(x, L, 232, 330, 70, '① A kártya felismerése',
+      ['helyi névjegyzék: azonosító → név'])
+  box(x, L, 347, 330, 70, '② A művelet iránya',
+      ['a helyben tárolt utolsó irány,', 'a függő eseményekkel korrigálva'])
+  box(x, L, 477, 330, 70, '③ Az esemény megőrzése',
+      ['helyi sor: client_event_id és', 'a rögzítés tényleges időpontja'])
+
+  box(x, R, 122, 330, 54, '④ Visszajátszás', ['sorrendtartó, egyenként'])
+  box(x, R, 232, 330, 54, 'Beléptető függvény', ['a szerveren'])
+  box(x, R, 347, 330, 54, 'Egyedi index', ['a client_event_id mezőn'])
+  box(x, 630, 477, 160, 56, 'Új azonosító', ['az esemény rögzül'])
+  box(x, 804, 477, 160, 56, 'Ütközés', ['már megvan — siker'])
+
+  path(x, [[L, 146], [L, 197]])
+  path(x, [[L, 267], [L, 312]])
+  path(x, [[L, 382], [L, 442]])
+  // A két csoportot összekötő út a keretek KÖZÖTT fut fel, hogy egyetlen
+  // dobozt se metsszen: a doboz széléről indul és a doboz széléig tart.
+  path(x, [[407, 477], [480, 477], [480, 122], [552, 122]])
+
+  path(x, [[R, 149], [R, 205]])
+  path(x, [[R, 259], [R, 320]])
+  path(x, [[R, 374], [R, 420], [630, 420], [630, 449]], 'új')
+  path(x, [[R, 374], [R, 420], [804, 420], [804, 449]], 'ütközés')
+
+  flush(x)
+
+  box(x, W / 2, 600, 900, 46,
+      'Végleges hibánál a tétel kikerül a sorból; átmeneti hibánál marad, és a feldolgozás megáll — így a sorrend nem borul fel.',
+      [], { dashed: true })
 })()
 
 // ── Tartalék: rajzolt adatbázisséma ────────────────────────────────────────
