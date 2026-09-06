@@ -63,9 +63,17 @@
 // pixelek viszont megmaradnak, így nyomtatásban is éles.
 const SCALE = 2
 
-const TITLE_H = 17   // a címsor sormagassága
-const LINE_H  = 15   // az alsorok sormagassága
-const PAD_Y   = 22   // a szövegblokk fölött-alatt hagyott hely
+// A feliratok nagyítása. A képek a dokumentumba 17 cm szélességre kicsinyítve
+// kerülnek be, ezért a betűméret NEM a képpont-méretén, hanem a képhez mért
+// arányán múlik: a rajz szélessége változatlan, csak a szöveg lesz nagyobb.
+// A dobozok magassága ezt automatikusan követi (lásd box()), a nyilak
+// végpontjai pedig a dobozok tényleges széléhez igazodnak.
+const FS  = 1.2
+const fpx = n => +(n * FS).toFixed(1)
+
+const TITLE_H = Math.round(17 * FS)   // a címsor sormagassága
+const LINE_H  = Math.round(15 * FS)   // az alsorok sormagassága
+const PAD_Y   = 22                    // a szövegblokk fölött-alatt hagyott hely
 
 function setup(id, w, h) {
   const cv = document.getElementById(id)
@@ -110,13 +118,13 @@ function box(x, cx, cy, w, h, title, lines = [], opts = {}) {
   x.textAlign = 'center'
   let y = cy - blockH / 2 + TITLE_H / 2
   x.fillStyle = '#111'
-  x.font = fit(x, title, inner, 'bold 13px system-ui, sans-serif', 10)
+  x.font = fit(x, title, inner, `bold ${fpx(13)}px system-ui, sans-serif`, 10)
   x.fillText(title, cx, y)
 
   x.fillStyle = '#444'
   y += TITLE_H / 2 + LINE_H / 2
   lines.forEach((s, i) => {
-    x.font = fit(x, s, inner, '11.5px system-ui, sans-serif', 9)
+    x.font = fit(x, s, inner, `${fpx(11.5)}px system-ui, sans-serif`, 9)
     x.fillText(s, cx, y + i * LINE_H)
   })
   return { l, t, w, h, cx, cy, r: l + w, b: t + h }
@@ -167,13 +175,17 @@ function path(x, pts, label, opts = {}) {
   }
 }
 
+// A felirat mögé tett fehér folt magassága a betűmérettel együtt nő, különben
+// a nagyobb szöveg kilógna a takarásból.
+const LABEL_H = Math.round(16 * FS)
+
 function flush(x) {
-  x.font = '11px system-ui, sans-serif'
+  x.font = `${fpx(11)}px system-ui, sans-serif`
   x.textAlign = 'center'
   for (const [t, mx, my] of PENDING) {
     const w = x.measureText(t).width
     x.fillStyle = '#fff'
-    x.fillRect(mx - w / 2 - 4, my - 8, w + 8, 16)
+    x.fillRect(mx - w / 2 - 4, my - LABEL_H / 2, w + 8, LABEL_H)
     x.fillStyle = '#666'
     x.fillText(t, mx, my)
   }
@@ -183,71 +195,81 @@ function flush(x) {
 // A rétegcímkék a bal margón állnak, ahol nyíl is futhat: ezért fehér
 // hátteret kapnak, és minden vonal után rajzoljuk őket.
 function layer(x, text, y) {
-  x.font = '11px system-ui, sans-serif'
+  x.font = `${fpx(11)}px system-ui, sans-serif`
   x.textAlign = 'left'
   const w = x.measureText(text).width
   x.fillStyle = '#fff'
-  x.fillRect(28, y - 8, w + 8, 16)
+  x.fillRect(28, y - LABEL_H / 2, w + 8, LABEL_H)
   x.fillStyle = '#888'
   x.fillText(text, 30, y)
 }
 
 // ── 1. ábra ────────────────────────────────────────────────────────────────
 ;(function () {
-  const W = 960, H = 620
+  const W = 960, H = 630
   const x = setup('c1', W, H)
 
-  // Kliens réteg
-  box(x, 160, 96, 240, 76, 'Beléptető alkalmazás',
-      ['kioszk, falra szerelve', 'NFC-olvasás, fénykép'])
-  box(x, 480, 96, 240, 76, 'Dolgozói alkalmazás',
-      ['mobiltelefon', 'PIN-belépés, kérelmek'])
-  box(x, 800, 96, 240, 76, 'Vezetői felület',
-      ['asztali böngésző', 'kimutatások, beállítások'])
+  // A dobozok magassága a bennük álló szöveg mennyiségéből adódik (lásd box()),
+  // ezért a nyilak végpontjai NEM beírt számok, hanem a visszakapott téglalapok
+  // szélei. Így a feliratok nagyításakor a rajz nem esik szét.
 
-  box(x, 160, 200, 220, 56, 'Helyi tároló (IndexedDB)',
-      ['névjegyzék + függő események'], { dashed: true })
+  // Kliens réteg
+  const kiosk  = box(x, 160, 100, 240, 76, 'Beléptető alkalmazás',
+                     ['kioszk, falra szerelve', 'NFC-olvasás, fénykép'])
+  const worker = box(x, 480, 100, 240, 76, 'Dolgozói alkalmazás',
+                     ['mobiltelefon', 'PIN-belépés, kérelmek'])
+  const admin  = box(x, 800, 100, 240, 76, 'Vezetői felület',
+                     ['asztali böngésző', 'kimutatások, beállítások'])
+
+  const local  = box(x, 160, 200, 220, 56, 'Helyi tároló (IndexedDB)',
+                     ['névjegyzék + függő események'], { dashed: true })
 
   // Háttérrendszer
-  x.strokeStyle = '#999'; x.lineWidth = 1; x.setLineDash([6, 4])
-  x.strokeRect(30, 296, W - 60, 208)
-  x.setLineDash([])
-
-  const fn   = box(x, 144, 358, 200, 86, 'Szerveroldali függvények',
+  // A „fénykép” nyílfeliratnak a két doboz KÖZÖTT kell elférnie, ezért a
+  // középső két doboz keskenyebb: így a felirat fehér háttere nem takarja el
+  // a szomszédos doboz keretét.
+  const fn   = box(x, 144, 382, 200, 86, 'Szerveroldali függvények',
                    ['beléptetés, dolgozói adatok', 'felhasználókezelés', 'levélküldés, összefoglaló'])
-  const file = box(x, 368, 358, 200, 86, 'Fájltároló', ['ellenőrző fényképek'])
-  const auth = box(x, 592, 358, 200, 86, 'Hitelesítés', ['vezetői belépés'])
-  const rt   = box(x, 816, 358, 200, 86, 'Valós idejű csatorna', ['adatváltozás továbbítása'])
+  const file = box(x, 398, 382, 176, 86, 'Fájltároló', ['ellenőrző fényképek'])
+  const auth = box(x, 594, 382, 176, 86, 'Hitelesítés', ['vezetői belépés'])
+  const rt   = box(x, 816, 382, 200, 86, 'Valós idejű csatorna', ['adatváltozás továbbítása'])
 
-  const db = box(x, 480, 452, 872, 56, 'PostgreSQL adatbázis',
+  const db = box(x, 480, 486, 872, 56, 'PostgreSQL adatbázis',
       ['sorszintű biztonság (cégek elkülönítése) · pg_cron ütemezés'], { bold: true })
 
-  // Kliens → háttérrendszer. A két derékszögű útvonal külön magasságban fut,
+  // A háttérrendszer kerete a benne álló dobozokhoz igazodik. Csak vonal, nem
+  // takar ki semmit, ezért a dobozok után is rajzolható.
+  const F = { t: fn.t - 14, b: db.b + 14 }
+  x.strokeStyle = '#999'; x.lineWidth = 1; x.setLineDash([6, 4])
+  x.strokeRect(30, F.t, W - 60, F.b - F.t)
+  x.setLineDash([])
+
+  // Kliens → háttérrendszer. A három derékszögű útvonal külön magasságban fut,
   // így sehol nem keresztezik egymást.
-  path(x, [[160, 134], [160, 172]])
-  // A felirat feljebb kerül: a szakasz közepén a „Háttérrendszer (Supabase)”
+  path(x, [[160, kiosk.b], [160, local.t]])
+  // A felirat lejjebb kerül: a szakasz közepén a „Háttérrendszer (Supabase)”
   // rétegcímke futna rá.
-  path(x, [[160, 228], [160, 315]], 'esemény', { labelDy: -26 })
-  path(x, [[480, 134], [480, 260], [200, 260], [200, 315]], 'kérelem')
-  path(x, [[760, 134], [760, 284], [230, 284], [230, 315]], 'lekérdezés')
-  path(x, [[850, 315], [850, 134]], 'értesítés', { dashed: true })
+  path(x, [[160, local.b], [160, fn.t]], 'esemény', { labelDy: 14 })
+  path(x, [[480, worker.b], [480, 276], [200, 276], [200, fn.t]], 'kérelem')
+  path(x, [[760, admin.b], [760, 300], [230, 300], [230, fn.t]], 'lekérdezés')
+  path(x, [[850, rt.t], [850, admin.b]], 'értesítés', { dashed: true })
 
   // Háttérrendszeren belül
-  path(x, [[fn.r, 358], [file.l, 358]], 'fénykép')
-  path(x, [[144, 401], [144, 424]])
-  path(x, [[592, 401], [592, 424]])
-  path(x, [[816, 424], [816, 401]], '', { dashed: true })
+  path(x, [[fn.r, fn.cy], [file.l, fn.cy]], 'fénykép')
+  path(x, [[fn.cx, fn.b], [fn.cx, db.t]])
+  path(x, [[auth.cx, auth.b], [auth.cx, db.t]])
+  path(x, [[rt.cx, db.t], [rt.cx, rt.b]], '', { dashed: true })
 
   // Külső szolgáltatások
-  box(x, 220, 566, 240, 46, 'Nyelvi modell (Gemini)', [], { dashed: true })
-  box(x, 520, 566, 240, 46, 'Levélküldő szolgáltatás', [], { dashed: true })
-  path(x, [[220, 504], [220, 543]], '', { dashed: true })
-  path(x, [[520, 504], [520, 543]], '', { dashed: true })
+  const llm  = box(x, 220, 582, 240, 46, 'Nyelvi modell (Gemini)', [], { dashed: true })
+  const mail = box(x, 520, 582, 240, 46, 'Levélküldő szolgáltatás', [], { dashed: true })
+  path(x, [[220, F.b], [220, llm.t]], '', { dashed: true })
+  path(x, [[520, F.b], [520, mail.t]], '', { dashed: true })
 
   flush(x)
   layer(x, 'Kliens oldal', 28)
-  layer(x, 'Háttérrendszer (Supabase)', 270)
-  layer(x, 'Külső szolgáltatások', 528)
+  layer(x, 'Háttérrendszer (Supabase)', (local.b + F.t) / 2)
+  layer(x, 'Külső szolgáltatások', (F.b + llm.t) / 2)
 })()
 
 // ── Segédek a folyamatábrákhoz ─────────────────────────────────────────────
@@ -258,10 +280,10 @@ function frame(x, l, t, w, h, label) {
   x.strokeStyle = '#aaa'; x.lineWidth = 1; x.setLineDash([6, 4])
   x.strokeRect(l, t, w, h)
   x.setLineDash([])
-  x.font = 'bold 11.5px system-ui, sans-serif'
+  x.font = `bold ${fpx(11.5)}px system-ui, sans-serif`
   x.textAlign = 'left'
   const tw = x.measureText(label).width
-  x.fillStyle = '#fff'; x.fillRect(l + 12, t - 8, tw + 10, 16)
+  x.fillStyle = '#fff'; x.fillRect(l + 12, t - LABEL_H / 2, tw + 10, LABEL_H)
   x.fillStyle = '#777'; x.fillText(label, l + 17, t)
 }
 
@@ -280,14 +302,14 @@ const MSGS = []
 function msg(x, fromX, toX, y, label, opts = {}) {
   const d = Math.sign(toX - fromX)
   path(x, [[fromX + d * 3, y], [toX - d * 3, y]], null, opts)
-  if (label) MSGS.push([label, (fromX + toX) / 2, y - 11])
+  if (label) MSGS.push([label, (fromX + toX) / 2, y - Math.round(11 * FS)])
 }
 function flushMsgs(x) {
   x.textAlign = 'center'
   for (const [t, mx, my] of MSGS) {
-    x.font = fit(x, t, 300, '11px system-ui, sans-serif', 8.5)
+    x.font = fit(x, t, 330, `${fpx(11)}px system-ui, sans-serif`, 8.5)
     const w = x.measureText(t).width
-    x.fillStyle = '#fff'; x.fillRect(mx - w / 2 - 4, my - 8, w + 8, 16)
+    x.fillStyle = '#fff'; x.fillRect(mx - w / 2 - 4, my - LABEL_H / 2, w + 8, LABEL_H)
     x.fillStyle = '#555'; x.fillText(t, mx, my)
   }
   MSGS.length = 0
@@ -334,31 +356,31 @@ function flushMsgs(x) {
 
   const L = 242, R = 717                 // a két oszlop középvonala
 
-  box(x, L, 122, 330, 48, 'Kártyaérintés')
-  box(x, L, 232, 330, 70, '① A kártya felismerése',
+  const a1 = box(x, L, 122, 330, 48, 'Kártyaérintés')
+  const a2 = box(x, L, 232, 330, 70, '① A kártya felismerése',
       ['helyi névjegyzék: azonosító → név'])
-  box(x, L, 347, 330, 70, '② A művelet iránya',
+  const a3 = box(x, L, 347, 330, 70, '② A művelet iránya',
       ['a helyben tárolt utolsó irány,', 'a függő eseményekkel korrigálva'])
-  box(x, L, 477, 330, 70, '③ Az esemény megőrzése',
+  const a4 = box(x, L, 477, 330, 70, '③ Az esemény megőrzése',
       ['helyi sor: client_event_id és', 'a rögzítés tényleges időpontja'])
 
-  box(x, R, 122, 330, 54, '④ Visszajátszás', ['sorrendtartó, egyenként'])
-  box(x, R, 232, 330, 54, 'Beléptető függvény', ['a szerveren'])
-  box(x, R, 347, 330, 54, 'Egyedi index', ['a client_event_id mezőn'])
-  box(x, 630, 477, 160, 56, 'Új azonosító', ['az esemény rögzül'])
-  box(x, 804, 477, 160, 56, 'Ütközés', ['már megvan — siker'])
+  const b1 = box(x, R, 122, 330, 54, '④ Visszajátszás', ['sorrendtartó, egyenként'])
+  const b2 = box(x, R, 232, 330, 54, 'Beléptető függvény', ['a szerveren'])
+  const b3 = box(x, R, 347, 330, 54, 'Egyedi index', ['a client_event_id mezőn'])
+  const b4 = box(x, 630, 477, 160, 56, 'Új azonosító', ['az esemény rögzül'])
+  const b5 = box(x, 804, 477, 160, 56, 'Ütközés', ['már megvan — siker'])
 
-  path(x, [[L, 146], [L, 197]])
-  path(x, [[L, 267], [L, 312]])
-  path(x, [[L, 382], [L, 442]])
+  path(x, [[L, a1.b], [L, a2.t]])
+  path(x, [[L, a2.b], [L, a3.t]])
+  path(x, [[L, a3.b], [L, a4.t]])
   // A két csoportot összekötő út a keretek KÖZÖTT fut fel, hogy egyetlen
   // dobozt se metsszen: a doboz széléről indul és a doboz széléig tart.
-  path(x, [[407, 477], [480, 477], [480, 122], [552, 122]])
+  path(x, [[a4.r, a4.cy], [480, a4.cy], [480, b1.cy], [b1.l, b1.cy]])
 
-  path(x, [[R, 149], [R, 205]])
-  path(x, [[R, 259], [R, 320]])
-  path(x, [[R, 374], [R, 420], [630, 420], [630, 449]], 'új')
-  path(x, [[R, 374], [R, 420], [804, 420], [804, 449]], 'ütközés')
+  path(x, [[R, b1.b], [R, b2.t]])
+  path(x, [[R, b2.b], [R, b3.t]])
+  path(x, [[R, b3.b], [R, 420], [630, 420], [630, b4.t]], 'új')
+  path(x, [[R, b3.b], [R, 420], [804, 420], [804, b5.t]], 'ütközés')
 
   flush(x)
 
@@ -381,14 +403,14 @@ function flushMsgs(x) {
     x.strokeRect(l, t, w, h)
     x.beginPath(); x.moveTo(l, t + 26); x.lineTo(l + w, t + 26); x.stroke()
     x.textAlign = 'center'; x.fillStyle = '#111'
-    x.font = fit(x, title, w - 20, 'bold 12.5px system-ui, sans-serif', 10)
+    x.font = fit(x, title, w - 20, `bold ${fpx(12.5)}px system-ui, sans-serif`, 10)
     x.fillText(title, cx, t + 13)
     x.textAlign = 'left'
     cols.forEach((c, i) => {
       const key = c.startsWith('#')
       const txt = key ? c.slice(1) : c
       x.fillStyle = key ? '#111' : '#444'
-      x.font = fit(x, txt, w - 20, (key ? 'bold ' : '') + '11px ui-monospace, Consolas, monospace', 8.5)
+      x.font = fit(x, txt, w - 20, (key ? 'bold ' : '') + `${fpx(11)}px ui-monospace, Consolas, monospace`, 8.5)
       x.fillText(txt, l + 10, t + 26 + 12 + i * rowH)
     })
     return { l, t, w, h, cx, cy, r: l + w, b: t + h }
@@ -421,7 +443,7 @@ function flushMsgs(x) {
   link(absences, notifications, 'trigger')
   flush(x)
 
-  x.font = '11px system-ui, sans-serif'; x.fillStyle = '#666'; x.textAlign = 'left'
+  x.font = `${fpx(11)}px system-ui, sans-serif`; x.fillStyle = '#666'; x.textAlign = 'left'
   x.fillText('Minden tábla hordozza a company_id oszlopot — erre épül a cégek elkülönítése.', 30, 490)
   x.fillText('A → jel idegen kulcsot jelöl.', 30, 510)
 })()

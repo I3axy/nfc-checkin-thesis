@@ -433,7 +433,8 @@ function setParaText(p, text) {
 // kezdődik. A null érték a bekezdés eltávolítását jelenti. Tömb esetén a
 // helyőrző helyére annyi felsoroláspont kerül, ahány elem van — a sablon
 // pontozott listájával, ugyanazzal, amelyet a fejezetek felsorolásai is
-// használnak.
+// használnak. Üres sorral elválasztott szöveg esetén annyi bekezdés kerül a
+// helyőrző helyére, ahány szakasz van, mindegyik a helyőrző stílusával.
 function replaceParaStartingWith(xml, prefix, value) {
   for (const q of paragraphs(xml)) {
     if (q.empty) continue
@@ -442,7 +443,7 @@ function replaceParaStartingWith(xml, prefix, value) {
     const next =
       value === null ? '' :
       Array.isArray(value) ? value.map(t => listPara(t, NUM_BULLET)).join('') :
-      setParaText(src, value)
+      value.split(/\n\s*\n/).map(t => setParaText(src, t.replace(/\s+/g, ' ').trim())).join('')
     return { xml: xml.slice(0, q.start) + next + xml.slice(q.end), found: true }
   }
   return { xml, found: false }

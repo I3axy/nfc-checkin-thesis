@@ -108,18 +108,39 @@ export const META = {
 
   // ── A szakdolgozat témája (a mentor határozza meg) ─────────────────────────
   // A mentor a visszaküldött dokumentumban pontozott felsorolásra cserélte a
-  // korábbi folyó szöveget. A tömb elemei ezért felsoroláspontként kerülnek a
-  // dokumentumba, a sablon pontozott listastílusával.
-  topic: [
-    'NFC-technológiára épülő jelenléti nyilvántartó rendszer megtervezése és megvalósítása webes alkalmazásként.',
-    'A munkavállalók érkezésének és távozásának NFC-kártya érintésével történő rögzítése.',
-    'Több cég adatainak egymástól elkülönített és biztonságos kezelése.',
-    'A rendszer hálózati kapcsolat nélküli működésének és az adatok későbbi szinkronizálásának megvalósítása.',
-    'A távollét-kérelmek benyújtási és jóváhagyási folyamatának kialakítása és implementálása.',
-    'Vezetői kimutatások és a jelenléti adatok áttekintését támogató funkciók kialakítása.',
-    'Automatikus értesítési funkciók megvalósítása.',
-    'Az NFC-alapú azonosítás biztonságának és a lehetséges visszaélések elleni védelemnek a biztosítása.',
-    'Az alkalmazott technológiai és tervezési megoldások dokumentálása és szakmai indoklása.',
-    'A megvalósított rendszer tesztelése és az eredmények értékelése.',
-  ],
+  // korábbi folyó szöveget, mert a véleményezésre küldött példány még nem a
+  // kész, sablon szerinti dokumentum volt. A leadott változatban ismét folyó
+  // szöveg áll, de a felsorolás két olyan pontjával kiegészítve, amely a
+  // korábbi szövegből hiányzott: a kapcsolat nélkül keletkezett események
+  // későbbi szinkronizálása, valamint a tesztelés és az eredmények értékelése.
+  // Az üres sor bekezdéshatárt jelöl.
+  topic:
+    'A szakdolgozat feladata egy NFC-technológiára épülő jelenléti nyilvántartó ' +
+    'rendszer megtervezése és megvalósítása webes alkalmazásként. A feladat abból ' +
+    'a gyakorlati problémából indul ki, hogy a kézzel vezetett jelenléti ív ' +
+    'utólag módosítható és a bejegyzés valódisága nem ellenőrizhető, a zárt, ' +
+    'célhardverre épülő beléptető rendszerek viszont költségesek, nehezen ' +
+    'alakíthatók, és hálózatkimaradás esetén használhatatlanná válnak. A ' +
+    'megoldásnak ezért telepítés és célhardver nélkül, a bejáratnál elhelyezett, ' +
+    'NFC-képes eszközön futó webalkalmazásként kell működnie.\n\n' +
+    'A rendszernek a munkavállalók érkezését és távozását kártyaérintéssel kell ' +
+    'rögzítenie, a művelet irányát pedig a korábbi eseményekből önállóan kell ' +
+    'meghatároznia. Több cég adatait egymástól elkülönítve és biztonságosan kell ' +
+    'kezelnie, és hálózati kapcsolat hiányában is működőképesnek kell maradnia — ' +
+    'a kapcsolat nélkül keletkezett eseményeket a kapcsolat helyreállásakor, ' +
+    'ismétlés nélkül kell továbbítania. Kezelnie kell továbbá a távollét-kérelmek ' +
+    'benyújtási és jóváhagyási folyamatát, a dolgozók számára önkiszolgáló ' +
+    'felületet, a vezetők számára pedig időszakos kimutatásokat, valós idejű ' +
+    'állapotképet és automatikus értesítéseket kell nyújtania.\n\n' +
+    'A feladat része három olyan kérdés önálló megoldása, amely a szakirodalomban ' +
+    'is visszatérő nehézség: a kártya átadásával elkövethető visszaélés kizárása, ' +
+    'a hálózatfüggetlen működés megvalósítása, valamint a cégek adatainak olyan ' +
+    'elkülönítése, amely nem az alkalmazáskód helyességén múlik. Emellett tartalék ' +
+    'azonosítási módot kell biztosítani az otthon felejtett kártya esetére.\n\n' +
+    'A várható eredmény egy működő, több alkalmazásból álló rendszer, amelyben az ' +
+    'egyes tervezési döntések önálló megoldásokat tükröznek, és a dolgozatban az ' +
+    'elvetett alternatívákkal és indoklással együtt kerülnek bemutatásra. A ' +
+    'dolgozat feladata továbbá az alkalmazott technológiák dokumentálása és ' +
+    'szakmai indoklása, a munka pedig a megvalósított rendszer tesztelésével és ' +
+    'az elért eredmények értékelésével zárul.',
 }
