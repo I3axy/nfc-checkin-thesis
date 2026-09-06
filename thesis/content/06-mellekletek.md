@@ -89,5 +89,4 @@ A dolgozathoz mellékelt adathordozó a következőket tartalmazza:
 2. a védéshez készült bemutató,
 3. a rendszer teljes forráskódja, a három alkalmazás és a szerveroldali
    függvények külön mappában,
-4. az adatbázis-migrációk futtatható állományai időrendi sorrendben,
-5. a kézi tesztelés forgatókönyveit tartalmazó teszt-terv.
+4. az adatbázis-migrációk futtatható állományai időrendi sorrendben.

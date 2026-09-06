@@ -49,6 +49,8 @@ Végül a kártyaalapú azonosítás sajátos visszaélési lehetőséget hordoz
 jelenség nemzetközi szakirodalomban is dokumentált, kezelése nélkül pedig az
 elektronikus nyilvántartás pontossága látszólagos marad.
 
+@@PAGEBREAK
+
 ## A szakdolgozat céljai
 
 A dolgozat célja egy olyan rendszer megtervezése és megvalósítása, amely a fenti

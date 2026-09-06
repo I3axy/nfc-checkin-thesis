@@ -428,11 +428,11 @@ váltakozó logika kiindulóállapotát helyreállítja.
 A második lényeges kérdés az **ismételt érintés** kezelése. A dolgozó
 bizonytalanság esetén — például mert nem vette észre a visszajelzést —
 másodszor is odaérinti a kártyát, ami két egymást követő eseményt hozna létre,
-és a ledolgozott idő számítását elrontaná. A rendszer ezért harminc másodperces
+és a ledolgozott idő számítását elrontaná. A rendszer ezért öt másodperces
 ablakon belül nem rögzít újabb, azonos irányú eseményt, hanem hibával utasítja
 el a kérést.
 
-A harminc másodperc arányossági kompromisszum eredménye. Rövidebb ablak nem
+Az öt másodperc arányossági kompromisszum eredménye. Rövidebb ablak nem
 zárná ki megbízhatóan a téves ismétlést, hosszabb viszont akadályozná azt a
 valós helyzetet, amikor a dolgozó néhány perc múlva ténylegesen távozik.
 
@@ -464,7 +464,7 @@ el, a visszajelzést tehát több méter távolságból, futó pillantással is
 másodperc után a képernyő magától visszaáll olvasásra kész állapotba, így a
 következő dolgozónak nincs teendője.
 
-![A beléptető alkalmazás visszajelzése sikeres belépés után](scanner-visszajelzes.png)
+![A beléptető alkalmazás alapállapota, valamint a belépés és a kilépés visszajelzése](scanner-visszajelzes.jpg)
 
 ### Fényképes ellenőrzés
 
@@ -505,7 +505,7 @@ A felépítés lényeges következménye, hogy félbehagyott bejegyzés nem
 keletkezhet. Ha a dolgozó a fényképezést megszakítja, vagy a kamera használatát
 megtagadja, a rendszerben nem marad fénykép nélküli, mégis rögzített esemény. A
 duplikáció-szűrés szintén csak a második kérésben fut le, tehát az előkészítő
-kérés nem használja el a harminc másodperces ablakot.
+kérés nem használja el az öt másodperces ablakot.
 
 A képek nyilvánosan nem elérhető tárolóba kerülnek, cégenként és személyenként
 elkülönített útvonalon. A vezetői felület a megjelenítéshez időkorlátos, aláírt
@@ -718,7 +718,7 @@ A felület három nézetre tagolódik: a mai nap, a napló és a hiányzások (6
 Váltani a fejléc választójával vagy oldalirányú húzással lehet; az utóbbi
 mobilon megszokott, és egy kézzel is kényelmes.
 
-![A dolgozói alkalmazás mai és napló nézete](worker-app.png)
+![A dolgozói alkalmazás mai és napló nézete](worker-app.jpg){90%}
 
 A mai nap a belépés és a kilépés időpontját, valamint az eddig ledolgozott időt
 mutatja. A napló visszatekintő: hét vagy hónap bontásban sorolja a
@@ -818,7 +818,7 @@ részét eltakarná, a mögötte lévő felület pedig véletlen érintésre is 
 A visszatérést ugyanaz a jelölés szolgálja, mint a vezetői felület menüjének
 összecsukását — az azonos jelentésű műveletekhez azonos jelölés tartozik.
 
-![Az értesítések nézete egy elutasított kérelem indoklásával](worker-ertesitesek.png)
+![Az értesítések nézete egy elutasított kérelem indoklásával](worker-ertesitesek.jpg)
 
 A panel megnyitása olvasottnak jelöli az addigi értesítéseket, a felületen
 azonnal, a szerveren pedig egy háttérben induló kéréssel. Ha ez a kérés
@@ -830,7 +830,7 @@ funkció készült.
 ## A vezetői felület
 
 A vezetői felület a rendszer legösszetettebb alkalmazása: ez kezeli a
-dolgozókat, a beállításokat és a kimutatásokat. Az alábbiakban három olyan
+dolgozókat, a beállításokat és a kimutatásokat. Az alábbiakban négy olyan
 része következik, amely önálló műszaki döntést igényelt.
 
 ### Valós idejű állapotkövetés
@@ -863,13 +863,32 @@ elhanyagolható, éppen azért, mert a kiváltó esemény ritka.
 A feliratkozás a nézet megszűnésekor megszakad; enélkül minden lapváltás új
 kapcsolatot hagyna hátra.
 
+A nézet a névsort bent, kint és vendég csoportra bontva mutatja, műszak szerint
+szűrhetően (8. ábra).
+
+![A vezetői felület állapotnézete](statusz.png)
+
+### A dolgozói adatlap
+
+A dolgozók kezelése lista és adatlap párosaként valósul meg: bal oldalon a
+kereshető és bent–kint szerint szűrhető névsor, jobb oldalon a kiválasztott
+személy adatlapja, profil, naptár és hiányzások fülre osztva (9. ábra).
+Telefonon a kettő nem fér el egymás mellett, ezért ott egyszerre csak az egyik
+látszik.
+
+![A vezetői felület dolgozói adatlapja](munkasok.png)
+
+Az adatlap PIN-mezője nem a tárolt értéket mutatja: az a 3.4.5. alfejezetben
+leírt módon lenyomatként tárolódik, amelyből az eredeti kód nem állítható
+vissza. A vezető ezért csak új PIN-t adhat meg, vagy törölheti a meglévőt.
+
 ### Kimutatások és exportálás
 
 A kimutatások két, egymást kiegészítő nézetből állnak: egy kiválasztott dolgozó
 időszaki elemzéséből és a teljes létszámra vonatkozó havi összesítőből. Az
-elemző nézet a 8. ábrán látható.
+elemző nézet a 10. ábrán látható.
 
-![A vezetői felület statisztikai nézete](statisztika.png)
+![A vezetői felület statisztikai nézete](statisztika-feher.png)
 
 Az elemzés vizsgált időszaka hét nap, harminc nap vagy három hónap lehet. A
 megjelenítés a hosszhoz igazodik: a rövidebb időszakok napi bontásban
@@ -1022,37 +1041,22 @@ feladat így indítja —, ezért a szerver minden mentett címet összevet a c�
 vezetői fiókjaival. Enélkül a rendszer tetszőleges címre küldő
 levéltovábbítóként volna felhasználható.
 
-## Tesztelés és eredmények
+## Teszt eredmények és korlátok
 
-[Ez az alfejezet a rendszeren végzett kézi tesztelés után készül el. Tartalma:
-az automatizált próbák és amit igazoltak; az eszközön végrehajtott
-forgatókönyvek táblázata a mért eredményekkel; a fejlesztés során feltárt és
-javított hibák bemutatása; végül a mérési adatok — válaszidő, a hálózat nélkül
-rögzített események szinkronizálásának helyessége.]
-
-<!-- ===========================================================================
-     A MEGÍRT VÁLTOZAT — a kézi teszt után ez kerül vissza a fenti helyőrző
-     helyére, kiegészítve a tényleges eredményekkel (a táblázat egy további,
-     "Megfelelt" oszlopot kap) és a mért adatokkal.
-     A keretből erre nagyjából 130 szó áll rendelkezésre.
-
-Az ellenőrzés két, egymást kiegészítő rétegben történt. A fejlesztés közben
-minden olyan számítás, amely nem magától értetődő — a napi ledolgozott idő
-párokra bontása, a hétvégéket kihagyó tartománybontás, az azonosítók
-egységesítése és a helyi óra meghatározása — külön, futtatható próbákkal
-került ellenőrzésre. A második réteget az eszközön végzett kézi
-forgatókönyvek adják, mivel a rendszer meghatározó képességei — a
+Az ellenőrzés két, egymást kiegészítő rétegben történt. A nem magától értetődő
+számítások — a napi ledolgozott idő párokra bontása, a hétvégéket kihagyó
+tartománybontás, az azonosítók egységesítése és a helyi óra meghatározása —
+futtatható próbákkal kerültek ellenőrzésre. A második réteget az eszközön
+végzett kézi forgatókönyvek adják, mivel a rendszer meghatározó képességei — a
 kártyaolvasás, a kamerahasználat és a hálózat megszakadása — csak valódi
-készüléken vizsgálhatók.
-
-A kézi tesztelés kiemelt esetei a következő táblázatban szerepelnek.
+készüléken vizsgálhatók. A kiemelt esetek a következő táblázatban szerepelnek.
 
 @@TABLE A kiemelt tesztesetek és eredményeik
 
 | Azonosító | Amit ellenőriz | Elvárt eredmény |
 |---|---|---|
 | C1 | Kártyás be- és kiléptetés | A művelet iránya külön választás nélkül váltakozik |
-| C2 | Ismételt érintés harminc másodpercen belül | A második érintés nem hoz létre eseményt |
+| C2 | Ismételt érintés öt másodpercen belül | A második érintés nem hoz létre eseményt |
 | C4 | Megszakított fényképezés | Fénykép nélküli esemény nem keletkezik |
 | D1 | Kártyafelismerés hálózat nélkül | A dolgozó neve a helyi névjegyzékből megjelenik |
 | D2 | Újratöltés kapcsolat nélkül | Az alkalmazás elindul, a függő események megmaradnak |
@@ -1061,56 +1065,34 @@ A kézi tesztelés kiemelt esetei a következő táblázatban szerepelnek.
 | F5 | Több napra szóló kérelem elbírálása | Egy döntésről egyetlen értesítés szól |
 | H3 | Hibás műszakbeállítás | Az automatikus kiléptetés nem áll le, alapértelmezésre esik vissza |
 
-A fejlesztés során feltárt hibák közül három érdemel külön említést, mert
-mindegyik olyan feltételrendszerben jelentkezett, amely a szokásos használat
-közben nem áll elő.
+A feltárt hibák közül kettő érdemel említést, mert egyik sem áll elő a szokásos
+használat közben. A *service worker* kezdeti változata telepítéskor semmit nem
+tárolt el, ezért a kapcsolat megszakadása **és** az oldal újratöltése együtt
+üres képernyőt eredményezett (3.4.4. alfejezet); a hiba azért maradt sokáig
+észrevétlen, mert a hálózatfüggetlen működés minden más eleme hibátlanul
+üzemelt. Az automatikus kiléptetés pedig eredetileg rögzített időpontban
+futott, ami a nyári időszámítás bevezetésekor egy órával elcsúszott volna a
+beállított helyi órához képest — ez a hiba fél évig láthatatlan marad, majd az
+óraátállítás napján, minden magyarázat nélkül jelentkezik.
 
-Az első a 3.4.4. alfejezetben már tárgyalt eset: a *service worker* kezdeti
-változata telepítéskor semmit nem tárolt el, ezért a kapcsolat
-megszakadása **és** az oldal újratöltése együtt üres képernyőt eredményezett.
-A hiba azért maradt sokáig észrevétlen, mert a hálózatfüggetlen működés minden
-más eleme — a kártyafelismerés, az események tárolása és a későbbi
-továbbítása — hibátlanul üzemelt.
+A megvalósítás legsúlyosabb korlátja a beléptető alkalmazás platformfüggősége:
+a kártyaolvasást végző webes felület kizárólag Android rendszeren, Chromium
+alapú böngészőben érhető el. Mivel a beléptető eszköz falra szerelt, célra
+kijelölt készülék, ez a gyakorlatban ritkán jelent akadályt, elvi korlátként
+azonban fennáll. A kínálkozó megkerülő megoldás — hogy az iOS a kártyára írt
+webcímet magától megnyitja — nem a terminált tenné hordozhatóvá, hanem
+ellenőrizetlen készülékre helyezné át a beléptetést, ahol a 3.4.3.
+alfejezetben tárgyalt fényképes védelem éppen ott szűnne meg, ahol a
+legnagyobb szükség volna rá.
 
-A második az automatikus kiléptetés időzítése volt. Az ütemezett feladat
-eredetileg rögzített időpontban futott, ami a nyári időszámítás bevezetésekor
-egy órával elcsúszott a beállított helyi órához képest. A hiba fél évig
-láthatatlan marad, majd az óraátállítás napján, minden magyarázat nélkül
-jelentkezik.
-
-A harmadik a késésszámítás ellenőrzése során derült ki, és nem a rendszert,
-hanem magát a próbát érintette: a vizsgálat a belépés időpontját teljes órára
-kerekítette, és az így kapott, valóban eltérő eredményt tekintette hibának. A
-tanulság az, hogy a hibás eredmény forrása nem feltétlenül a vizsgált kód.
-     =========================================================================== -->
-
-## A megoldás korlátai
-
-A rendszer legsúlyosabb korlátja a beléptető alkalmazás platformfüggősége. A
-kártyaolvasást végző webes felület jelenleg kizárólag Android rendszeren,
-Chromium alapú böngészőben érhető el; iOS eszközön a beléptetés nem
-használható. Mivel a beléptető eszköz falra szerelt, célra kijelölt készülék,
-ez a gyakorlatban ritkán jelent akadályt, elvi korlátként azonban fennáll.
-
-Kínálkozott egy megkerülő megoldás: az iOS a kártyára írt webcímet magától
-megnyitja, tehát a beléptetés a dolgozó saját telefonjáról is elindulhatna. Ez
-azonban nem a terminált tenné hordozhatóvá, hanem ellenőrizetlen készülékre
-helyezné át a beléptetést, ahol sem a fényképes ellenőrzés, sem a berendezés
-felügyelt volta nem érvényesül. A 3.4.3. alfejezetben tárgyalt védelem tehát
-éppen ott szűnne meg, ahol a legnagyobb szükség volna rá.
-
-A PIN-es azonosítás a 3.4.5. alfejezetben kifejtett okból tartalék mód, nem
-jelszóval egyenértékű védelem.
-
-A vezetői felület asztali használatra készült. Telefonon a lényeges műveletek
-elvégezhetők, a havi összesítő viszont szűkített nézetben jelenik meg: a
-részletező oszlopok — részleg, késések, hiányzások — kimaradnak, és asztali
-gépen, illetve az exportált állományban érhetők el. A hét oszlop
-telefonképernyőn olvashatatlanul összenyomódna.
-
-Az elektronikus levelek küldése egyetlen, előzetesen igazolt címre
-korlátozódik, mivel saját tartomány hitelesítése nem történt meg. Ez a
-szolgáltatás próbaüzemi feltétele, nem a megvalósítás korlátja.
+További korlátok: a kamera használata után egyes eszközökön az NFC-olvasó
+kódbeli újraindítással nem érhető el újra, ezért fényképkötelezettség esetén
+automatikus oldalfrissítés következik; a PIN a 3.4.5. alfejezetben kifejtett
+okból tartalék mód, nem jelszóval egyenértékű védelem; a havi összesítő
+telefonon szűkített nézetben jelenik meg, mert a hét részletező oszlop
+olvashatatlanul összenyomódna; az elektronikus levelek küldése pedig egyetlen,
+előzetesen igazolt címre korlátozódik, ami a szolgáltatás próbaüzemi feltétele,
+nem a megvalósítás korlátja.
 
 Végül a fényképes ellenőrzés nem akadályozza meg a visszaélést, csupán utólag
 ellenőrizhetővé teszi. Megelőzésre biometrikus azonosítás volna alkalmas, ez

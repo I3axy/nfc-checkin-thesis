@@ -1,6 +1,6 @@
 {
-  "name": "NFC Scanner",
-  "short_name": "Scanner",
+  "name": "NFC Szkenner",
+  "short_name": "Szkenner",
   "start_url": "/",
   "scope": "/",
   "display": "fullscreen",

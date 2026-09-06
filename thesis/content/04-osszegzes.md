@@ -17,7 +17,7 @@ telepítés nélkül. Ez teljesült: a beléptető alkalmazás böngészőben fu
 kártya kiolvasását a Web NFC felület végzi, a dolgozónak pedig a kártya
 odaérintésén kívül semmit nem kell tennie. A művelet irányát a rendszer a
 korábbi események alapján maga állapítja meg, a visszajelzés pedig több méter
-távolságból is értelmezhető. A megoldás ára a 3.9. alfejezetben tárgyalt
+távolságból is értelmezhető. A megoldás ára a 3.8. alfejezetben tárgyalt
 platformfüggőség: a kártyaolvasás jelenleg csak Android rendszeren érhető el.
 
 **A második cél több cég kiszolgálása volt egyetlen rendszerpéldányon**, oly
@@ -67,11 +67,13 @@ került.
 
 ## Továbbfejlesztési lehetőségek
 
-A rendszer több irányban fejleszthető tovább. A legkézenfekvőbb a saját
-tartomány hitelesítése az elektronikus levelek küldéséhez, amely feloldaná a
-jelenlegi címkorlátozást. Indokolt lehet továbbá a beléptető végpont önálló
-kulccsal való védelme, mivel az jelenleg hitelesítés nélkül hívható — amit a
-kártya nélküli használhatatlansága ellensúlyoz, de nem szüntet meg.
+A rendszer több irányban fejleszthető tovább, és a legkézenfekvőbb lépés nem
+szoftveres. Éles üzemben a beléptető eszközöknek a be- és kijárati ajtóra
+rögzítve volna a helyük, hogy a jelenlét rögzítése a közlekedés természetes
+útvonalába essen, és így a használatuk ne legyen megkerülhető. Ez a telepítés
+egyúttal további lehetőséget nyit: a beléptetés összekapcsolható az ajtó
+nyitásvezérlésével, tehát a rendszer nemcsak nyilvántartaná a jelenlétet,
+hanem a belépést is engedélyezné vagy megtagadná.
 
 Tartalmi bővítést jelentene a napi összesítő kiterjesztése az éjszakai
 műszakra, amelynek munkanapja két naptári napot érint, valamint a

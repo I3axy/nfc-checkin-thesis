@@ -90,6 +90,21 @@ const listPara = (text, numId) =>
 const pageBreak = () =>
   `<w:p><w:r><w:br w:type="page"/></w:r></w:p>`
 
+// A fejezetek új oldalon kezdődnek. Ezt NEM külön, oldaltörést tartalmazó
+// bekezdéssel érjük el, hanem a fejezet első bekezdésének tulajdonságával.
+// A különálló törésbekezdés ugyanis maga is elfoglal egy sort: ha az előző
+// oldal éppen betelt, a bekezdés átcsúszik a következő lapra, a benne lévő
+// törés pedig onnan dob még egyet — így üres lap keletkezik a fejezet elé.
+// A pageBreakBefore ezzel szemben a bekezdés helyzetét írja elő, nem told
+// előre semmit.
+function startOnNewPage(xml) {
+  // A pPr elemeinek sorrendje kötött: a pageBreakBefore a pStyle és az
+  // esetleges keepNext UTÁN következik.
+  const m = xml.match(/^<w:p(?=[ >])[^>]*><w:pPr>(?:<w:pStyle w:val="[^"]*"\/>)?(?:<w:keepNext\/>)?/)
+  if (!m) return pageBreak() + xml            // nem bekezdéssel kezdődik
+  return xml.slice(0, m[0].length) + '<w:pageBreakBefore/>' + xml.slice(m[0].length)
+}
+
 // ── Táblázat ─────────────────────────────────────────────────────────────────
 // Markdown csőtáblázatból ( | a | b | ) OOXML táblázat. A cellák a sablon
 // "Normal figure-table" stílusát kapják, a felirat a @@TABLE direktívával
@@ -102,25 +117,31 @@ function tableXml(rows) {
   const borders = ['top', 'left', 'bottom', 'right', 'insideH', 'insideV']
     .map(s => `<w:${s} w:val="single" w:sz="4" w:space="0" w:color="auto"/>`).join('')
 
-  const cell = (text, head) =>
+  // A `keep` a sor bekezdéseit a következőhöz köti. Ha az utolsó sor
+  // kivételével minden sor ilyen, a táblázat egyben marad: nem szakad ketté
+  // két lap között. Az utolsó sor szándékosan marad kötés nélkül — enélkül a
+  // táblázat a rá következő szövegtörzset is magával rántaná.
+  const cell = (text, head, keep) =>
     `<w:tc><w:tcPr><w:tcW w:w="${w}" w:type="dxa"/></w:tcPr>` +
-    `<w:p><w:pPr><w:pStyle w:val="${ST.figure}"/><w:jc w:val="left"/></w:pPr>` +
+    `<w:p><w:pPr><w:pStyle w:val="${ST.figure}"/>${keep ? '<w:keepNext/>' : ''}<w:jc w:val="left"/></w:pPr>` +
     (head
       ? `<w:r><w:rPr><w:b/></w:rPr><w:t xml:space="preserve">${esc(text)}</w:t></w:r>`
       : runs(text)) +
     `</w:p></w:tc>`
 
-  // A fejlécsor oldaltöréskor megismétlődik (tblHeader) — több oldalas
-  // táblázatnál enélkül olvashatatlanná válna a folytatás.
-  const row = (cs, head) =>
-    `<w:tr>${head ? '<w:trPr><w:tblHeader/></w:trPr>' : ''}` +
-    Array.from({ length: cols }, (_, k) => cell(cs[k] ?? '', head)).join('') +
+  // A fejlécsor oldaltöréskor megismétlődik (tblHeader) — ha a táblázat olyan
+  // hosszú, hogy egy lapra semmiképp nem fér ki, enélkül olvashatatlanná
+  // válna a folytatás. A sorok belül sem törnek meg (cantSplit).
+  const row = (cs, head, keep) =>
+    `<w:tr><w:trPr><w:cantSplit/>${head ? '<w:tblHeader/>' : ''}</w:trPr>` +
+    Array.from({ length: cols }, (_, k) => cell(cs[k] ?? '', head, keep)).join('') +
     `</w:tr>`
 
   return `<w:tbl><w:tblPr><w:tblW w:w="0" w:type="auto"/><w:tblBorders>${borders}</w:tblBorders>` +
     `<w:tblLook w:val="04A0" w:firstRow="1" w:lastRow="0" w:firstColumn="1" w:lastColumn="0" w:noHBand="0" w:noVBand="1"/></w:tblPr>` +
     `<w:tblGrid>${`<w:gridCol w:w="${w}"/>`.repeat(cols)}</w:tblGrid>` +
-    row(rows[0], true) + rows.slice(1).map(r => row(r, false)).join('') +
+    row(rows[0], true, rows.length > 1) +
+    rows.slice(1).map((r, n) => row(r, false, n < rows.length - 2)).join('') +
     // Két egymást követő táblázatot a Word összevonna, ezért zárásként üres
     // bekezdés kerül utána.
     `</w:tbl><w:p/>`
@@ -135,22 +156,34 @@ const MAX_W_EMU = 6120000
 // = 14002 twip = 24,7 cm. Ennél magasabb kép nem fér ki, a szövegszerkesztő
 // pedig ilyenkor átlöki a következő oldalra, és ott is túllógna. A korlátot
 // ezért 18 cm-ben húzzuk meg, hogy a képaláírásnak és néhány sor szövegnek is
-// maradjon hely. Ez az álló tájolású telefonos képernyőképeknél számít: egy
-// 1080×2340 pixeles felvétel szélességre igazítva 36,8 cm magas lenne.
+// maradjon hely.
 const MAX_H_EMU = 6480000                              // 18 cm
+// Az ÁLLÓ tájolású képek — a telefonos képernyőképek — a szövegtükör
+// szélességére igazítva 18 cm magasak lennének, tehát egy teljes oldalt
+// elfoglalnának úgy, hogy a tartalmuk közben elfér a lap felén is. Rájuk
+// ezért feleakkora korlát vonatkozik, így az ábra a hozzá tartozó szöveggel
+// együtt marad olvasható egy oldalon.
+const MAX_H_PORTRAIT_EMU = 3240000                     // 9 cm
 let imgSeq = 0
 const imageRels = []   // { id, target }
 const imageSizes = []  // { file, cm } — a build jelentéséhez
 
-function imageParagraph(file, widthPx, heightPx) {
+function imageParagraph(file, widthPx, heightPx, scale = 1) {
   const id = `rIdImg${++imgSeq}`
   imageRels.push({ id, target: `media/${file}` })
   let w = widthPx * 9525, h = heightPx * 9525          // px -> EMU (96 DPI)
+  const maxH = heightPx > widthPx ? MAX_H_PORTRAIT_EMU : MAX_H_EMU
   if (w > MAX_W_EMU) { h = Math.round(h * (MAX_W_EMU / w)); w = MAX_W_EMU }
-  if (h > MAX_H_EMU) { w = Math.round(w * (MAX_H_EMU / h)); h = MAX_H_EMU }
-  imageSizes.push({ file, w: w / 360000, h: h / 360000 })
+  if (h > maxH) { w = Math.round(w * (maxH / h)); h = maxH }
+  const capped = h === maxH
+  // A kézzel megadott arány a korlátozás UTÁN érvényesül, tehát a megadott
+  // százalék mindig a lapra illesztett mérethez képest értendő.
+  if (scale !== 1) { w = Math.round(w * scale); h = Math.round(h * scale) }
+  imageSizes.push({ file, w: w / 360000, h: h / 360000, capped, scale })
   const docPr = imgSeq
-  return `<w:p><w:pPr><w:pStyle w:val="${ST.figure}"/></w:pPr><w:r><w:drawing>` +
+  // A keepNext tartja egy oldalon a képet a saját feliratával; enélkül a
+  // szövegszerkesztő a lap alján elválasztaná őket egymástól.
+  return `<w:p><w:pPr><w:pStyle w:val="${ST.figure}"/><w:keepNext/></w:pPr><w:r><w:drawing>` +
     `<wp:inline distT="0" distB="0" distL="0" distR="0">` +
     `<wp:extent cx="${w}" cy="${h}"/><wp:effectExtent l="0" t="0" r="0" b="0"/>` +
     `<wp:docPr id="${docPr}" name="Kep${docPr}"/><wp:cNvGraphicFramePr>` +
@@ -193,7 +226,7 @@ function imageSize(buf) {
 //   - / *            pontozott felsorolás
 //   1.               számozott felsorolás
 //   ```              programkód (Normal program code)
-//   ![alt](fajl.png) kép + alatta Caption
+//   ![alt](fajl.png) kép + alatta Caption; a {90%} utótag kisebbre veszi
 //   > szöveg         hosszabb idézet (behúzott, kisebb betű)
 //   @@BIB            innentől minden sor Bibliography stílusú
 //   @@PAGEBREAK      kézi oldaltörés
@@ -202,6 +235,7 @@ function mdToXml(md, figureState) {
   // Több soron átnyúlhatnak, ezért a feldolgozás ELŐTT távolítjuk el őket.
   const lines = stripComments(md).split(/\r?\n/)
   const out = []
+  const breakAt = []      // hányadik bekezdés kezdődjön új oldalon (@@PAGEBREAK)
   let i = 0
   let bibMode = false
 
@@ -211,7 +245,9 @@ function mdToXml(md, figureState) {
 
     if (!line) { i++; continue }
 
-    if (line === '@@PAGEBREAK') { out.push(pageBreak()); i++; continue }
+    // A törés nem külön bekezdésként kerül be, hanem a UTÁNA következő
+    // bekezdés tulajdonságaként — az indoklás a startOnNewPage-nél olvasható.
+    if (line === '@@PAGEBREAK') { breakAt.push(out.length); i++; continue }
     if (line === '@@BIB') { bibMode = true; i++; continue }
 
     if (bibMode) { out.push(para(ST.bibliography, line)); i++; continue }
@@ -224,16 +260,21 @@ function mdToXml(md, figureState) {
       while (i < lines.length && !lines[i].trim().startsWith('```')) { code.push(lines[i]); i++ }
       i++
       const style = framed ? ST.codeFramed : ST.code
-      for (const c of code) {
-        out.push(`<w:p><w:pPr><w:pStyle w:val="${style}"/></w:pPr><w:r><w:t xml:space="preserve">${esc(c)}</w:t></w:r></w:p>`)
-      }
+      // A kódrészlet sorai összetartoznak: a lap alján nem szakadhatnak ketté.
+      // Az utolsó sor kötés nélkül marad, különben a rá következő szövegtörzset
+      // is magával vinné a következő oldalra.
+      code.forEach((c, n) => {
+        const keep = n < code.length - 1 ? '<w:keepNext/>' : ''
+        out.push(`<w:p><w:pPr><w:pStyle w:val="${style}"/>${keep}</w:pPr><w:r><w:t xml:space="preserve">${esc(c)}</w:t></w:r></w:p>`)
+      })
       continue
     }
 
-    // Kép:  ![Képaláírás](fajl.png)
-    const img = line.match(/^!\[(.*?)\]\((.+?)\)$/)
+    // Kép:  ![Képaláírás](fajl.png)  vagy  ![Képaláírás](fajl.png){90%}
+    const img = line.match(/^!\[(.*?)\]\((.+?)\)(?:\{(\d+)%\})?$/)
     if (img) {
-      const [, capText, file] = img
+      const [, capText, file, pct] = img
+      const scale = pct ? Number(pct) / 100 : 1
       const abs = path.join(FIGURES, file)
       // A hiányzó képet NEM hagyjuk ki: a sorszáma megmarad, a helyére látható
       // helyőrző kerül. Kihagyás esetén ugyanis minden későbbi ábra sorszáma
@@ -248,7 +289,7 @@ function mdToXml(md, figureState) {
       const buf = fs.readFileSync(abs)
       const { w, h } = imageSize(buf)
       figureState.media.push({ file, buf })
-      out.push(imageParagraph(file, w, h))
+      out.push(imageParagraph(file, w, h, scale))
       // A sablon előírása: a képaláírás az ÁBRA ALÁ kerül
       figureState.figNo++
       out.push(para(ST.caption, `${figureState.figNo}. ábra: ${capText}`))
@@ -260,7 +301,9 @@ function mdToXml(md, figureState) {
     const tcap = line.match(/^@@TABLE\s+(.+)$/)
     if (tcap) {
       figureState.tabNo++
-      out.push(para(ST.caption, `${figureState.tabNo}. táblázat: ${tcap[1]}`))
+      // A felirat a táblázat FÖLÉ kerül, ezért kötést kap: nem maradhat egy
+      // előző lap alján a hozzá tartozó táblázat nélkül.
+      out.push(para(ST.caption, `${figureState.tabNo}. táblázat: ${tcap[1]}`, '<w:keepNext/>'))
       i++
       continue
     }
@@ -300,6 +343,12 @@ function mdToXml(md, figureState) {
       buf.push(lines[i].trim()); i++
     }
     out.push(para(ST.normal, buf.join(' ')))
+  }
+  // A kért töréseket a helyükön álló bekezdésre alkalmazzuk. A fájl végén álló
+  // @@PAGEBREAK mögött nincs ilyen bekezdés, ott marad a különálló törés.
+  for (const k of breakAt) {
+    if (k < out.length) out[k] = startOnNewPage(out[k])
+    else out.push(pageBreak())
   }
   return out.join('')
 }
@@ -576,8 +625,8 @@ async function main() {
   for (const f of files) {
     const md = fs.readFileSync(path.join(CONTENT, f), 'utf8')
     // A sablon előírja: minden fejezet új oldalon kezdődik
-    if (generated) generated += pageBreak()
-    generated += mdToXml(md, figureState)
+    const xml = mdToXml(md, figureState)
+    generated += generated ? startOnNewPage(xml) : xml
   }
 
   let newDoc = docXml.slice(0, bodyStart) + frontMatter + generated + sectPr + '</w:body></w:document>'
@@ -631,7 +680,8 @@ async function main() {
   // szövegtükör szélességére igazítva magasabb lenne a lapnál. A korlátozás
   // némán történik, tehát csak itt látszik, ha egy kép a maximumra ütközött.
   for (const s of imageSizes) {
-    const jel = s.h >= 17.99 ? '  (magasságra korlátozva)' : ''
+    const jel = (s.capped ? '  (magasságra korlátozva)' : '') +
+                (s.scale !== 1 ? `  (${Math.round(s.scale * 100)}%-ra véve)` : '')
     console.log(`      ${s.file.padEnd(26)} ${s.w.toFixed(1)} × ${s.h.toFixed(1)} cm${jel}`)
   }
   if (figureState.missing.length) {

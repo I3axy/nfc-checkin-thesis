@@ -296,13 +296,13 @@ Deno.serve(async (req) => {
       })
     }
 
-    // Deduplication: block if same type within 30 seconds
+    // Deduplication: block if same type within 5 seconds
     const { data: recent } = await supabase
       .from('events')
       .select('id')
       .eq('user_id', profile.id)
       .eq('type', eventType)
-      .gte('timestamp', new Date(Date.now() - 30_000).toISOString())
+      .gte('timestamp', new Date(Date.now() - 5_000).toISOString())
       .maybeSingle()
 
     if (recent) {

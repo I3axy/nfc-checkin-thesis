@@ -11,6 +11,9 @@ const RESET_DELAY = 3000
 const ENROLL_DELAY = 15000
 const CAMERA_TIMEOUT = 20000
 const SYNC_INTERVAL = 20000
+// A kamera hardveres felszabadítása után ennyit várunk, mielőtt újra
+// igényelnénk az NFC-rádiót — lásd a rearmScan függvény megjegyzését.
+const REARM_DELAY = 350
 const FUNCTION_URL = import.meta.env.VITE_CHECKIN_FUNCTION_URL
 const COMPANY_SLUG = import.meta.env.VITE_COMPANY_SLUG
 
@@ -37,12 +40,27 @@ export default function App() {
   const cameraTimeout = useRef(null)
   const captureMode = useRef('online')   // 'online' | 'offline'
   const offlineCtx = useRef(null)        // { uid, name, type } during offline photo capture
+  // A JS-szintű scan() ígéret és az Android natív NFC-olvasó regisztrációja
+  // szétcsúszhat: a böngésző "már fut egy olvasás" hibával utasítja el az
+  // újrahívást ugyanazon a NDEFReader-en, miközben a natív réteg a
+  // gyakorlatban mégsem érzékel új érintést. Emiatt a "kész" állapotba
+  // visszatéréskor nem elég scan()-t újrahívni: a teljes munkamenetet meg
+  // kell szakítani (AbortController), és egy vadonatúj NDEFReader
+  // példányt kell felvenni (lásd rearmScan).
+  const ndefRef = useRef(null)
+  const abortRef = useRef(null)
+  // A kamera (getUserMedia) használata után az NFC-olvasó a gyakorlatban
+  // tartósan nem éled újra ezen az oldal-munkameneten belül — sem
+  // késleltetéssel, sem a stream/srcObject alapos felszabadításával nem
+  // sikerült elkerülni. Az egyetlen, empirikusan mindig működő megoldás a
+  // teljes oldalfrissítés (lásd a "kész" állapotba visszatérő ágakat).
+  const cameraWasUsed = useRef(false)
   // Amíg ez ki van töltve, a következő kártyaérintés NEM beléptetés, hanem a
   // saját kártya párosítása. A PIN azért kell, mert a szerver abból azonosít.
   const enrollCtx = useRef(null)         // { pin } while the pairing offer is up
   const syncing = useRef(false)
 
-  // --- background: roster refresh + queue sync --------------------------------
+  // --- háttérben: névjegyzék frissítése és a sor szinkronizálása --------------
   useEffect(() => {
     refreshPending()
     if (navigator.onLine) syncAndRefresh()
@@ -58,6 +76,19 @@ export default function App() {
       window.removeEventListener('offline', onOffline)
       clearInterval(iv)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Csendes automatikus indítás. A jogosultság csak az ELSŐ engedélykéréshez
+  // igényel emberi érintést; utána a scan() emberi közreműködés nélkül is
+  // elindul. Ez teszi lehetővé, hogy a fotó utáni automatikus oldalfrissítés
+  // (lásd cameraWasUsed) után a kioszk felügyelet nélkül folytassa a
+  // munkát — enélkül minden fotós esemény után valakinek oda kellene mennie,
+  // és megnyomnia a "Szkennelés kezdése" gombot. Ha a jogosultság még
+  // sosem lett megadva, ez csendben elbukik, és az "idle" képernyő gombja
+  // marad az egyszeri, kézi belépési pont.
+  useEffect(() => {
+    attachReader().then(() => setScreen('ready')).catch(() => {})
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -93,13 +124,24 @@ export default function App() {
   }
 
   // --- NFC --------------------------------------------------------------------
+  // Egy teljesen új NDEFReader-t vesz fel és indít el; ezt használja mind az
+  // első indítás, mind minden későbbi újraindítás (rearmScan). A régi
+  // munkamenetet a hívó felelőssége megszakítani (abortRef.current?.abort())
+  // ELŐTTE — enélkül a régi és az új olvasó egyszerre futna.
+  async function attachReader() {
+    const ndef = new window.NDEFReader()
+    const controller = new AbortController()
+    ndef.addEventListener('reading', ({ serialNumber }) => handleCard(serialNumber))
+    await ndef.scan({ signal: controller.signal })
+    ndefRef.current = ndef
+    abortRef.current = controller
+  }
+
   async function startScan() {
     setScreen('starting')
     setError('')
     try {
-      const ndef = new window.NDEFReader()
-      await ndef.scan()
-      ndef.addEventListener('reading', ({ serialNumber }) => handleCard(serialNumber))
+      await attachReader()
       setScreen('ready')
     } catch (err) {
       setError(err.message)
@@ -107,7 +149,32 @@ export default function App() {
     }
   }
 
-  // identity is { nfc_uid } for a card or { pin } for keypad entry
+  // Teljes újraindítás minden "kész" állapotba való visszatéréskor, amikor
+  // a kamera NEM volt használatban. A puszta scan()-újrahívás ugyanazon a
+  // NDEFReader-en NEM elég — a diagnosztika bizonyította, hogy a böngésző
+  // "már fut egy olvasás" hibával utasítja vissza, miközben a natív Android
+  // NFC-réteg a gyakorlatban mégsem érzékel új érintést. Ezért a régi
+  // munkamenetet megszakítjuk, és egy vadonatúj NDEFReader-t veszünk fel a
+  // helyére. A REARM_DELAY kis biztonsági ráhagyás, ha a hívás mégis
+  // közvetlenül valamilyen erőforrás-felszabadítás után történne.
+  function rearmScan() {
+    abortRef.current?.abort()
+    setTimeout(() => { attachReader().catch(() => {}) }, REARM_DELAY)
+  }
+
+  // A "kész" állapotba visszatérő ágak hívják ez helyett a rearmScan()-t
+  // közvetlenül. Ha a kamera volt használatban, a JS-szintű újraindítás
+  // (rearmScan) empirikusan nem hozza vissza az NFC-olvasást — az egyetlen,
+  // mindig működő megoldás a teljes oldalfrissítés. A beléptetés adata
+  // ekkorra már biztonságban van az adatbázisban, tehát semmi nem vész el;
+  // az újratöltés után az alkalmazás emberi beavatkozás nélkül folytatja
+  // (lásd a csendes automatikus indítást a komponens tetején).
+  function rearmOrReload() {
+    if (cameraWasUsed.current) { window.location.reload(); return }
+    rearmScan()
+  }
+
+  // az identity vagy { nfc_uid } (kártya), vagy { pin } (billentyűzet)
   async function callCheckin(identity, photoBase64) {
     try {
       const res = await fetch(FUNCTION_URL, {
@@ -188,9 +255,10 @@ export default function App() {
     setScreen('ready')
     setName('')
     processing.current = false
+    rearmScan()
   }
 
-  // --- PIN keypad (online only; a PIN can't be verified offline) --------------
+  // --- PIN-billentyűzet (csak online; a PIN offline nem ellenőrizhető) --------
   function openPinPad() {
     if (processing.current) return
     processing.current = true            // block card taps while typing a PIN
@@ -203,6 +271,7 @@ export default function App() {
     setPinInput('')
     setScreen('ready')
     processing.current = false
+    rearmScan()
   }
 
   async function submitPin() {
@@ -220,10 +289,10 @@ export default function App() {
     finishResult(result)
   }
 
-  // --- offline path -----------------------------------------------------------
+  // --- offline útvonal ----------------------------------------------------------
   async function recordOffline(uid) {
     const card = await lookupCard(uid)
-    if (!card) { flash('unknown', ''); return }                // never synced this card
+    if (!card) { flash('unknown', ''); return }                // ez a kártya még sosem szinkronizálódott
     if (card.role === 'guest' && card.guest_expires_at && new Date(card.guest_expires_at) < new Date()) {
       flash('expired', card.name); return
     }
@@ -258,6 +327,11 @@ export default function App() {
       if (result.code === 'UNKNOWN_CARD') { flash('unknown', '') }
       else if (result.code === 'UNKNOWN_PIN') { flash('badpin', '') }
       else if (result.code === 'GUEST_EXPIRED') { flash('expired', result.user?.name ?? '') }
+      // A szerver 5 mp-en belül nem enged két azonos irányú eseményt (pl.
+      // két gyors, egymást követő belépést). Ez helyes viselkedés, de a
+      // korábbi kód ezt is "A kártya nincs regisztrálva" üzenettel jelezte,
+      // ami a kártyát hibáztatta ott, ahol a kártyával semmi baj nincs.
+      else if (result.code === 'DUPLICATE') { flash('toofast', '') }
       else { flash('unknown', '') }
       return
     }
@@ -271,9 +345,10 @@ export default function App() {
     flash(result.event.type, result.user.name)
   }
 
-  // --- camera -----------------------------------------------------------------
+  // --- kamera -------------------------------------------------------------------
   async function openCamera(mode) {
     captureMode.current = mode
+    cameraWasUsed.current = true
     setCameraError('')
     setScreen('camera')
     try {
@@ -283,31 +358,46 @@ export default function App() {
         videoRef.current.srcObject = stream
         await videoRef.current.play()
       }
-      cameraTimeout.current = setTimeout(() => cancelCamera('Photo timed out'), CAMERA_TIMEOUT)
+      cameraTimeout.current = setTimeout(cancelCamera, CAMERA_TIMEOUT)
     } catch (err) {
-      // Offline: don't lose the attendance record just because the camera failed.
+      // Offline: a fényképezés hibája miatt nem veszhet el a jelenléti bejegyzés.
       if (mode === 'offline' && offlineCtx.current) {
         stopCameraStream()
         await commitOffline({ ...offlineCtx.current, photoBase64: null })
         return
       }
-      setCameraError(err.message || 'Camera unavailable')
+      setCameraError(err.message || 'A kamera nem elérhető')
     }
   }
 
   function stopCameraStream() {
     if (streamRef.current) { streamRef.current.getTracks().forEach(t => t.stop()); streamRef.current = null }
+    // A track.stop() önmagában néhány eszközön nem elég: amíg a <video> elem
+    // srcObject-je a (már leállított) streamre mutat, a böngésző a kamerát
+    // logikailag foglaltnak tekintheti — ez pedig ugyanazt a hardvert/
+    // engedélykezelést terhelheti, amit az NFC-olvasó újraindítása is
+    // igényelne. Explicit kiürítéssel a felszabadítás egyértelmű.
+    if (videoRef.current) videoRef.current.srcObject = null
     if (cameraTimeout.current) { clearTimeout(cameraTimeout.current); cameraTimeout.current = null }
   }
 
-  async function cancelCamera(reason) {
+  async function cancelCamera() {
     stopCameraStream()
-    // Offline capture cancelled/timed out → still record the event (no photo).
+    // Offline fényképezés megszakadt/időtúllépés → az esemény fénykép nélkül is rögzül.
     if (captureMode.current === 'offline' && offlineCtx.current) {
       await commitOffline({ ...offlineCtx.current, photoBase64: null })
       return
     }
-    flash('unknown', '')
+    // Online megszakítás: a második kérés — amelyik az eseményt tényleg
+    // létrehozná — sosem indult el, tehát nincs mit visszavonni. A kártya
+    // rendben azonosítva volt, ezért téves lenne "nincs regisztrálva"
+    // üzenetet mutatni; egyszerűen vissza a kész állapotba.
+    if (resetTimer.current) clearTimeout(resetTimer.current)
+    setScreen('ready')
+    setName('')
+    setCameraError('')
+    processing.current = false
+    rearmOrReload()
   }
 
   async function capturePhoto() {
@@ -359,6 +449,7 @@ export default function App() {
       setEnrollOffer(false)
       enrollCtx.current = null
       processing.current = false
+      rearmOrReload()
     }, opts.enroll ? ENROLL_DELAY : RESET_DELAY)
   }
 
@@ -370,26 +461,23 @@ export default function App() {
   // --- render -----------------------------------------------------------------
   if (!nfcSupported) return (
     <Screen bg="var(--bg)">
-      <div style={S.emoji}>⚠️</div>
-      <div style={S.title}>NFC not supported</div>
-      <div style={S.sub}>Use Android Chrome</div>
+      <div style={S.title}>Az NFC nem támogatott</div>
+      <div style={S.sub}>Használj Android Chrome-ot</div>
     </Screen>
   )
 
   if (screen === 'idle') return (
     <Screen bg="var(--bg)">
       <StatusBadge online={online} pending={pending} syncing={syncingUi} />
-      <div style={S.emoji}>📡</div>
-      <div style={S.title}>NFC Scanner</div>
+      <div style={S.title}>NFC Szkenner</div>
       {error && <div style={S.errorBox}>{error}</div>}
-      <button onClick={startScan} style={S.startBtn}>Start Scanning</button>
+      <button onClick={startScan} style={S.startBtn}>Szkennelés kezdése</button>
     </Screen>
   )
 
   if (screen === 'starting') return (
     <Screen bg="var(--bg)">
-      <div style={S.emoji}>⏳</div>
-      <div style={S.title}>Starting…</div>
+      <div style={S.title}>Indítás…</div>
     </Screen>
   )
 
@@ -397,18 +485,18 @@ export default function App() {
     <Screen bg="var(--bg)">
       <StatusBadge online={online} pending={pending} syncing={syncingUi} />
       <div style={S.panel}>
-        <div style={S.title}>Take a check-in photo</div>
+        <div style={S.title}>Fénykép készítése</div>
         {cameraError ? (
           <>
             <div style={S.errorBox}>{cameraError}</div>
-            <button onClick={() => cancelCamera('Camera unavailable')} style={S.startBtn}>Cancel</button>
+            <button onClick={cancelCamera} style={S.startBtn}>Mégse</button>
           </>
         ) : (
           <>
             <video ref={videoRef} playsInline muted style={S.cameraVideo} />
             <div style={{ display: 'flex', gap: '1rem' }}>
-              <button onClick={() => cancelCamera('Photo cancelled')} style={S.cancelBtn}>Cancel</button>
-              <button onClick={capturePhoto} style={S.startBtn}>📸 Capture</button>
+              <button onClick={cancelCamera} style={S.cancelBtn}>Mégse</button>
+              <button onClick={capturePhoto} style={S.startBtn}>Rögzítés</button>
             </div>
           </>
         )}
@@ -418,8 +506,7 @@ export default function App() {
 
   if (screen === 'uploading') return (
     <Screen bg="var(--bg)">
-      <div style={S.emoji}>⏳</div>
-      <div style={S.title}>Uploading…</div>
+      <div style={S.title}>Feltöltés…</div>
     </Screen>
   )
 
@@ -427,7 +514,7 @@ export default function App() {
     <Screen bg="var(--bg)">
       <StatusBadge online={online} pending={pending} syncing={syncingUi} />
       <div style={S.panel}>
-        <div style={S.title}>Enter PIN</div>
+        <div style={S.title}>PIN megadása</div>
         <div style={S.pinDots}>{pinInput ? '•'.repeat(pinInput.length) : '—'}</div>
         <div style={S.keypad}>
           {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map(d => (
@@ -437,38 +524,36 @@ export default function App() {
           <button onClick={() => setPinInput(p => (p.length < 6 ? p + '0' : p))} style={S.key}>0</button>
           <button onClick={submitPin} disabled={pinInput.length < 4} style={{ ...S.key, ...S.keyOk, opacity: pinInput.length < 4 ? 0.4 : 1 }}>✓</button>
         </div>
-        <button onClick={cancelPin} style={S.cancelBtn}>Cancel</button>
+        <button onClick={cancelPin} style={S.cancelBtn}>Mégse</button>
       </div>
     </Screen>
   )
 
-  const bg    = { ready: 'var(--bg)', checkin: '#10b981', checkout: '#ef4444', unknown: '#f59e0b', expired: '#b45309', badpin: '#f59e0b', noconn: '#3f3f46', enrolled: '#0ea5e9', cardtaken: '#f59e0b', enrollfail: '#f59e0b' }[screen] ?? 'var(--bg)'
-  const emoji = { ready: '📡', checkin: '✅', checkout: '🔴', unknown: '❓', expired: '⏰', badpin: '🔒', noconn: '📵', enrolled: '💳', cardtaken: '⛔', enrollfail: '⚠️' }[screen]
-  const title = { ready: 'Tap your NFC card', checkin: 'CHECKED IN', checkout: 'CHECKED OUT', unknown: 'Card not registered', expired: 'Guest pass expired', badpin: 'Wrong PIN', noconn: 'No connection', enrolled: 'CARD REGISTERED', cardtaken: 'Card belongs to someone else', enrollfail: 'Pairing failed' }[screen]
+  const bg    = { ready: 'var(--bg)', checkin: '#10b981', checkout: '#ef4444', unknown: '#f59e0b', expired: '#b45309', badpin: '#f59e0b', noconn: '#3f3f46', enrolled: '#0ea5e9', cardtaken: '#f59e0b', enrollfail: '#f59e0b', toofast: '#f59e0b' }[screen] ?? 'var(--bg)'
+  const title = { ready: 'Érintsd a kártyát', checkin: 'BELÉPETT', checkout: 'KILÉPETT', unknown: 'A kártya nincs regisztrálva', expired: 'A vendégkártya lejárt', badpin: 'Hibás PIN', noconn: 'Nincs kapcsolat', enrolled: 'KÁRTYA PÁROSÍTVA', cardtaken: 'Ez a kártya már foglalt', enrollfail: 'A párosítás sikertelen', toofast: 'Várj egy kicsit' }[screen]
 
   return (
     <Screen bg={bg}>
       <StatusBadge online={online} pending={pending} syncing={syncingUi} />
       <div style={S.panel}>
-        <div style={S.emoji}>{emoji}</div>
         <div style={S.title}>{title}</div>
       </div>
       {name && <div style={S.name}>{name}</div>}
 
       {savedOffline && (screen === 'checkin' || screen === 'checkout') && (
-        <div style={S.offlineNote}>💾 Elmentve offline · szinkron később</div>
+        <div style={S.offlineNote}>Elmentve offline módban · szinkronizálás később</div>
       )}
 
       {enrollOffer && (
         <div style={S.enrollBox}>
-          <div style={S.enrollTitle}>💳 Nincs kártyád regisztrálva</div>
+          <div style={S.enrollTitle}>Még nincs párosítva a kártyád</div>
           <div style={S.enrollText}>Érintsd oda most, és a rendszer hozzád rendeli.</div>
           <button onClick={skipEnroll} style={S.enrollSkip}>Most nem</button>
         </div>
       )}
 
       {screen === 'ready' && online && (
-        <button onClick={openPinPad} style={S.pinBtn}>🔢 PIN</button>
+        <button onClick={openPinPad} style={S.pinBtn}>PIN</button>
       )}
 
       {screen === 'unknown' && lastUid && <div style={S.uidBox}>{lastUid}</div>}
@@ -478,9 +563,9 @@ export default function App() {
           {log.map((entry, i) => (
             <div key={i} style={{ ...S.logRow, opacity: i === 0 ? 1 : 0.45 }}>
               <span style={{ color: entry.result === 'checkin' ? '#10b981' : entry.result === 'checkout' ? '#ef4444' : '#f59e0b' }}>
-                {entry.result === 'checkin' ? '↑ IN' : entry.result === 'checkout' ? '↓ OUT' : entry.result === 'expired' ? '⏰ EXP' : '? UNK'}
+                {entry.result === 'checkin' ? '↑ Be' : entry.result === 'checkout' ? '↓ Ki' : entry.result === 'expired' ? 'Lejárt' : entry.result === 'toofast' ? 'Túl korai' : 'Ismeretlen'}
                 {entry.personName ? ` ${entry.personName}` : ''}
-                {entry.offline ? ' 💾' : ''}
+                {entry.offline ? ' · offline' : ''}
               </span>
               <span style={{ color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{entry.uid}</span>
               <span style={{ color: '#5b5b66', textAlign: 'right' }}>{entry.time}</span>
@@ -513,7 +598,6 @@ const MONO = "'JetBrains Mono', ui-monospace, monospace"
 const S = {
   fullscreen: { height: '100dvh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '1.25rem', userSelect: 'none', position: 'relative', color: '#fff', padding: '1rem', boxSizing: 'border-box', transition: 'background 0.2s' },
   panel:      { width: '100%', maxWidth: 760, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.9rem' },
-  emoji:      { fontSize: 'clamp(4rem, 14vw, 7rem)', lineHeight: 1 },
   title:      { fontSize: 'clamp(1.7rem, 7vw, 3rem)', fontWeight: 800, textAlign: 'center', padding: '0 1rem', maxWidth: 720, letterSpacing: '-0.02em' },
   name:       { fontSize: 'clamp(1.35rem, 5.5vw, 2.2rem)', fontWeight: 600, opacity: 0.92, textAlign: 'center' },
   sub:        { fontSize: 'clamp(1rem, 3.6vw, 1.2rem)', opacity: 0.7, textAlign: 'center' },
