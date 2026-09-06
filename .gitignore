@@ -32,7 +32,14 @@ thesis/out/
 # A mentor által visszaküldött, megjegyzésekkel ellátott dokumentum
 mentor-visszajelzes/
 
-# Élő rendszerről készült képernyőképek (valós adatokkal) — nem verziózzuk.
-# A build hangosan jelzi, ha hiányoznak, tehát nem tűnnek el észrevétlenül.
-thesis/figures/statisztika.png
-thesis/figures/adatbazis-sema.png
+# A dolgozat ábrái: élő rendszerről készült képernyőképek és a belőlük készült
+# vágott változatok. A nyilvános repóba nem kerülnek. A build hangosan jelzi,
+# ha hiányoznak, tehát nem tűnnek el észrevétlenül.
+#
+# A mintának a mappa TARTALMÁRA kell illeszkednie (thesis/figures/*), nem magára
+# a mappára: ha a mappa van kizárva, a git bele sem néz, és a kivétel sem él.
+thesis/figures/*
+
+# KIVÉTEL: az abrak.html nem kimenet, hanem a rajzolt ábrák FORRÁSA — a három
+# folyamatábra ebből generálódik, ezért ennek verziózva kell maradnia.
+!thesis/figures/abrak.html
