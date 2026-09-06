@@ -24,7 +24,7 @@
 [4] ISO/IEC 18092:2013, Information technology — Telecommunications and information exchange between systems — Near Field Communication — Interface and Protocol (NFCIP-1), 2. kiadás. Geneva: International Organization for Standardization, 2013.
 [5] F. D. Garcia és mtsai, "Dismantling MIFARE Classic", in Computer Security — ESORICS 2008, Lecture Notes in Computer Science, vol. 5283. Berlin: Springer, 2008, pp. 97-114.
 [6] W3C Web NFC Community Group, Web NFC [Online]. https://w3c.github.io/web-nfc/ [letöltve: 2026. 07. 31.]
-[7] E. O. Yeboah-Boateng, E. O. Asamoah és V. D. Segbedzi, "An Automated Attendance System based on NFC & X-Bee Technologies with a Remote Database", arXiv:1611.05374, 2016.
+[7] E. O. Yeboah-Boateng, E. O. Asamoah és V. D. Segbedzi, "An Automated Attendance System based on NFC & X-Bee Technologies with a Remote Database", International Journal of Emerging Science and Engineering (IJESE), vol. 3, sz. 12, pp. 9-15, October 2015.
 [8] W3C, Service Workers [Online]. https://www.w3.org/TR/service-workers/ [letöltve: 2026. 07. 31.]
 [9] M. Kleppmann, Designing Data-Intensive Applications: The Big Ideas Behind Reliable, Scalable, and Maintainable Systems. Sebastopol, CA: O'Reilly Media, 2017.
 [10] Microsoft, Multitenant SaaS database tenancy patterns [Online]. https://learn.microsoft.com/azure/azure-sql/database/saas-tenancy-app-design-patterns [letöltve: 2026. 07. 31.]

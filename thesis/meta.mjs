@@ -29,7 +29,9 @@ export const META = {
   titleEn: 'Development of an Information System for Attendance Tracking Using NFC and PWA Technologies',
 
   student:  'Barát Balázs',
-  mentor:   'dr. Zlatko Čović',
+  // A mentor a visszaküldött dokumentumban vezetéknév-keresztnév sorrendre
+  // javította a saját nevét, a címlapon és a köszönetnyilvánításban egyaránt.
+  mentor:   'dr. Čović Zlatko',
   indexNo:  '26223081',
   place:    'Szabadka',
   year:     '2026',
@@ -95,26 +97,29 @@ export const META = {
   ],
 
   // ── Köszönetnyilvánítás (legfeljebb 100 szó; a sablon szerint elhagyható) ──
+  // A mentor által javított szöveg, betű szerint átvéve.
   thanks:
-    'Köszönettel tartozom mentoromnak, dr. Zlatko Čovićnak a szakdolgozat ' +
+    'Köszönettel tartozom mentoromnak, dr. Čović Zlatkónak a szakdolgozat ' +
     'készítése során nyújtott iránymutatásért, és azért, hogy a felmerülő ' +
     'kérdésekkel bármikor fordulhattam hozzá. Köszönöm a Szabadkai Műszaki ' +
-    'Szakfőiskola oktatóinak az elmúlt évek munkáját. Végül köszönöm a ' +
-    'családomnak a türelmet azokban a hónapokban, amikor a fejlesztés a ' +
-    'szabad estéket is elvitte.',
+    'Szakfőiskola oktatóinak az elmúlt években végzett munkájukat. Végül ' +
+    'köszönöm a családomnak a türelmet azokban a hónapokban, amikor a ' +
+    'fejlesztés a szabad estéket is elvitte.',
 
   // ── A szakdolgozat témája (a mentor határozza meg) ─────────────────────────
-  topic:
-    'A szakdolgozat feladata egy NFC-technológiára épülő jelenléti ' +
-    'nyilvántartó rendszer megtervezése és megvalósítása webes ' +
-    'alkalmazásként. A rendszernek a munkavállalók érkezését és távozását ' +
-    'kártyaérintéssel kell rögzítenie, több cég adatait egymástól elkülönítve ' +
-    'kell kezelnie, és hálózati kapcsolat hiányában is működőképesnek kell ' +
-    'maradnia. Kezelnie kell továbbá a távollét-kérelmek jóváhagyási ' +
-    'folyamatát, valamint vezetői kimutatásokat és automatikus értesítéseket ' +
-    'kell nyújtania. A várható eredmény egy működő, több alkalmazásból álló ' +
-    'rendszer, amelyben az egyes tervezési döntések — az azonosítás módja, a ' +
-    'hálózatfüggetlen működés megvalósítása és a visszaélés elleni védelem — ' +
-    'önálló megoldásokat tükröznek, és a dolgozatban indoklással együtt ' +
-    'kerülnek bemutatásra.',
+  // A mentor a visszaküldött dokumentumban pontozott felsorolásra cserélte a
+  // korábbi folyó szöveget. A tömb elemei ezért felsoroláspontként kerülnek a
+  // dokumentumba, a sablon pontozott listastílusával.
+  topic: [
+    'NFC-technológiára épülő jelenléti nyilvántartó rendszer megtervezése és megvalósítása webes alkalmazásként.',
+    'A munkavállalók érkezésének és távozásának NFC-kártya érintésével történő rögzítése.',
+    'Több cég adatainak egymástól elkülönített és biztonságos kezelése.',
+    'A rendszer hálózati kapcsolat nélküli működésének és az adatok későbbi szinkronizálásának megvalósítása.',
+    'A távollét-kérelmek benyújtási és jóváhagyási folyamatának kialakítása és implementálása.',
+    'Vezetői kimutatások és a jelenléti adatok áttekintését támogató funkciók kialakítása.',
+    'Automatikus értesítési funkciók megvalósítása.',
+    'Az NFC-alapú azonosítás biztonságának és a lehetséges visszaélések elleni védelemnek a biztosítása.',
+    'Az alkalmazott technológiai és tervezési megoldások dokumentálása és szakmai indoklása.',
+    'A megvalósított rendszer tesztelése és az eredmények értékelése.',
+  ],
 }

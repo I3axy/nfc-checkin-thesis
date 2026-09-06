@@ -24,7 +24,7 @@ Az azonosítás módja határozza meg a rendszer megbízhatóságát, költség�
 visszaélésekkel szembeni ellenálló képességét, ezért a technológia
 megválasztása az egyik legfontosabb tervezési döntés.
 
-A legegyszerűbb megoldást a **vonalkód** és a **QR-kód** jelenti. Előállításuk
+A legegyszerűbb megoldást a vonalkód és a QR-kód jelenti. Előállításuk
 gyakorlatilag ingyenes, egy nyomtatott kártya vagy egy telefon képernyője is
 elegendő hozzájuk. Éppen ez az egyszerűség jelenti a legnagyobb gyengeségüket
 is: a kód egyetlen fényképpel lemásolható, majd tetszőleges számú példányban
@@ -32,21 +32,21 @@ felhasználható. Jelenléti rendszerben ez azt jelenti, hogy egy dolgozó a
 kollégájának átküldheti a saját kódját, aki így helyette is jelenlétet
 regisztrálhat.
 
-A **mágnescsíkos kártyák** a bankkártyák elterjedésével váltak ismertté. Az
+A mágnescsíkos kártyák a bankkártyák elterjedésével váltak ismertté. Az
 adathordozó fizikai érintkezést igényel az olvasóval, ami mechanikai kopáshoz és
 az élettartam csökkenéséhez vezet. Biztonsági szempontból szintén korlátozottak,
 mivel a mágnescsík tartalma viszonylag egyszerű eszközökkel kiolvasható és
 átírható.
 
-A **rádiófrekvenciás azonosítás** (RFID) érintés nélküli működést tesz lehetővé,
+A rádiófrekvenciás azonosítás (RFID) érintés nélküli működést tesz lehetővé,
 így megszünteti a mechanikai kopás problémáját. Az RFID gyűjtőfogalom, amely
 több frekvenciasávot és szabványcsaládot foglal magában; a hozzáférés-vezérlésben
-elsősorban a 13,56 MHz-es sáv terjedt el [1]. Az ebbe a sávba tartozó **NFC**
+elsősorban a 13,56 MHz-es sáv terjedt el [1]. Az ebbe a sávba tartozó NFC
 (Near Field Communication) technológia a rövid hatótávolsága miatt kifejezetten
 alkalmas beléptetési feladatokra, mivel a kártyát tudatosan az olvasóhoz kell
 érinteni.
 
-A **biometrikus azonosítás** — ujjlenyomat, arcfelismerés vagy íriszvizsgálat —
+A biometrikus azonosítás — ujjlenyomat, arcfelismerés vagy íriszvizsgálat —
 elvi előnye, hogy az azonosító nem adható át másnak, így a helyettesítéssel
 elkövetett visszaélés kizárható. Alkalmazását ugyanakkor jelentős adatvédelmi
 megfontolások korlátozzák: a biometrikus adat az Európai Unió általános
@@ -98,18 +98,18 @@ határozza meg [3], míg az eszközök közötti kommunikáció felületét az I
 lehet — ez a jelenléti adatok továbbításához bőségesen elegendő, hiszen
 mindössze néhány bájtnyi azonosító átviteléről van szó.
 
-Az NFC-eszközök három üzemmódban működhetnek. **Olvasó/író módban** az eszköz
+Az NFC-eszközök három üzemmódban működhetnek. Olvasó/író módban az eszköz
 passzív címkéket olvas ki vagy ír; ezt a módot alkalmazza a dolgozat tárgyát
-képező rendszer is. **Kártyaemulációs módban** maga az eszköz viselkedik
-kártyaként, ezen alapulnak a mobilfizetési megoldások. A **pont-pont módban**
+képező rendszer is. Kártyaemulációs módban maga az eszköz viselkedik
+kártyaként, ezen alapulnak a mobilfizetési megoldások. A pont-pont módban
 két aktív eszköz cserél adatot egymással.
 
 A gyakorlatban használt kártyatípusok közül a MIFARE család terjedt el a
 legszélesebb körben. Fontos ugyanakkor megjegyezni, hogy a MIFARE Classic
 kártyákban alkalmazott Crypto-1 titkosítási eljárást a kutatók visszafejtették,
 és gyakorlatban is kivitelezhető támadásokat mutattak be ellene [5]. Ettől
-függetlenül is igaz, hogy a kártya azonosítója (UID) **nem tekinthető titkos
-információnak**: az ütközésfeloldás során titkosítás nélkül kerül átvitelre [3],
+függetlenül is igaz, hogy a kártya azonosítója (UID) nem tekinthető titkos
+információnak: az ütközésfeloldás során titkosítás nélkül kerül átvitelre [3],
 és írható azonosítójú kártyára átmásolható.
 
 Ez a megállapítás közvetlen tervezési következménnyel jár. Amennyiben a rendszer
@@ -120,7 +120,7 @@ bevezetésével, vagy a belépés pillanatában készített fénykép rögzíté
 Az utóbbi megoldás előnye, hogy nem igényel drágább hardvert, és utólagos
 ellenőrzést tesz lehetővé.
 
-A webes alkalmazások szempontjából lényeges fejlemény a **Web NFC** felület,
+A webes alkalmazások szempontjából lényeges fejlemény a Web NFC felület,
 amely lehetővé teszi, hogy a böngészőben futó alkalmazás közvetlenül hozzáférjen
 az eszköz NFC-olvasójához [6]. A felület jelentősége abban áll, hogy natív
 alkalmazás fejlesztése és telepítése nélkül készíthető beléptető megoldás.
@@ -136,16 +136,39 @@ hátránya viszont számottevő: az adatok utólagos feldolgozása kézi munkát
 igényel, a bejegyzések visszamenőleg módosíthatók, és a bérszámfejtéshez
 szükséges összesítés hibalehetőségekkel terhelt.
 
-Az elektronikus megoldások két nagy csoportra oszthatók. Az **önálló terminálok**
+Az elektronikus megoldások két nagy csoportra oszthatók. Az önálló terminálok
 saját hardverrel, beépített olvasóval és megjelenítővel rendelkeznek. Előnyük a
 megbízhatóság és a zárt működés, hátrányuk a magas beszerzési ár, valamint az,
 hogy az adatok kinyerése gyakran a gyártó saját szoftverén keresztül lehetséges.
-A **mobileszköz-alapú megoldások** ezzel szemben meglévő okostelefonokat vagy
+A mobileszköz-alapú megoldások ezzel szemben meglévő okostelefonokat vagy
 táblagépeket használnak olvasóként, így a hardverköltség jelentősen csökken, a
-rendszer pedig rugalmasabban telepíthető. Ezt a felépítést a szakirodalom is
-vizsgálta: az NFC-olvasóval és távoli adatbázissal működő jelenléti rendszer
-valós idejű nyilvántartást és távoli lekérdezést tesz lehetővé, kiváltva a kézi
-adminisztrációt [7].
+rendszer pedig rugalmasabban telepíthető.
+
+Egy megvalósított rendszer részletesen dokumentált példája világítja meg, mit
+old meg és mit hagy nyitva ez a megközelítés [7]. A hivatkozott munka
+intézményi jelenlét-nyilvántartást automatizál: a dolgozó a PN532 típusú
+olvasóhoz érinti a kártyáját, a rendszer pedig a kártya egyedi azonosítóját a
+valós idejű órától kapott időbélyeggel együtt előbb helyben, memóriakártyán
+rögzíti, majd rádiós kapcsolaton továbbítja a távoli adatbázisba. A felépítés
+lényeges vonása tehát, hogy a rögzítés és a továbbítás elválik egymástól.
+
+A szerzők méréseket is közölnek. A jelenléti ív aláírása dolgozónként
+mintegy harminc másodpercet vett igénybe, a kártya beolvasása és a
+visszajelzés megjelenítése ezzel szemben kettőt, a berendezés pedig fél
+másodperc múlva készen állt a következő kártya fogadására. Száz fő
+beléptetése a papíralapú eljárással ötven percig tartott, a kártyással ötven
+másodpercig; az adat távoli kiszolgálóra juttatása további egy másodpercet
+igényelt. A megoldás korlátait a szerzők maguk is felsorolják: az alkalmazott
+rádiós modul hatótávolsága rövid, a hálózat pont-pont kapcsolatra
+korlátozódott, a méréseket pedig mindössze hét kártyából álló mintán
+végezték.
+
+A példa két tanulsággal szolgál a jelen dolgozat szempontjából. Egyrészt
+megerősíti a helyi rögzítés és a késleltetett továbbítás létjogosultságát,
+amely a hálózatfüggetlen működés alapgondolata. Másrészt rávilágít arra, amit a
+hivatkozott munka nem tárgyal: a kártya átruházhatóságából fakadó visszaéléssel
+nem foglalkozik, holott a beléptetés gyorsításából származó nyereség önmagában
+nem teszi hitelesebbé a nyilvántartást.
 
 A kereskedelmi forgalomban elérhető rendszerek jellemzően előfizetéses
 konstrukcióban, zárt forráskóddal érhetők el. Ez több szempontból is korlátozó:
@@ -163,7 +186,7 @@ megoldás sajátossága, hogy önmagában nem akadályozza meg a visszaélést, 
 utólag ellenőrizhetővé és ezáltal kockázatossá teszi azt.
 
 Az adatkezelés jogi kereteit az általános adatvédelmi rendelet határozza meg
-[2], amelynek egyik alapelve az **adattakarékosság**: kizárólag a célhoz
+[2], amelynek egyik alapelve az adattakarékosság: kizárólag a célhoz
 feltétlenül szükséges adatok kezelhetők. Jelenléti rendszer esetében ez azt jelenti, hogy a
 be- és kilépés időpontjának rögzítése indokolt, a dolgozó folyamatos
 helymeghatározása vagy tevékenységének megfigyelése azonban már nem. Ez a
@@ -174,40 +197,40 @@ tárolóban, korlátozott hozzáféréssel kerül elhelyezésre.
 ## Webalkalmazás-architektúrák
 
 A webes technológiák fejlődésével a böngészőben futó alkalmazások képességei
-megközelítették a natív alkalmazásokét. A **progresszív webalkalmazás** (PWA)
+megközelítették a natív alkalmazásokét. A progresszív webalkalmazás (PWA)
 fogalma olyan webalkalmazást jelöl, amely telepíthető az eszközre, teljes
 képernyőn futtatható, és hálózati kapcsolat nélkül is működőképes marad. Ennek
 technikai alapját a *service worker* képezi: egy háttérben futó szkript, amely
 elfogadja az alkalmazás hálózati kéréseit, és eldönti, hogy azokat a hálózatról
 vagy a helyi gyorsítótárból szolgálja ki [8].
 
-A **hálózatfüggetlen (offline-first) tervezés** ennél tovább megy: nem
+A hálózatfüggetlen (offline-first) tervezés ennél tovább megy: nem
 kivételes állapotként kezeli a kapcsolat hiányát, hanem alapértelmezésként. Az
 ilyen alkalmazás először mindig a helyi tárolóval dolgozik, és a szerverrel való
 egyeztetés a háttérben, alkalomadtán történik meg. A böngészőben erre a célra az
-**IndexedDB** áll rendelkezésre, amely strukturált adatok tárolására és
+IndexedDB áll rendelkezésre, amely strukturált adatok tárolására és
 indexelésére alkalmas beágyazott adatbázis.
 
-A megközelítés központi kérdése a **szinkronizáció helyessége**. Amennyiben a
+A megközelítés központi kérdése a szinkronizáció helyessége. Amennyiben a
 kapcsolat helyreállása után az elmentett műveletek visszajátszásra kerülnek, két
 hibalehetőséggel kell számolni. Egyrészt a válasz elveszhet azután, hogy a
 szerver már feldolgozta a kérést; az ismételt küldés ilyenkor duplikált
-bejegyzést hozna létre. Ez **idempotens** művelettel előzhető meg, azaz úgy, hogy
+bejegyzést hozna létre. Ez idempotens művelettel előzhető meg, azaz úgy, hogy
 ugyanazon művelet többszöri végrehajtása is egyetlen eredményt hoz létre — a
 gyakorlatban a kliens által előállított egyedi azonosítóval és az adatbázis
 oldalán érvényesített egyediségi megkötéssel. Másrészt az események sorrendje
 felborulhat, ezért az eredeti időbélyeget a kliensnek kell rögzítenie és
 továbbítania, nem pedig a szervernek a feldolgozás pillanatában. Az így
 kialakuló, átmenetileg eltérő, majd fokozatosan egyező állapotot a szakirodalom
-**eventual consistency** néven tárgyalja [9].
+eventual consistency néven tárgyalja [9].
 
-A háttérrendszerek területén az utóbbi években elterjedt a **BaaS**
+A háttérrendszerek területén az utóbbi években elterjedt a BaaS
 (*Backend as a Service*) modell, amely kész szolgáltatásként kínálja az
 adatbázist, a hitelesítést, a fájltárolást és a szerveroldali függvények
 futtatását. Előnye a lényegesen rövidebb fejlesztési idő, hátránya a
 szolgáltatóhoz való kötődés.
 
-Több cég egyidejű kiszolgálása esetén a **több bérlős** (multi-tenant)
+Több cég egyidejű kiszolgálása esetén a több bérlős (multi-tenant)
 adatmodell kialakítása külön mérlegelést igényel. Három bevett minta létezik:
 bérlőnként külön adatbázis, közös adatbázison belül külön séma, illetve közös
 táblák bérlőazonosítóval megkülönböztetett sorokkal [10]. Az első a legerősebb
@@ -215,7 +238,7 @@ elkülönítést adja, de a legdrágább üzemeltetni; a harmadik a
 leggazdaságosabb, viszont a legnagyobb figyelmet igényli, mivel egyetlen
 hiányzó szűrőfeltétel adatszivárgáshoz vezethet.
 
-Ez utóbbi kockázat csökkenthető a **sorszintű biztonság** (Row Level Security)
+Ez utóbbi kockázat csökkenthető a sorszintű biztonság (Row Level Security)
 alkalmazásával, amelyet a PostgreSQL adatbázis-kezelő is támogat. Ennek lényege,
 hogy a szűrési szabály nem az alkalmazás kódjában, hanem az adatbázisban kerül
 meghatározásra, így akkor is érvényesül, ha a lekérdezésből véletlenül kimarad a
@@ -230,7 +253,7 @@ következtetés levonását teljes egészében a felhasználóra hárítja: a ve
 kell felismernie, hogy egy adott érték szokatlan-e, és hogy a különböző mutatók
 együttesen milyen képet rajzolnak ki.
 
-A **nagy nyelvi modellek** (Large Language Model, LLM) megjelenése ezen a
+A nagy nyelvi modellek (Large Language Model, LLM) megjelenése ezen a
 ponton kínál új lehetőséget. Ezek a modellek nagy mennyiségű szövegen tanított,
 transzformer architektúrájú neurális hálózatok, amelyek képesek úgynevezett
 *few-shot* módon, azaz kifejezetten az adott feladatra irányuló betanítás nélkül
@@ -241,9 +264,9 @@ tanítani; elegendő az adatokat és az elvárt kimenet leírását a modellnek
 átadni.
 
 Vezetői kimutatások esetében ez a képesség két területen hasznosítható. Az
-**adatösszefoglalás** során a modell a számokból folyó szöveget állít elő, ami
-csökkenti a kimutatás értelmezéséhez szükséges időt. Az **eltérések
-kiemelésével** pedig felhívható a figyelem azokra a mutatókra, amelyek az
+adatösszefoglalás során a modell a számokból folyó szöveget állít elő, ami
+csökkenti a kimutatás értelmezéséhez szükséges időt. Az eltérések
+kiemelésével pedig felhívható a figyelem azokra a mutatókra, amelyek az
 előző időszakhoz képest számottevően megváltoztak. A megközelítés különösen ott
 értékes, ahol a vezető nem rendszeresen, hanem alkalomszerűen tekinti át az
 adatokat, és nincs meg benne az az összehasonlítási alap, amelyhez a látott
@@ -252,7 +275,7 @@ adatokat, és nincs meg benne az az összehasonlítási alap, amelyhez a látott
 Az alkalmazásnak ugyanakkor több lényeges korlátja van, amelyeket a tervezés
 során figyelembe kell venni.
 
-A legsúlyosabb kockázatot a **konfabuláció** — a szakirodalomban gyakran
+A legsúlyosabb kockázatot a konfabuláció — a szakirodalomban gyakran
 *hallucináció* néven tárgyalt jelenség — jelenti: a modell olyan állítást is
 megfogalmazhat, amely nyelvileg meggyőző, tartalmilag viszont nem támasztja alá
 a bemenet [13]. Munkaidő-nyilvántartásban ez közvetlen kárt okozhat, hiszen egy
@@ -261,13 +284,13 @@ kockázat mérséklésének bevett módja, hogy a modell kizárólag a ténylege
 átadott adatokra támaszkodhat, és az utasítás kifejezetten megtiltja a
 kiegészítést vagy a becslést.
 
-A második korlát **adatvédelmi** természetű. A modell működtetése jellemzően
+A második korlát adatvédelmi természetű. A modell működtetése jellemzően
 külső szolgáltatónál történik, így minden elküldött adat elhagyja a rendszer
 határát. Az adattakarékosság elve ezért itt is érvényes: amennyiben a feladat
 összesített értékekből is elvégezhető, személyazonosításra alkalmas adatot nem
 indokolt továbbítani.
 
-Harmadrészt a modellhívás **költséggel és késleltetéssel** jár. A válaszidő
+Harmadrészt a modellhívás költséggel és késleltetéssel jár. A válaszidő
 jellemzően több másodperc, ami a felhasználói felület tervezését is
 befolyásolja: az összefoglaló nem képezheti az oldal betöltésének feltételét,
 hanem külön, a felhasználó által kezdeményezett műveletként célszerű

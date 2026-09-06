@@ -83,10 +83,8 @@ create trigger absences_notify_decision
 
 ## Elektronikus mellékletek
 
-A dolgozathoz mellékelt adathordozó a következőket tartalmazza:
-
-1. a szakdolgozat `.docx` és `.pdf` formátumban,
-2. a védéshez készült bemutató,
-3. a rendszer teljes forráskódja, a három alkalmazás és a szerveroldali
-   függvények külön mappában,
-4. az adatbázis-migrációk futtatható állományai időrendi sorrendben.
+A dolgozathoz mellékelt adathordozó a szakdolgozatot `.docx` és `.pdf`
+formátumban, a védéshez készült bemutatót, valamint a rendszer teljes
+forráskódját tartalmazza, amelyben a három alkalmazás és a szerveroldali
+függvények külön mappában szerepelnek. Az adathordozón megtalálhatók továbbá
+az adatbázis-migrációk futtatható állományai időrendi sorrendben.

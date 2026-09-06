@@ -114,15 +114,21 @@ const TEXT_WIDTH_TWIP = 9638   // A4 szélesség mínusz a sablon bal+jobb marg�
 function tableXml(rows) {
   const cols = Math.max(...rows.map(r => r.length))
   const w = Math.floor(TEXT_WIDTH_TWIP / cols)
+  // A sablon 3.1.4. pontjának példatáblázata szerint: 0,5 pt (sz=8) fekete
+  // szegély, a fejlécsor pedig BFBFBF világosszürke kitöltést kap. A sablon
+  // ezt nem táblázatstílussal, hanem közvetlen formázással oldja meg, ezért
+  // itt is így készül — a kész dolgozat táblázatai így a sablon példájával
+  // azonos megjelenésűek.
   const borders = ['top', 'left', 'bottom', 'right', 'insideH', 'insideV']
-    .map(s => `<w:${s} w:val="single" w:sz="4" w:space="0" w:color="auto"/>`).join('')
+    .map(s => `<w:${s} w:val="single" w:sz="8" w:space="0" w:color="000000"/>`).join('')
+  const HEAD_SHD = '<w:shd w:val="clear" w:color="auto" w:fill="BFBFBF"/>'
 
   // A `keep` a sor bekezdéseit a következőhöz köti. Ha az utolsó sor
   // kivételével minden sor ilyen, a táblázat egyben marad: nem szakad ketté
   // két lap között. Az utolsó sor szándékosan marad kötés nélkül — enélkül a
   // táblázat a rá következő szövegtörzset is magával rántaná.
   const cell = (text, head, keep) =>
-    `<w:tc><w:tcPr><w:tcW w:w="${w}" w:type="dxa"/></w:tcPr>` +
+    `<w:tc><w:tcPr><w:tcW w:w="${w}" w:type="dxa"/>${head ? HEAD_SHD : ''}</w:tcPr>` +
     `<w:p><w:pPr><w:pStyle w:val="${ST.figure}"/>${keep ? '<w:keepNext/>' : ''}<w:jc w:val="left"/></w:pPr>` +
     (head
       ? `<w:r><w:rPr><w:b/></w:rPr><w:t xml:space="preserve">${esc(text)}</w:t></w:r>`
@@ -424,13 +430,19 @@ function setParaText(p, text) {
 }
 
 // Az első olyan bekezdés cseréje, amelynek szövege a megadott előtaggal
-// kezdődik. A null érték a bekezdés eltávolítását jelenti.
+// kezdődik. A null érték a bekezdés eltávolítását jelenti. Tömb esetén a
+// helyőrző helyére annyi felsoroláspont kerül, ahány elem van — a sablon
+// pontozott listájával, ugyanazzal, amelyet a fejezetek felsorolásai is
+// használnak.
 function replaceParaStartingWith(xml, prefix, value) {
   for (const q of paragraphs(xml)) {
     if (q.empty) continue
     const src = xml.slice(q.start, q.end)
     if (!paraText(src).trim().startsWith(prefix)) continue
-    const next = value === null ? '' : setParaText(src, value)
+    const next =
+      value === null ? '' :
+      Array.isArray(value) ? value.map(t => listPara(t, NUM_BULLET)).join('') :
+      setParaText(src, value)
     return { xml: xml.slice(0, q.start) + next + xml.slice(q.end), found: true }
   }
   return { xml, found: false }

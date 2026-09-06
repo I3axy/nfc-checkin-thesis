@@ -158,7 +158,12 @@ function path(x, pts, label, opts = {}) {
       const d = Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1])
       if (d > best) { best = d; k = i }
     }
-    PENDING.push([label, (pts[k][0] + pts[k - 1][0]) / 2, (pts[k][1] + pts[k - 1][1]) / 2])
+    // A felirat alapból a leghosszabb szakasz közepére kerül. A labelDx/labelDy
+    // ettől tér el ott, ahol az alappozíció egy rétegcímkével esne egybe: a
+    // rétegcímke fehér háttere a nyílfeliratot később rajzolva letakarná.
+    PENDING.push([label,
+                  (pts[k][0] + pts[k - 1][0]) / 2 + (opts.labelDx || 0),
+                  (pts[k][1] + pts[k - 1][1]) / 2 + (opts.labelDy || 0)])
   }
 }
 
@@ -220,7 +225,9 @@ function layer(x, text, y) {
   // Kliens → háttérrendszer. A két derékszögű útvonal külön magasságban fut,
   // így sehol nem keresztezik egymást.
   path(x, [[160, 134], [160, 172]])
-  path(x, [[160, 228], [160, 315]], 'esemény')
+  // A felirat feljebb kerül: a szakasz közepén a „Háttérrendszer (Supabase)”
+  // rétegcímke futna rá.
+  path(x, [[160, 228], [160, 315]], 'esemény', { labelDy: -26 })
   path(x, [[480, 134], [480, 260], [200, 260], [200, 315]], 'kérelem')
   path(x, [[760, 134], [760, 284], [230, 284], [230, 315]], 'lekérdezés')
   path(x, [[850, 315], [850, 134]], 'értesítés', { dashed: true })
