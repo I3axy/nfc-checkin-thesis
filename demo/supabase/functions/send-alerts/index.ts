@@ -151,7 +151,10 @@ Deno.serve(async (req) => {
         .from('absences')
         .select('user_id, type')
         .eq('company_id', company.id)
-        .eq('date', todayStr),
+        .eq('date', todayStr)
+        // Csak a jóváhagyott hiányzás igazolt: a függő és az elutasított
+        // kérelem nem kerülhet az "Igazolt hiányzás" csoportba.
+        .eq('status', 'approved'),
     ])
 
     // Earliest check-in today (local day) per worker

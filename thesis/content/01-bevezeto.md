@@ -56,19 +56,11 @@ elektronikus nyilvántartás pontossága látszólagos marad.
 A dolgozat célja egy olyan rendszer megtervezése és megvalósítása, amely a fenti
 problémákra ad választ. A kitűzött célok a következők:
 
-1. NFC-kártyás beléptetés megvalósítása webes alkalmazásként, célhardver és
-   telepítés nélkül, olyan felhasználói folyamattal, amely a dolgozótól
-   egyetlen mozdulaton kívül semmit nem kíván.
-2. Több cég adatainak kiszolgálása egyetlen rendszerpéldányon úgy, hogy az
-   adatok elkülönítése ne az alkalmazáskód helyességén múljon.
-3. Hálózatfüggetlen működés: a beléptetésnek kapcsolat nélkül is működnie kell,
-   a tárolt eseményeknek pedig a kapcsolat helyreállásakor ismétlés nélkül kell
-   továbbítódniuk.
-4. Védekezés a kártya átadásával elkövethető visszaélés ellen, valamint tartalék
-   azonosítási mód biztosítása az otthon felejtett kártya esetére.
-5. Vezetői kimutatások, a távollét-kérelmek jóváhagyási folyamata, valamint
-   felhasználói beavatkozást nem igénylő, automatizált napi műveletek
-   megvalósítása.
+1. NFC-kártyás beléptetés megvalósítása webes alkalmazásként, célhardver és telepítés nélkül, olyan felhasználói folyamattal, amely a dolgozótól egyetlen mozdulaton kívül semmit nem kíván.
+2. Több cég adatainak kiszolgálása egyetlen rendszerpéldányon úgy, hogy az adatok elkülönítése ne az alkalmazáskód helyességén múljon.
+3. Hálózatfüggetlen működés: a beléptetésnek kapcsolat nélkül is működnie kell, a tárolt eseményeknek pedig a kapcsolat helyreállásakor ismétlés nélkül kell továbbítódniuk.
+4. Védekezés a kártya átadásával elkövethető visszaélés ellen, valamint tartalék azonosítási mód biztosítása az otthon felejtett kártya esetére.
+5. Vezetői kimutatások, a távollét-kérelmek jóváhagyási folyamata, valamint felhasználói beavatkozást nem igénylő, automatizált napi műveletek megvalósítása.
 
 A dolgozat felépítése ezt a gondolatmenetet követi. A 2. fejezet a téma
 szakirodalmi hátterét tekinti át, a 3. fejezet a megvalósított rendszert és a

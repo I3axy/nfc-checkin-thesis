@@ -66,15 +66,20 @@ def main():
     desktop = ctx.ServiceManager.createInstanceWithContext(
         'com.sun.star.frame.Desktop', ctx)
 
-    # UpdateDocMode=3 (FULL_UPDATE): a kapcsolt tartalmak is frissülnek
-    doc = desktop.loadComponentFromURL(url(src), '_blank', 0, (
-        prop('Hidden', True),
-        prop('UpdateDocMode', 3),
-    ))
-    if doc is None:
-        raise SystemExit('HIBA: a dokumentum nem tölthető be')
-
+    doc = None
     try:
+        # UpdateDocMode=3 (FULL_UPDATE): a kapcsolt tartalmak is frissülnek
+        doc = desktop.loadComponentFromURL(url(src), '_blank', 0, (
+            prop('Hidden', True),
+            prop('UpdateDocMode', 3),
+        ))
+        # A leggyakoribb ok: a forrás egy másik LibreOffice-ban nyitva van.
+        # A kilépés a finally ágon át történik, így a háttérfolyamat nem marad
+        # futva, és az ideiglenes profil törölhető.
+        if doc is None:
+            raise SystemExit('HIBA: a dokumentum nem tölthető be '
+                             '(nincs nyitva egy másik LibreOffice-ban?)')
+
         # Először a mezők, utána az indexek: a tartalomjegyzék oldalszámai
         # csak kész tördelés mellett helyesek, ezért a végén még egy kör.
         doc.refresh()

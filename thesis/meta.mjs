@@ -51,12 +51,13 @@ export const META = {
     'hogy a kézzel vezetett jelenléti ív utólag módosítható és nehezen ' +
     'ellenőrizhető, a meglévő zárt rendszerek költségesek, hálózatkimaradás ' +
     'esetén pedig használhatatlanná válnak. A megvalósított rendszer három ' +
-    'progresszív webalkalmazásból (PWA) áll — beléptető terminál, dolgozói ' +
+    'webalkalmazásból áll — beléptető terminál, dolgozói ' +
     'önkiszolgáló felület ' +
     'és vezetői irányítópult —, amelyek közös, több bérlős háttérrendszert ' +
     'használnak. A beléptetés a dolgozó kártyájának érintésével történik, a ' +
-    'művelet iránya pedig automatikusan meghatározásra kerül. A terminál ' +
-    'hálózati kapcsolat nélkül is működik: az eseményeket helyben tárolja, és ' +
+    'művelet iránya pedig automatikusan meghatározásra kerül. A progresszív ' +
+    'webalkalmazásként (PWA) megvalósított terminál hálózati kapcsolat nélkül ' +
+    'is működik: az eseményeket helyben tárolja, és ' +
     'a kapcsolat helyreállásakor ismétlés nélkül továbbítja. A kártya ' +
     'átadásával elkövethető visszaélés ellen a belépéskor készített ' +
     'fényképfelvétel véd, a cégek adatainak elkülönítését pedig adatbázis ' +
@@ -79,6 +80,7 @@ export const META = {
   // Csak olyan rövidítés kerülhet ide, amely ténylegesen előfordul a szövegben.
   legend: [
     ['API',   'Alkalmazásprogramozási felület (angolul: Application Programming Interface)'],
+    ['BaaS',  'Háttérrendszer szolgáltatásként (angolul: Backend as a Service)'],
     ['HTTPS', 'Titkosított hipertext-átviteli protokoll (angolul: Hypertext Transfer Protocol Secure)'],
     ['IEC',   'Nemzetközi Elektrotechnikai Bizottság (angolul: International Electrotechnical Commission)'],
     ['ISO',   'Nemzetközi Szabványügyi Szervezet (angolul: International Organization for Standardization)'],
@@ -90,7 +92,6 @@ export const META = {
     ['QR',    'Gyorsválasz-kód (angolul: Quick Response code)'],
     ['RFID',  'Rádiófrekvenciás azonosítás (angolul: Radio Frequency Identification)'],
     ['SHA',   'Biztonságos kivonatoló algoritmus (angolul: Secure Hash Algorithm)'],
-    ['SQL',   'Strukturált lekérdezőnyelv (angolul: Structured Query Language)'],
     ['UHF',   'Ultramagas frekvencia (angolul: Ultra High Frequency)'],
     ['UID',   'Egyedi azonosító (angolul: Unique Identifier)'],
     ['URL',   'Egységes erőforrás-azonosító (angolul: Uniform Resource Locator)'],

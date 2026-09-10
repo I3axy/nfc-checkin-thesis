@@ -12,7 +12,7 @@ megoldások mégis folyamatosan változnak, ahogy az azonosítási technológiá
 szoftverarchitektúrák fejlődnek. Ebben a fejezetben azok az elméleti alapok és
 létező megoldások kerülnek bemutatásra, amelyek a dolgozat tárgyát képező
 rendszer megértéséhez szükségesek. Először az azonosítási technológiák
-összehasonlítása történik meg, majd a választott NFC technológia részletes
+összehasonlítása történik meg, majd a választott NFC-technológia részletes
 tárgyalása. Ezt követi a jelenlegi piaci és kutatási megoldások áttekintése,
 a webalkalmazás-architektúrák vizsgálata, végül a mesterséges intelligencia
 vezetői kimutatásokban betöltött szerepének bemutatása.
@@ -74,7 +74,7 @@ mai mobiltelefonok jelentős része beépített olvasóval rendelkezik. Az a
 gyengesége, hogy az azonosító önmagában nem titkos, kiegészítő intézkedésekkel
 mérsékelhető — ezt a kérdéskört a 2.2. alfejezet tárgyalja részletesen.
 
-## Az NFC technológia
+## Az NFC-technológia
 
 Az NFC a 13,56 MHz-es frekvencián működő, rövid hatótávolságú kommunikációs
 technológia, amely az RFID induktív csatolású változatából fejlődött ki [1]. A
@@ -88,7 +88,7 @@ Az elméleti hatótávolság mintegy tíz centiméter, a gyakorlatban azonban
 jellemzően négy centiméter alatt marad [1]. Ez a korlát jelenléti rendszerben nem
 hátrány, hanem előny: a rövid hatótávolság biztosítja, hogy a regisztráció
 kizárólag szándékos művelet eredménye lehessen, szemben a nagyobb hatótávolságú
-UHF-es RFID megoldásokkal, ahol egy elhaladó személy kártyája akaratlanul is
+UHF-es RFID-megoldásokkal, ahol egy elhaladó személy kártyája akaratlanul is
 kiolvasásra kerülhet.
 
 A technológia szabványosítása két fő dokumentumcsaládra épül. Az érintés nélküli
@@ -124,7 +124,7 @@ A webes alkalmazások szempontjából lényeges fejlemény a Web NFC felület,
 amely lehetővé teszi, hogy a böngészőben futó alkalmazás közvetlenül hozzáférjen
 az eszköz NFC-olvasójához [6]. A felület jelentősége abban áll, hogy natív
 alkalmazás fejlesztése és telepítése nélkül készíthető beléptető megoldás.
-Korlátja, hogy jelenleg kizárólag a Chromium alapú böngészők Android
+Korlátja, hogy jelenleg kizárólag a Chromium-alapú böngészők Android
 rendszeren futó változatai támogatják, továbbá a felület csak biztonságos
 környezetben (HTTPS protokollon keresztül) érhető el.
 
@@ -180,8 +180,8 @@ A jelenléti rendszerek visszatérő problémája a szakirodalomban *buddy punch
 néven ismert visszaélés, amelynek során az egyik dolgozó a távollévő kollégája
 helyett regisztrálja a jelenlétet. A jelenség azért nehezen kezelhető, mert nem
 a rendszer technikai hibájából, hanem az azonosító átruházhatóságából fakad. A
-védekezés lehetséges irányai a biometrikus azonosítás, a helymeghatározás
-alapú ellenőrzés, valamint a belépéskor készített fényképfelvétel. Az utolsó
+védekezés lehetséges irányai a biometrikus azonosítás, a helymeghatározás-alapú
+ellenőrzés, valamint a belépéskor készített fényképfelvétel. Az utolsó
 megoldás sajátossága, hogy önmagában nem akadályozza meg a visszaélést, hanem
 utólag ellenőrizhetővé és ezáltal kockázatossá teszi azt.
 
@@ -201,7 +201,7 @@ megközelítették a natív alkalmazásokét. A progresszív webalkalmazás (PWA
 fogalma olyan webalkalmazást jelöl, amely telepíthető az eszközre, teljes
 képernyőn futtatható, és hálózati kapcsolat nélkül is működőképes marad. Ennek
 technikai alapját a *service worker* képezi: egy háttérben futó szkript, amely
-elfogadja az alkalmazás hálózati kéréseit, és eldönti, hogy azokat a hálózatról
+elfogja az alkalmazás hálózati kéréseit, és eldönti, hogy azokat a hálózatról
 vagy a helyi gyorsítótárból szolgálja ki [8].
 
 A hálózatfüggetlen (offline-first) tervezés ennél tovább megy: nem
@@ -222,7 +222,7 @@ oldalán érvényesített egyediségi megkötéssel. Másrészt az események so
 felborulhat, ezért az eredeti időbélyeget a kliensnek kell rögzítenie és
 továbbítania, nem pedig a szervernek a feldolgozás pillanatában. Az így
 kialakuló, átmenetileg eltérő, majd fokozatosan egyező állapotot a szakirodalom
-eventual consistency néven tárgyalja [9].
+*eventual consistency* néven tárgyalja [9].
 
 A háttérrendszerek területén az utóbbi években elterjedt a BaaS
 (*Backend as a Service*) modell, amely kész szolgáltatásként kínálja az
@@ -267,10 +267,9 @@ Vezetői kimutatások esetében ez a képesség két területen hasznosítható.
 adatösszefoglalás során a modell a számokból folyó szöveget állít elő, ami
 csökkenti a kimutatás értelmezéséhez szükséges időt. Az eltérések
 kiemelésével pedig felhívható a figyelem azokra a mutatókra, amelyek az
-előző időszakhoz képest számottevően megváltoztak. A megközelítés különösen ott
-értékes, ahol a vezető nem rendszeresen, hanem alkalomszerűen tekinti át az
-adatokat, és nincs meg benne az az összehasonlítási alap, amelyhez a látott
-értékeket viszonyíthatná.
+előző időszakhoz képest számottevően megváltoztak. Ez különösen az adatokat csak
+alkalomszerűen áttekintő vezetőnek hasznos, akinek nincs meg az összehasonlítási
+alapja.
 
 Az alkalmazásnak ugyanakkor több lényeges korlátja van, amelyeket a tervezés
 során figyelembe kell venni.

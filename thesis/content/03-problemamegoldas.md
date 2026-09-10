@@ -121,15 +121,15 @@ A három alkalmazás szerepét a 2. táblázat foglalja össze.
 
 | Alkalmazás | Eszköz | Azonosítás | Fő feladat | Hálózat nélkül |
 |---|---|---|---|---|
-| Beléptető terminál | falra szerelt Android készülék | NFC-kártya vagy PIN | jelenléti esemény rögzítése | teljes értékűen működik |
-| Dolgozói alkalmazás | saját mobiltelefon | PIN | saját adatok, távollét-kérelmek | nem működik |
+| Beléptető terminál | falra szerelt Android készülék | NFC-kártya vagy PIN | jelenléti esemény rögzítése | kártyával működik, PIN-nel nem |
+| Dolgozói alkalmazás | saját mobiltelefon | PIN vagy kártya | saját adatok, távollét-kérelmek | nem működik |
 | Vezetői felület | asztali böngésző | e-mail és jelszó | kimutatások, beállítások, elbírálás | nem működik |
 
-A táblázat két sora magyarázatot kíván. A dolgozói alkalmazásban a PIN kizárólag
-azonosít, jelenlétet nem igazol — ennek okát a 3.5.1. alfejezet tárgyalja. A
-hálózatfüggetlenség pedig csak a terminálra vonatkozik: a kimutatás néhány
-perccel később is megtekinthető, egy elmaradt érkezési bejegyzés viszont
-pótolhatatlan.
+A táblázat két sora magyarázatot kíván. A dolgozói alkalmazásban a PIN és a
+kártya kizárólag azonosít, jelenlétet nem igazol — ennek okát a 3.5.1.
+alfejezet tárgyalja. A hálózatfüggetlenség pedig csak a terminálra, azon belül
+is a kártyás beléptetésre vonatkozik: a kimutatás néhány perccel később is
+megtekinthető, egy elmaradt érkezési bejegyzés viszont pótolhatatlan.
 
 A három alkalmazás közös háttérrendszerrel dolgozik, amely az adatbázist, a
 hitelesítést, a fájltárolást és a szerveroldali függvények futtatását
@@ -151,16 +151,15 @@ azok a megoldások kerültek előnybe, amelyek a járulékos üzemeltetési munk
 lehető legkisebbre szorítják.
 
 A felhasználói felület React könyvtárral készült [14]. A rendszer állapota
-folyamatosan változik — érkezik egy új esemény, lezárul egy nap, megszületik
-egy döntés —, és a React deklaratív megközelítése éppen az ilyen,
-állapotvezérelt felületekhez való: a megjelenítés az adatból következik. Ehhez
-járul, hogy a három alkalmazás közös megjelenítési elemeit komponensként elég
-egyszer megírni.
+folyamatosan változik — új esemény érkezik, lezárul egy nap, döntés születik —,
+a React deklaratív megközelítése pedig éppen az ilyen felületekhez való: a
+megjelenítés az adatból következik. A három alkalmazás közös elemeit ráadásul
+komponensként elég egyszer megírni.
 
-Az építőeszköz a Vite, amely a forrás módosításakor nem a teljes alkalmazást,
-hanem csak az érintett modult építi újra [15]. Ez NFC-vel dolgozva külön előnyt
-jelent, mivel a hibakeresés valódi eszközön, ismételt kártyaérintésekkel
-történik, tehát a fordítási várakozás minden próbánál újra jelentkezne.
+Az építőeszköz a Vite, amely módosításkor nem a teljes alkalmazást, csak az
+érintett modult építi újra [15]. Ez azért előny, mert az NFC-s hibakeresés valódi
+eszközön, ismételt kártyaérintésekkel történik, így a fordítási várakozás minden
+próbánál jelentkezne.
 
 A háttérrendszer a Supabase szolgáltatáscsomagra épül, amelynek alapja a
 PostgreSQL adatbázis-kezelő. A döntés lényege nem a kényelem, hanem az, hogy a
@@ -239,15 +238,14 @@ beléptetésnél ez az azonosító üresen marad, és az üres értékek egyébk
 ütköznének egymással. A mögötte álló megfontolást a 3.4.4. alfejezet
 tárgyalja.
 
-Az `absences` tábla a hiányzásokat tartja nyilván, naponként egy sorban.
-Ez a döntés magyarázatot igényel, hiszen kézenfekvőbbnek tűnne a kezdő és a
-záró dátum tárolása egyetlen sorban. A napokra bontás mellett két érv szólt.
-Egyrészt a naptárnézet, a havi összesítő és a kimutatások mind napi bontásban
-dolgoznak, tehát az időszakot úgyis fel kellene bontaniuk. Másrészt így az
-átfedések kizárása egyetlen egyediségi megkötéssel megoldható — egy dolgozóhoz
-egy napon legfeljebb egy hiányzás tartozhat —, míg időszakokkal ez lényegesen
-összetettebb ellenőrzést kívánna. A megoldás ára, hogy az egybefüggő időszakot
-megjelenítéskor össze kell vonni; ezt a felület végzi.
+Az `absences` tábla a hiányzásokat naponként egy sorban tartja nyilván, noha
+kézenfekvőbbnek tűnne a kezdő és a záró dátum egyetlen sorban. A napokra bontás
+mellett két érv szólt: a naptárnézet, a havi összesítő és a kimutatások mind
+napi bontásban dolgoznak, az átfedések kizárása pedig így egyetlen egyediségi
+megkötéssel megoldható — egy dolgozóhoz egy napon legfeljebb egy hiányzás
+tartozhat —, míg időszakokkal lényegesen összetettebb ellenőrzést kívánna. Az
+ára, hogy az egybefüggő időszakot megjelenítéskor össze kell vonni; ezt a
+felület végzi.
 
 A tábla hordozza a kérelem állapotát is: a dolgozó által beküldött hiányzás
 elbírálásra vár, a vezető által rögzített azonnal érvényes. Az elutasítás
@@ -259,18 +257,17 @@ nyelve — a felület dolga, míg az adatbázisban a tény tárolódik. Az olvas
 időbélyegként jelenik meg, nem logikai értékként, így az is megállapítható,
 mikor jutott az értesítés a címzetthez.
 
-Valamennyi táblában szerepel a cégazonosító, akkor is, ha az elvben
+Valamennyi további táblában szerepel a cégazonosító, akkor is, ha az elvben
 levezethető volna a kapcsolódó sorokból. A látszólagos redundancia szándékos: a
 következő alfejezetben tárgyalt biztonsági szabályok így egyetlen mező
 vizsgálatával kiértékelhetők, kapcsolás nélkül.
 
 ### A több bérlős (multi-tenant) felépítés
 
-A 2.4. alfejezetben ismertetett három minta közül a közös táblás megoldás
-került alkalmazásra, amelyben a sorokat bérlőazonosító különbözteti meg. Ez a
-leggazdaságosabb változat, ugyanakkor a legnagyobb figyelmet igénylő is:
-egyetlen hiányzó szűrőfeltétel elegendő ahhoz, hogy az egyik cég adata a másik
-számára láthatóvá váljon.
+A 2.4. alfejezet három mintája közül a közös táblás, bérlőazonosítóval
+megkülönböztetett sorokra épülő változat került alkalmazásra: ez a
+leggazdaságosabb, de a legtöbb figyelmet is igényli, mert egyetlen hiányzó
+szűrőfeltétel elég ahhoz, hogy egy cég adata a másiknak láthatóvá váljon.
 
 Éppen ezért az elkülönítés nem az alkalmazás kódjára van bízva. A védelem a
 PostgreSQL sorszintű biztonságára épül, amely a szűrést az adatbázisban
@@ -295,16 +292,18 @@ kiértékelnie, ami körkörös hivatkozáshoz vezetne.
 Ugyanezen a mintán további két segédfüggvény áll rendelkezésre a felhasználó
 profilazonosítójára és szerepkörére. Ezekkel a szabályok az egyszerű cégszintű
 elkülönítésnél árnyaltabb feltételeket is megfogalmazhatnak: a hiányzások
-módosítása például vezetői szerepkörhöz kötött, míg olvasni a saját cég
-valamennyi bejegyzését lehet.
+módosítása például vezetői szerepkörhöz kötött, és a cég valamennyi
+bejegyzését is csak vezető olvashatja — más felhasználó kizárólag a sajátját.
 
 Kiemelendő, hogy a beléptető és a dolgozói alkalmazás nem ezen az úton fér az
 adatokhoz. Ezek az alkalmazások nem rendelkeznek bejelentkezett
 munkamenettel — a dolgozóknak nincs belépési fiókjuk —, ezért kéréseiket
 szerveroldali függvények szolgálják ki, amelyek megemelt jogosultsággal futnak,
 és a sorszintű szabályokat megkerülik. Az elkülönítés itt tehát a függvény
-kódjában valósul meg: a cég azonosítója minden esetben a kártyához vagy a
-PIN-hez tartozó profilból származik, sosem a kérés törzséből. Ez a
+kódjában valósul meg: a kérés csak a cég rövid azonosítóját tartalmazza, a
+függvény a kártyához vagy a PIN-hez tartozó profilt kizárólag ennek a cégnek a
+dolgozói között keresi, és a rögzített adat cégazonosítóját a megtalált cég
+sorából veszi — kliens által küldött cégazonosítót nem fogad el. Ez a
 megkülönböztetés lényeges: a sorszintű biztonság a bejelentkező vezetőket
 védi a saját hibáiktól, a szerveroldali függvények kapuőr szerepe pedig a
 bejelentkezés nélküli alkalmazásokat.
@@ -313,8 +312,7 @@ bejelentkezés nélküli alkalmazásokat.
 
 Az adatmodell egyik meghatározó döntése, hogy a személyeket leíró tábla
 elsődleges kulcsa független a hitelesítési rendszer felhasználó-azonosítójától.
-Ez a döntés nem a tervezőasztalon született, hanem a fejlesztés közben, egy
-hibából kiindulva.
+A döntés a fejlesztés közben, egy hibából született.
 
 Az eredeti séma a profil azonosítóját közvetlenül a hitelesítési rendszer
 felhasználójához kötötte, ahogyan azt a szolgáltatás mintapéldái is javasolják.
@@ -339,21 +337,22 @@ belépési mód egymástól függetlenül kezelhető: egy dolgozó később veze
 léptethető pusztán azzal, hogy a profilja fiókhoz kapcsolódik, és a hozzá
 tartozó jelenléti előzmény érintetlen marad.
 
-Az eset tanulsága, hogy a dokumentációban szereplő minta hallgatólagos
-előfeltevéssel élt: azzal, hogy minden nyilvántartott személy egyben
-bejelentkező felhasználó is. Ez a jelen rendszerben nem teljesül, mivel a
-nyilvántartott személyek többsége soha nem jelentkezik be — a mintát ezért nem
-átvenni, hanem az eltérő előfeltevéshez igazítani kellett.
+Az eset tanulsága, hogy a dokumentációs minta hallgatólagosan feltételezte:
+minden nyilvántartott személy bejelentkező felhasználó is. A jelen rendszerben a
+személyek többsége soha nem jelentkezik be, ezért a mintát nem átvenni, hanem
+igazítani kellett.
 
-A fiókkal rendelkező kisebbségre egy további megkötés vonatkozik: a jelszó
-kizárólag a fiók címére küldött, egyszer felhasználható hivatkozáson át
-cserélhető. A művelethez így a postafiókhoz való hozzáférés is szükséges, ami
-egy őrizetlenül hagyott, bejelentkezett gép esetén érdemi különbség.
+A fiókkal rendelkező kisebbségre egy további megkötés vonatkozik: jelszót
+mindenki kizárólag a saját fiókjához állíthat be. A bejelentkezett vezető a
+sajátját a felületen módosíthatja — ezt a szerveroldali függvény a hívó
+munkamenetéből ellenőrzi, így más vezető jelszavához nincs út —, elfelejtett
+jelszó esetén pedig a fiók címére küldött, egyszer felhasználható hivatkozás
+nyit utat az új jelszó megadásához.
 
 ## A beléptető alkalmazás
 
-A beléptető alkalmazás az egyetlen felület, amelyen jelenléti esemény
-keletkezhet. Működése ugyanakkor a legszűkebb: egyetlen képernyőt
+A beléptető alkalmazás az egyetlen felület, amelyen a dolgozó maga rögzítheti
+a jelenlétét. Működése ugyanakkor a legszűkebb: egyetlen képernyőt
 jelenít meg, felhasználói bejelentkezést nem ismer, és kezelése kimerül a
 kártya odaérintésében. Ez az alfejezet a megvalósítás hat meghatározó
 kérdéskörét tárgyalja.
@@ -363,21 +362,21 @@ kérdéskörét tárgyalja.
 A kártya kiolvasását a 2.2. alfejezetben ismertetett Web NFC felület végzi. Az
 olvasás engedélyhez kötött: a böngésző a művelet megkezdésekor megerősítést kér
 a felhasználótól, és az engedély csak felhasználói művelet — jelen esetben
-gombnyomás — hatására kérhető. Ez indokolja, hogy az alkalmazás nem
-automatikusan, hanem kifejezett indítás után kezd olvasni.
+gombnyomás — hatására kérhető. Ez indokolja, hogy az alkalmazás első
+indításkor nem automatikusan, hanem gombnyomásra kezd olvasni; a megadott
+engedély birtokában a későbbi indítások — így az oldal újratöltése után is — már
+beavatkozás nélkül történnek.
 
 Az engedély megadását követően az olvasó folyamatosan figyel, és minden
 érzékelt kártyáról értesítést ad. Az értesítés a rendszer szempontjából
 egyetlen lényeges adatot tartalmaz: a kártya sorozatszámát, amely az
 azonosításra szolgáló egyedi érték.
 
-A sorozatszám feldolgozásánál egy egyszerűnek látszó, mégis lényeges részlet
-igényel figyelmet. Ugyanaz a kártya különböző eszközökön, illetve különböző
-felületeken eltérő írásmóddal jelenhet meg: kisbetűvel vagy nagybetűvel, a
-bájtok között elválasztójellel vagy anélkül. Amennyiben a nyilvántartásba az
-egyik alak kerül be, a beléptetéskor pedig a másik érkezik, az összehasonlítás
-sikertelen lesz, és a rendszer ismeretlen kártyaként utasítja el az érvényes
-azonosítót.
+A sorozatszám feldolgozásánál egy egyszerűnek látszó részlet igényel figyelmet:
+ugyanaz a kártya különböző eszközökön és felületeken eltérő írásmóddal jelenhet
+meg — kis- vagy nagybetűvel, a bájtok között elválasztójellel vagy anélkül. Ha a
+nyilvántartásba az egyik alak kerül, a beléptetéskor pedig a másik érkezik, a
+rendszer ismeretlen kártyaként utasítja el az érvényes azonosítót.
 
 A megoldás az azonosító egységesítése, amely nagybetűssé alakítja, és minden
 nem alfanumerikus jelet eltávolít belőle. Az eljárás lényege nem maga a művelet,
@@ -406,16 +405,18 @@ fordítja ellenkezőjére. Éppen ezért szükséges a 3.7.1. alfejezetben tárg
 automatikus kiléptetés, amely a nyitva maradt napokat lezárja, és ezzel a
 váltakozó logika kiindulóállapotát helyreállítja.
 
-A második lényeges kérdés az ismételt érintés kezelése. A dolgozó
-bizonytalanság esetén — például mert nem vette észre a visszajelzést —
-másodszor is odaérinti a kártyát, ami két egymást követő eseményt hozna létre,
-és a ledolgozott idő számítását elrontaná. A rendszer ezért öt másodperces
-ablakon belül nem rögzít újabb, azonos irányú eseményt, hanem hibával utasítja
-el a kérést.
+A második lényeges kérdés az ismételt érintés kezelése. Ha a dolgozó — például
+mert nem vette észre a visszajelzést — másodszor is odaérinti a kártyát, a
+váltakozó logika azonnal ellentétes irányú eseményt hozna létre, ami a
+ledolgozott idő számítását elrontaná. Ezt a beléptető alkalmazás maga zárja ki:
+a visszajelzés megjelenítése alatt további érintést nem fogad.
 
-Az öt másodperc arányossági kompromisszum eredménye. Rövidebb ablak nem
-zárná ki megbízhatóan a téves ismétlést, hosszabb viszont akadályozná azt a
-valós helyzetet, amikor a dolgozó néhány perc múlva ténylegesen távozik.
+Van azonban olyan ismétlés, amelyet egyetlen eszköz sem láthat: ha ugyanarra a
+személyre két kérés csaknem egyszerre érkezik — például két terminálról —,
+mindkettő ugyanabból a legutolsó eseményből indul ki, és azonos irányú eseményt
+hozna létre. Ezt ezért a közös háttérrendszer szűri: öt másodperces ablakon
+belül nem rögzít újabb, azonos irányú eseményt, hanem hibával utasítja el a
+kérést.
 
 ```
 const { data: recent } = await supabase
@@ -423,17 +424,19 @@ const { data: recent } = await supabase
   .select('id')
   .eq('user_id', profile.id)
   .eq('type', eventType)
-  .gte('timestamp', new Date(Date.now() - 30_000).toISOString())
+  .gte('timestamp', new Date(Date.now() - 5_000).toISOString())
   .maybeSingle()
 
-if (recent) return json({ error: 'Duplicate event', code: 'DUPLICATE' }, 409)
+if (recent) {
+  return json({ error: 'Duplicate event', code: 'DUPLICATE' }, 409)
+}
 ```
 
-A szűrés a szerveren fut, nem a kliensben. Egy cég több terminált is
-üzemeltethet, és két különböző eszközön leadott érintést csak a közös
-háttérrendszer lát egyszerre. A feltétel az esemény irányára is szűr: a
-belépés utáni másodperceken belüli kilépés így nem akad fenn rajta, hiszen az
-nem téves ismétlés, hanem szándékos művelet.
+A feltétel azért szűr az irányra is, mert az ellentétes irányú esemény a
+váltakozó logikában a következő lépés, nem ismétlés. Az öt másodperc
+arányossági kompromisszum: rövidebb ablak nem zárná ki megbízhatóan az egymást
+átfedő kéréseket, hosszabb viszont a valós ismétlődést is kiszűrné — például ha
+a dolgozó kilép, majd néhány perc múlva visszatér.
 
 A visszajelzés kialakítását a használat körülményei határozták meg. A
 képernyő teljes felülete színt vált — belépésnél zöldre, kilépésnél pirosra —,
@@ -479,11 +482,14 @@ folyamatot a 4. ábra szemlélteti.
 
 ![A fényképes ellenőrzés kétlépéses folyamata](fenykep-folyamat.png)
 
-A felépítés lényeges következménye, hogy félbehagyott bejegyzés nem
-keletkezhet. Ha a dolgozó a fényképezést megszakítja, vagy a kamera használatát
-megtagadja, a rendszerben nem marad fénykép nélküli, mégis rögzített esemény. A
-duplikáció-szűrés szintén csak a második kérésben fut le, tehát az előkészítő
-kérés nem használja el az öt másodperces ablakot.
+A felépítés lényeges következménye, hogy a hálózaton keresztüli beléptetésnél
+félbehagyott bejegyzés nem keletkezhet. Ha a dolgozó a fényképezést megszakítja,
+vagy a kamera használatát megtagadja, a rendszerben nem marad fénykép nélküli,
+mégis rögzített esemény. A duplikáció-szűrés szintén csak a második kérésben fut
+le, tehát az előkészítő kérés nem használja el az öt másodperces ablakot.
+Hálózat nélküli üzemben viszont a jelenlét rögzítése kap elsőbbséget: a kártyát
+ekkor a helyi névjegyzék azonosítja, és ha a fényképezés meghiúsul, az esemény
+fénykép nélkül rögzül, mert egy elmaradt érkezési bejegyzés pótolhatatlan.
 
 A képek nyilvánosan nem elérhető tárolóba kerülnek, cégenként és személyenként
 elkülönített útvonalon. A vezetői felület a megjelenítéshez időkorlátos, aláírt
@@ -502,8 +508,8 @@ kérdezhető meg arról, hogy az adott azonosító melyik dolgozóhoz tartozik. 
 megoldás egy helyben tárolt névjegyzék, amelyet az alkalmazás kapcsolat
 esetén rendszeresen frissít, és amely a kártyaazonosítókat a hozzájuk tartozó
 névvel és szerepkörrel párosítja. Lényeges, hogy a névjegyzék kizárólag a
-megjelenítéshez szükséges adatokat tartalmazza — nevet és szerepkört —, tehát
-az eszköz elvesztése esetén sem kerül ki belőle jelenléti előzmény vagy
+felismeréshez szükséges adatokat tartalmazza — a nevet, a szerepkört és
+vendégkártyánál a lejárat időpontját —, tehát az eszköz elvesztése esetén sem kerül ki belőle jelenléti előzmény vagy
 elérhetőség.
 
 **A második kérdés a művelet irányának meghatározása.** A váltakozó logikához a
@@ -544,9 +550,8 @@ kerülne. A négy kérdésre adott választ az 5. ábra foglalja össze.
 
 #### Az alkalmazás indulása hálózat nélkül
 
-A fenti megoldások mindegyike azt feltételezi, hogy az alkalmazás fut. Ez
-azonban nem magától értetődő: ha az eszköz újraindul vagy az oldal frissítésre
-kerül, a böngészőnek a hálózatról kellene betöltenie az alkalmazást, ami
+A fenti megoldások feltételezik, hogy az alkalmazás fut. Újraindítás vagy
+oldalfrissítés után azonban a böngészőnek a hálózatról kellene betöltenie, ami
 kapcsolat nélkül nem lehetséges.
 
 A megoldást a 2.4. alfejezetben ismertetett *service worker* adja, amely a
@@ -554,10 +559,10 @@ kimenő kéréseket elfogja, és eldönti, hogy azokat a hálózatról vagy a he
 gyorsítótárból szolgálja ki. Az alkalmazás váza így telepítéskor a
 gyorsítótárba kerül, és onnan hálózat nélkül is betölthető.
 
-Itt egy nem nyilvánvaló akadály merült fel: az építőeszköz a kimeneti fájlok
-nevébe tartalomfüggő azonosítót illeszt, hogy a böngésző a frissítést biztosan
-észrevegye, ezért a fájlnevek minden építéskor megváltoznak, és előre, név
-szerint nem sorolhatók fel a gyorsítótárazandó elemek között.
+Nem nyilvánvaló akadályt jelentett, hogy az építőeszköz a kimeneti fájlok
+nevébe tartalomfüggő azonosítót illeszt — hogy a böngésző a frissítést
+észrevegye —, így a nevek minden építéskor változnak, és előre nem sorolhatók
+fel a gyorsítótárazandó elemek között.
 
 A megoldás kétrétegű. Az állandó nevű belépési pont telepítéskor kerül a
 gyorsítótárba, a változó nevű állományok pedig használat közben, az első
@@ -565,9 +570,8 @@ betöltésükkor — olyan eljárással, amely a tárolt példányt azonnal kisz
 de a hálózati választ a háttérben lekéri, és azzal frissíti. Így az alkalmazás
 egyszerre indul gyorsan és marad naprakész.
 
-A megközelítés helyessége nem volt magától értetődő: a korábbi változat
-telepítéskor semmit sem tárolt, ezért a hálózat nélküli újratöltés üres
-képernyőt eredményezett — a hiba tárgyalása a 3.8. alfejezetben folytatódik.
+A korábbi változat telepítéskor semmit sem tárolt, ezért a hálózat nélküli
+újratöltés üres képernyőt eredményezett (lásd a 3.8. alfejezetet).
 
 ### PIN-alapú tartalék belépés
 
@@ -576,7 +580,9 @@ felejthető. Ilyenkor a dolgozó nem tudja rögzíteni az érkezését, a hiány
 bejegyzést pedig utólag a vezetőnek kell pótolnia. Ez nemcsak többletmunka:
 a pótolt időpont már nem mérés, hanem emlékezet. A rendszer ezért tartalék
 azonosítási módot kínál, amelyben a dolgozó a beléptető eszköz
-számbillentyűzetén megadott PIN-kóddal jelzi a jelenlétét.
+számbillentyűzetén megadott PIN-kóddal jelzi a jelenlétét. Ez a mód hálózati
+kapcsolatot igényel, mivel a kódhoz tartozó személyt a szerver keresi meg;
+kapcsolat nélkül a billentyűzet meg sem jelenik.
 
 A megoldás egyetlen felhasználói döntést enged meg: a PIN beírását. Névsor nem
 jelenik meg, és ennek nem kényelmi oka van. A készülék nyilvános helyen, falra
@@ -598,18 +604,18 @@ nem tárolódik, és mivel a só a cégazonosító, két különböző cégben m
 azonos PIN eltérő értékre képződik le.
 
 ```
-async function hashPin(companyId, pin) {
+export async function hashPin(companyId, pin) {
   const data = new TextEncoder().encode(`${companyId}:${pin}`)
-  const buf  = await crypto.subtle.digest('SHA-256', data)
+  const buf = await crypto.subtle.digest('SHA-256', data)
   return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('')
 }
 ```
 
-Ez a néhány sor három helyen fut: a beléptető függvényben, a dolgozói adatokat
-kiszolgáló függvényben és a vezetői felületen, ahol a PIN beállítása történik.
-Betű szerint azonosnak kell lenniük — a bemenet összefűzésétől a hexadecimális
-alak kisbetűs írásmódjáig —, mert bármelyik eltérése esetén a beállított PIN
-nem találna profilt, a hiba pedig nem a beállításkor, hanem csak a
+A fenti a vezetői felület változata; ugyanez a képlet fut a beléptető, a
+dolgozói adatokat kiszolgáló és a felhasználót létrehozó szerveroldali
+függvényben is. A négy változatnak azonos eredményt kell adnia — a bemenet
+összefűzésétől a hexadecimális alak kisbetűs írásmódjáig —, mert bármelyik
+eltérése esetén a beállított PIN nem találna profilt, a hiba pedig nem a beállításkor, hanem csak a
 beléptetéskor jelentkezne.
 
 A választás kompromisszumát indokolt nyíltan kimondani. Négy–hat számjegyű
@@ -629,9 +635,9 @@ előírható fényképkötelezettség.
 ### A kártya párosítása
 
 A kártyaazonosító nyilvántartásba vétele eredetileg kizárólag a vezető
-feladata volt. Ez a megoldás némán hibázik: egyetlen elgépelt karakter
-esetén a kártya működik, csak éppen rossz személyhez rendelve, és a hiba addig
-rejtve marad, amíg valaki össze nem veti a naplót a valósággal.
+feladata volt. Ez a megoldás némán is hibázhat: ha két kártya azonosítója
+felcserélve kerül be, mindkettő működik, csak éppen rossz személyhez rendelve,
+és a hiba addig rejtve marad, amíg valaki össze nem veti a naplót a valósággal.
 
 A rendszer ezért felajánlja a párosítást. Ha a PIN-nel belépő dolgozóhoz még
 nem tartozik kártya, a beléptető a sikeres belépés után felszólítja, hogy
@@ -678,8 +684,10 @@ fogalmi zavart keltett, hogy ugyanaz a mozdulat a két alkalmazásban mást
 jelentett: az egyikben munkaidőt rögzített, a másikban csak megjelenítette azt.
 
 A megvalósított azonosítás ezért a 3.4.5. alfejezetben bemutatott PIN-re épül.
-Lényeges megkülönböztetés, hogy a dolgozói alkalmazásban megadott PIN nem
-hoz létre jelenléti eseményt. A felületre való belépés és a munkaidő rögzítése
+A kártya érintése helyszíni kényelmi lehetőségként megmaradt, a belépőképernyő
+azonban kifejezetten jelzi, hogy a be- és kiléptetés a terminálon történik.
+Lényeges megkülönböztetés, hogy a dolgozói alkalmazásban sem a PIN, sem a kártya
+nem hoz létre jelenléti eseményt. A felületre való belépés és a munkaidő rögzítése
 két különböző művelet, és a rendszer ezeket nem vonja össze — ellenkező esetben
 a dolgozó otthonról is rögzíthetné az érkezését.
 
@@ -700,9 +708,10 @@ váltás nem igényel újabb kérést.
 
 A napi óraszám számítása annyiban nem magától értetődő, hogy egy naphoz több
 be- és kilépés is tartozhat: az ebédszünetre távozó dolgozó négy eseményt hoz
-létre. A `groupByDay` az eseményeket sorrendben párba állítja, és a párok
-hosszát összegzi, tehát a napközbeni távollét kimarad. A nyitva maradt utolsó
-belépés a jelen pillanatig tart — enélkül a még bent lévő dolgozó nullát látna.
+létre. A `groupByDay` az eseményeket napokra bontja, napon belül sorrendben
+párba állítja, és a párok hosszát összegzi, tehát a napközbeni távollét
+kimarad. A mai nap nyitva maradt utolsó belépése a jelen pillanatig számít —
+enélkül a még bent lévő dolgozó nullát látna.
 
 A felület személyes adatot mutat olyan eszközön, amely könnyen kikerül a
 tulajdonosa látóteréből, ezért kétperces tétlenség után magától kilép. A
@@ -728,10 +737,8 @@ kliensre, mert a kérés a felület megkerülésével is összeállítható.
 
 Hasonló megfontolásból történik a szerveren a megadott időszak napokra bontása
 is. A dolgozó kezdő és záró dátumot ad meg, és jelezheti, hogy a hétvégék
-kimaradjanak-e; a napok listáját azonban a szerver állítja elő. Ha a bontást a
-kliens végezné, minden felület — a dolgozói alkalmazás és a vezetői felület —
-külön valósítaná meg ugyanazt a szabályt, és a két megvalósítás előbb-utóbb
-eltérne egymástól.
+kimaradjanak-e; a napok listáját azonban a szerver állítja elő, így a rögzített
+napok körét nem a kliens határozza meg.
 
 A részben átfedő időszakok kezelése külön figyelmet igényelt. Ha a dolgozó
 olyan tartományt küld be, amelynek egyes napjaira már van rögzített hiányzás, a
@@ -743,11 +750,10 @@ eltúlzott tartomány ellen véd.
 
 ### Értesítések
 
-A döntésről a kérelmezőnek tudomást kell szereznie. Enélkül a folyamat felemás
-marad: a vezető dönt, a dolgozó viszont csak akkor értesül róla, ha magától
-megnyitja a megfelelő nézetet. Az értesítés ezért tárolt bejegyzés, nem múló
-üzenet: visszamenőleg is megtekinthető, és a rendszer külön jelöli, mi az, ami
-még olvasatlan.
+A döntésről a kérelmezőnek tudomást kell szereznie, különben csak akkor értesül
+róla, ha magától megnyitja a megfelelő nézetet. Az értesítés ezért tárolt
+bejegyzés, nem múló üzenet: visszamenőleg is megtekinthető, és a rendszer jelöli,
+mi olvasatlan.
 
 A megvalósítás lényeges eleme, hogy az értesítést nem a vezetői felület hozza
 létre, hanem adatbázis-esemény. Ha a felület felelne érte, akkor minden más
@@ -772,13 +778,9 @@ create trigger absences_notify_decision
 
 A `new_rows` így a döntéssel érintett összes napot tartalmazza, amelyből egy
 csoportosítás állítja elő az összevont értesítést — a kezdő és a záró nappal,
-valamint a napok számával. A csoportosítás kulcsa a dolgozó, a döntés iránya és
-az indoklás együtt, mert két különböző kérelemről ugyanabban a másodpercben is
+valamint a napok számával. A csoportosítás kulcsa a dolgozó, a döntés iránya, a
+távollét típusa és az indoklás együtt, mert két különböző kérelemről ugyanabban a másodpercben is
 születhet döntés, és azokról külön értesítésnek kell szólnia.
-
-Az értesítés nem kész szöveget, hanem strukturált adatot tárol, mert a
-megfogalmazás a felület feladata: a nyelv és a megjelenítés formája ott
-változhat, a tárolt tény viszont változatlan marad.
 
 A megjelenítés a fejléc harang ikonjával történik, amely olvasatlan értesítés
 esetén jelölést és darabszámot kap. A lista a teljes képernyőt elfoglalja, nem
@@ -816,7 +818,7 @@ kapcsolaton keresztül továbbítja a feliratkozott klienseknek [16]. A felület
 jelenléti események táblájának beszúrásaira iratkozik fel, így az értesítés
 nem a kliens kérdezésére, hanem a tényleges adatváltozásra érkezik.
 
-Egy tervezési döntés külön indoklást érdemel. Az értesítés megérkezésekor a
+Az értesítés megérkezésekor a
 felület nem az érkezett sort illeszti be a helyben tárolt állapotba, hanem
 újratölti a nézethez tartozó adatokat. A növekményes beillesztés gyorsabb
 volna, ám meg kellene ismételnie mindazt a származtatást, amelyet a teljes
@@ -827,8 +829,8 @@ nehezen vehető észre, mert csak bizonyos sorrendű események után jelentkezi
 teljes újratöltés költsége ehhez képest elhanyagolható, mert a kiváltó esemény
 ritka.
 
-A feliratkozás a nézet megszűnésekor megszakad; enélkül minden lapváltás új
-kapcsolatot hagyna hátra.
+A feliratkozás a felület lebontásakor megszakad, így egy újbóli megjelenítés
+nem hagy hátra párhuzamos, le nem zárt kapcsolatot.
 
 A nézet a névsort bent, kint és vendég csoportra bontva mutatja, műszak szerint
 szűrhetően (8. ábra).
@@ -857,16 +859,18 @@ elemző nézet a 10. ábrán látható.
 
 ![A vezetői felület statisztikai nézete](statisztika-feher.png)
 
-Az elemzés vizsgált időszaka hét nap, harminc nap vagy három hónap lehet. A
-megjelenítés a hosszhoz igazodik: a rövidebb időszakok napi bontásban
-jelennek meg, a háromhavi nézet viszont heti összevonásban, mivel kilencven
-egymás melletti oszlop áttekinthetetlen volna. Az alapadat mindkét esetben napi
+Az elemzés vizsgált időszaka egy naptári hét, egy hónap vagy egy negyedév lehet,
+és a korábbi időszakokra is vissza lehet lépni. A megjelenítés a hosszhoz
+igazodik: a hét és a hónap napi bontásban jelenik meg, a negyedév viszont heti
+összevonásban, mivel mintegy kilencven egymás melletti oszlop áttekinthetetlen
+volna. Az alapadat mindkét esetben napi
 bontású; csupán az összegzés mértéke tér el.
 
-A megjelenített mutatók a ledolgozott idő, a munkanapok és a jelenléti napok
-száma, a késések száma, az átlagos érkezési időpont, valamint a hiányzások
-igazolt és igazolatlan bontásban. Minden mutatóhoz megjelenik az előző, azonos
-hosszúságú időszakhoz mért változás is: az abszolút szám önmagában nehezen
+A megjelenített mutatók a ledolgozott idő, a munkanapok száma, a késések száma
+a jelenléti napokhoz viszonyítva, az átlagos érkezési időpont és a szünetek
+összesített hossza; a hiányzásokat a grafikon igazolt és igazolatlan bontásban
+jelöli, a havi összesítő pedig a darabszámukat is közli. A ledolgozott időnél az
+előző időszakhoz mért változás is megjelenik: az abszolút szám önmagában nehezen
 értelmezhető, mivel a százötven ledolgozott óra attól függően sok vagy kevés,
 hogy mihez viszonyítjuk. A késés megállapítása a cég beállított munkakezdési
 idejéhez és türelmi idejéhez viszonyítva történik, tehát a mutató cégenként
@@ -921,11 +925,10 @@ szolgáltatás hozzáférési kulcsa a kliensbe kerülve bárki számára kiolva
 titokként tárolódik. A függvény emellett ellenőrzi a hívó jogosultságát is: az
 összefoglaló csak vezetői vagy rendszergazdai szerepkörrel kérhető le.
 
-A külső szolgáltatás hibakezelése külön tanulsággal szolgált. A kérések
-kezdetben kvótatúllépésre hivatkozva bukdácsoltak, és az ok mindaddig rejtve
-maradt, amíg a függvény a hibát saját, általános üzenetre cserélte. A tanulság
-általánosítható: a külső szolgáltatás hibaüzenetét nem célszerű elnyelni, mert
-éppen az az információ vész el, amely a hiba okára mutat.
+A hibakezelés külön tanulsággal szolgált: a kezdetben kvótatúllépésre hivatkozó
+hibák oka addig rejtve maradt, amíg a függvény a szolgáltatás hibaüzenetét
+saját, általános üzenetre cserélte. A külső szolgáltatás hibaüzenetét ezért nem
+célszerű elnyelni, mert éppen a hiba okára mutató információ vész el.
 
 ## Automatizált folyamatok
 
@@ -1005,8 +1008,8 @@ levéltovábbítóként volna felhasználható.
 
 Az ellenőrzés két, egymást kiegészítő rétegben történt. A nem magától értetődő
 számításokat — a napi ledolgozott idő párokra bontását, a hétvégéket kihagyó
-tartománybontást, az azonosítók egységesítését és a helyi óra meghatározását —
-futtatható próbák fedik le. A második réteget az eszközön végzett kézi
+napszámítást, az azonosítók egységesítését, a PIN-lenyomat képzését és a késés
+megállapítását — futtatható próbák fedik le. A második réteget az eszközön végzett kézi
 forgatókönyvek adják: a kártyaolvasás, a kamerahasználat és a hálózat
 megszakadása csak valódi készüléken vizsgálható. A kiemelt eseteket a 3.
 táblázat foglalja össze.
@@ -1016,8 +1019,8 @@ táblázat foglalja össze.
 | Azonosító | Amit ellenőriz | Elvárt eredmény |
 |---|---|---|
 | C1 | Kártyás be- és kiléptetés | A művelet iránya külön választás nélkül váltakozik |
-| C2 | Ismételt érintés öt másodpercen belül | A második érintés nem hoz létre eseményt |
-| C4 | Megszakított fényképezés | Fénykép nélküli esemény nem keletkezik |
+| C2 | Ismételt érintés a visszajelzés ideje alatt | A második érintés nem hoz létre eseményt |
+| C4 | Megszakított fényképezés hálózaton | Fénykép nélküli esemény nem keletkezik |
 | D1 | Kártyafelismerés hálózat nélkül | A dolgozó neve a helyi névjegyzékből megjelenik |
 | D2 | Újratöltés kapcsolat nélkül | Az alkalmazás elindul, a függő események megmaradnak |
 | D3 | Szinkronizálás a kapcsolat helyreállásakor | Az események ismétlés nélkül, a tényleges időponttal kerülnek be |
@@ -1035,7 +1038,7 @@ elcsúszott volna a beállított helyi órához képest — ez a hiba fél évig
 láthatatlan marad, majd az óraátállítás napján, magyarázat nélkül jelentkezik.
 
 A legsúlyosabb korlát a beléptető alkalmazás platformfüggősége: a kártyaolvasó
-felület kizárólag Android rendszeren, Chromium alapú böngészőben érhető el. A
+felület kizárólag Android rendszeren, Chromium-alapú böngészőben érhető el. A
 falra szerelt, célra kijelölt eszközön ez ritkán jelent akadályt, elvi
 korlátként azonban fennáll. A kínálkozó megkerülő megoldás — hogy az iOS a
 kártyára írt webcímet magától megnyitja — nem a terminált tenné hordozhatóvá,

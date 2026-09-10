@@ -20,37 +20,41 @@ az azonosítót a kliens állítja elő, az egyediségi megkötés pedig az adat
 
 ```
 create table events (
-  id              uuid primary key default gen_random_uuid(),
-  company_id      uuid not null references companies(id) on delete cascade,
-  user_id         uuid not null references profiles(id)  on delete cascade,
-  type            text not null check (type in ('checkin', 'checkout')),
-  timestamp       timestamptz not null default now(),
-  is_manual       boolean not null default false,
-  note            text,
-  photo_path      text,
-  client_event_id text
+  id          uuid primary key default gen_random_uuid(),
+  company_id  uuid not null references companies(id) on delete cascade,
+  user_id     uuid not null references profiles(id) on delete cascade,
+  type        text not null check (type in ('checkin', 'checkout')),
+  timestamp   timestamptz not null default now(),
+  note        text,
+  is_manual   bool not null default false,
+  photo_url   text,
+  client_event_id uuid
 );
 
-create unique index events_client_event_id_key
+create unique index if not exists events_client_event_id_key
   on events (client_event_id)
   where client_event_id is not null;
 ```
 
-**2. melléklet — a cégek elkülönítését biztosító szabály.** A szabály az
-adatbázisban él, ezért minden lekérdezésre érvényes, függetlenül attól, hogy azt
-melyik alkalmazás állította össze.
+**2. melléklet — a cégek elkülönítését biztosító segédfüggvény és szabály.** A
+szabály az adatbázisban él, ezért minden lekérdezésre érvényes, függetlenül
+attól, hogy azt melyik alkalmazás állította össze. A segédfüggvény definer
+jogosultsággal fut, így a bejelentkezett felhasználó profiljának kikeresése nem
+ütközik a profilok táblájára vonatkozó szabályba.
 
 ```
+create or replace function auth_company_id()
+returns uuid
+language sql stable security definer
+as $$
+  select company_id from profiles where auth_user_id = auth.uid()
+$$;
+
 alter table events enable row level security;
 
-create policy events_same_company on events
-  for all
-  using (
-    company_id = (
-      select company_id from profiles
-      where auth_user_id = auth.uid()
-    )
-  );
+create policy "events: read own company"
+  on events for select to authenticated
+  using (company_id = auth_company_id());
 ```
 
 **3. melléklet — az automatikus kiléptetés órájának meghatározása.** A
@@ -69,7 +73,7 @@ coalesce(
 ```
 
 **4. melléklet — a döntésről szóló értesítést létrehozó eseménykezelő.** Az
-utasítás szintű eseménykezelő a Postgres átmeneti tábláin keresztül a teljes
+utasítás szintű eseménykezelő a PostgreSQL átmeneti tábláin keresztül a teljes
 módosításhalmazt egyszerre látja, ezért egy több napra szóló döntésről egyetlen
 értesítés keletkezik.
 
@@ -87,7 +91,8 @@ A dolgozathoz mellékelt adathordozó a szakdolgozatot `.docx` és `.pdf`
 formátumban, a védéshez készült bemutatót, valamint a rendszer teljes
 forráskódját tartalmazza, amelyben a három alkalmazás és a szerveroldali
 függvények külön mappában szerepelnek. Az adathordozón megtalálhatók továbbá
-az adatbázis-migrációk futtatható állományai időrendi sorrendben.
+az adatbázis-migrációk futtatható állományai időrendi sorrendben, valamint a
+3.8. alfejezetben említett próbák.
 
 A forráskód nyilvánosan is elérhető a `https://github.com/I3axy/nfc-checkin-thesis`
 címen.

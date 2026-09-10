@@ -24,13 +24,15 @@ platformfüggőség: a kártyaolvasás jelenleg csak Android rendszeren érhető
 módon, hogy az adatok elkülönítése ne az alkalmazáskód helyességén múljon. Ez
 adatbázis szintű hozzáférés-szabályozással valósult meg: a szűrés nem a
 lekérdezésekben, hanem az adatbázisban él, így egyetlen elfelejtett feltétel
-sem vezethet másik cég adatainak megjelenéséhez. A cégazonosító minden esetben
-a hívó saját adataiból származik, sosem a kliens küldi.
+sem vezethet másik cég adatainak megjelenéséhez. A szabályok a cégazonosítót a
+bejelentkezett felhasználó saját profiljából olvassák ki, így az nem függ attól,
+mit küld a kliens.
 
 **A harmadik cél a hálózatfüggetlen működés volt.** A beléptető alkalmazás
 kapcsolat nélkül is elindul, a kártyát helyben tárolt névjegyzékből ismeri fel,
-az eseményeket sorba állítja, és a kapcsolat helyreállásakor továbbítja. Az
-ismétlés kizárását nem a kliens, hanem a szerver oldali egyediségi megkötés
+az eseményeket sorba állítja, és a kapcsolat helyreállásakor továbbítja; a PIN-es
+tartalék belépés ugyanakkor kapcsolatot igényel, mivel a kódhoz tartozó személyt
+a szerver keresi meg. Az ismétlés kizárását nem a kliens, hanem a szerver oldali egyediségi megkötés
 biztosítja, mivel a küldés megismétlődhet anélkül, hogy a kliens erről tudna. A
 cél megvalósítása során feltárt hiba — az alkalmazás hálózat nélküli
 újratöltésének sikertelensége — javítva lett, bemutatása pedig a 3.8.
