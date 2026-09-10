@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "PowerShell(Get-ChildItem \"c:\\\\dolgok\\\\nfc-checkin-thesis\\\\demo\\\\apps\\\\dashboard\\\\node_modules\" -Directory | Select-Object -First 20 | ForEach-Object { $_.Name })"
+      "PowerShell(Get-ChildItem \"c:\\\\dolgok\\\\nfc-checkin-thesis\\\\demo\\\\apps\\\\dashboard\\\\node_modules\" -Directory | Select-Object -First 20 | ForEach-Object { $_.Name })",
+      "PowerShell(python \"C:\\\\Users\\\\balaz\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--dolgok-nfc-checkin-thesis\\\\051ce0dd-b556-498e-bf24-8ca5a4d855ca\\\\scratchpad\\\\proba_ell.py\" 2>&1)"
     ]
   }
 }

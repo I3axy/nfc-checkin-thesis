@@ -59,30 +59,28 @@ használatának körülményei és az egyes felhasználók igényei eltérőek.
 
 A minőségi jellemzők közül négy bizonyult meghatározónak.
 
-**Rendelkezésre állás.** A beléptetés a rendszer legkritikusabb funkciója:
-kiesése esetén a munkavégzés adminisztrációja ellehetetlenül. A telepítés helye
-— csarnok, telephelyi bejárat — a szakirodalmi áttekintésben említett módon
-gyakran gyenge lefedettségű, ezért a hálózatkimaradást nem hibaállapotként,
-hanem rendes üzemmenetként kell kezelni: a beléptetésnek kapcsolat nélkül is
-teljes értékűen működnie kell, a tárolt eseményeknek pedig a kapcsolat
-helyreállásakor ismétlés nélkül kell továbbítódniuk.
+**Rendelkezésre állás.** A beléptetés a legkritikusabb funkció: kiesése esetén a
+munkavégzés adminisztrációja ellehetetlenül. A telepítés helye — csarnok,
+telephelyi bejárat — gyakran gyenge lefedettségű, ezért a hálózatkimaradást
+rendes üzemmenetként kell kezelni: a beléptetésnek kapcsolat nélkül is teljes
+értékűen működnie kell, a tárolt eseményeknek pedig ismétlés nélkül kell
+továbbítódniuk a kapcsolat helyreállásakor.
 
-**Válaszidő.** A kártya érintésétől a visszajelzés megjelenéséig eltelt időnek
-két másodpercen belül kell maradnia. Ennél hosszabb várakozás esetén a dolgozó
-bizonytalanná válik a művelet sikerességét illetően, és a kártyát ismét
-odaérinti, ami szükségtelen ismételt eseményt eredményez.
+**Válaszidő.** A kártya érintésétől a visszajelzésig eltelt időnek két
+másodpercen belül kell maradnia. Ennél hosszabb várakozás után a dolgozó
+bizonytalanná válik, és újra odaérinti a kártyát — ami szükségtelen ismételt
+esemény.
 
 **Adatbiztonság és a cégek elkülönítése.** A rendszer több cég adatát kezeli
 ugyanabban az adatbázisban, és egyik cég adata sem lehet elérhető a másik
-számára. A követelmény lényege, hogy ez ne az alkalmazáskód helyességén
-múljon. A dolgozókról kezelt adatok körét az adattakarékosság elvéhez igazodva
-a feladat ellátásához szükséges minimumra kell szorítani.
+számára — úgy, hogy ez ne az alkalmazáskód helyességén múljon. A kezelt adatok
+körét az adattakarékosság elvéhez igazodva a feladat ellátásához szükséges
+minimumra kell szorítani.
 
-**Bővíthetőség és hordozhatóság.** A külső szolgáltatások — a szöveges
-összefoglalót előállító nyelvi modell, a levélküldő — előbb-utóbb cserélődnek,
-ezért mindegyik egy-egy jól körülhatárolt ponton kapcsolódik a rendszerhez, hogy
-a csere ne érintse a felületet. Az alkalmazások telepítés nélkül, böngészőből
-használhatók.
+**Bővíthetőség és hordozhatóság.** A külső szolgáltatások — a nyelvi modell és a
+levélküldő — előbb-utóbb cserélődnek, ezért mindegyik egy-egy jól körülhatárolt
+ponton kapcsolódik a rendszerhez, így a csere nem érinti a felületet. Az
+alkalmazások telepítés nélkül, böngészőből használhatók.
 
 ## A rendszer architektúrája
 
@@ -519,29 +517,28 @@ egy offline belépés után a következő érintés ismét belépésként értel
 **A harmadik kérdés a rögzített események megőrzése.** A kapcsolat hiányában
 keletkező eseményeket az alkalmazás a böngésző beágyazott adatbázisában, sorban
 tárolja. A tétel a művelet iránya mellett a rögzítés tényleges időpontját
-viszi magával, nem a későbbi továbbításét. Ha az időbélyeget a szerver adná a
-feldolgozás pillanatában, egy több órás kimaradás után minden esemény a
-helyreállás időpontjára esne, és a ledolgozott idő használhatatlan lenne.
+viszi magával, nem a későbbi továbbításét. Ha az időbélyeget a szerver adná,
+egy több órás kimaradás után minden esemény a helyreállás időpontjára esne, és
+a ledolgozott idő használhatatlan lenne.
 
 **A negyedik kérdés a visszajátszás helyessége.** A kapcsolat helyreállásakor az
 alkalmazás a sor tételeit egyenként küldi el, és itt jelentkezik a 2.4.
 alfejezetben tárgyalt hibalehetőség: a válasz elveszhet azután, hogy a szerver a
-kérést már feldolgozta, a következő próbálkozás pedig ugyanazt az eseményt
-másodszor is rögzítené.
+kérést már feldolgozta, az újraküldés pedig ugyanazt az eseményt másodszor is
+rögzítené.
 
 A megoldás az idempotens művelet. A tétel a sorba kerüléskor egyedi
 azonosítót kap (`client_event_id`), amelyre az adatbázisban egyedi index épül,
 így a második beszúrás megkötéssértéssel elbukik — a szerver pedig ezt nem
 hibaként kezeli, hanem sikeres választ ad. A helyes végállapot tehát nem az
-üzenetküldés megbízhatóságán múlik, hanem azon, hogy az ismétlésnek ne legyen
-következménye.
+üzenetküldés megbízhatóságán múlik, hanem azon, hogy az ismétlés következmény
+nélkül maradjon.
 
 A visszajátszás sorrendtartó, és a hibákat kétfelé osztja. Végleges hibánál
 — például ha a kártyát időközben törölték — a tétel kikerül a sorból. Átmeneti
-hibánál, azaz szerveroldali üzemzavarnál vagy hálózati hibánál viszont a tétel
-marad, és a feldolgozás megszakad: ha a sor a hibás tétel átugrásával
-folytatódna, az események sorrendje felborulna, és a váltakozó irány hibás
-állapotba kerülne. A négy kérdésre adott választ az 5. ábra foglalja össze.
+hibánál a tétel marad, és a feldolgozás megszakad: a hibás tétel átugrása
+felborítaná az események sorrendjét, és a váltakozó irány hibás állapotba
+kerülne. A négy kérdésre adott választ az 5. ábra foglalja össze.
 
 ![A hálózatfüggetlen működés négy kérdése és megoldásuk](offline-mukodes.png)
 
@@ -1007,12 +1004,12 @@ levéltovábbítóként volna felhasználható.
 ## Teszt eredmények és korlátok
 
 Az ellenőrzés két, egymást kiegészítő rétegben történt. A nem magától értetődő
-számítások — a napi ledolgozott idő párokra bontása, a hétvégéket kihagyó
-tartománybontás, az azonosítók egységesítése és a helyi óra meghatározása —
-futtatható próbákkal kerültek ellenőrzésre. A második réteget az eszközön
-végzett kézi forgatókönyvek adják, mivel a rendszer meghatározó képességei — a
-kártyaolvasás, a kamerahasználat és a hálózat megszakadása — csak valódi
-készüléken vizsgálhatók. A kiemelt esetek a következő táblázatban szerepelnek.
+számításokat — a napi ledolgozott idő párokra bontását, a hétvégéket kihagyó
+tartománybontást, az azonosítók egységesítését és a helyi óra meghatározását —
+futtatható próbák fedik le. A második réteget az eszközön végzett kézi
+forgatókönyvek adják: a kártyaolvasás, a kamerahasználat és a hálózat
+megszakadása csak valódi készüléken vizsgálható. A kiemelt eseteket a 3.
+táblázat foglalja össze.
 
 @@TABLE A kiemelt tesztesetek és eredményeik
 
@@ -1030,34 +1027,29 @@ készüléken vizsgálhatók. A kiemelt esetek a következő táblázatban szere
 
 A feltárt hibák közül kettő érdemel említést, mert egyik sem áll elő a szokásos
 használat közben. A *service worker* kezdeti változata telepítéskor semmit nem
-tárolt el, ezért a kapcsolat megszakadása és az oldal újratöltése együtt
-üres képernyőt eredményezett (3.4.4. alfejezet); a hiba azért maradt sokáig
-észrevétlen, mert a hálózatfüggetlen működés minden más eleme hibátlanul
-üzemelt. Az automatikus kiléptetés pedig eredetileg rögzített időpontban
-futott, ami a nyári időszámítás bevezetésekor egy órával elcsúszott volna a
-beállított helyi órához képest — ez a hiba fél évig láthatatlan marad, majd az
-óraátállítás napján, minden magyarázat nélkül jelentkezik.
+tárolt el, ezért kapcsolat nélküli újratöltéskor üres képernyő jelent meg
+(3.4.4. alfejezet); a hiba azért maradt észrevétlen, mert a hálózatfüggetlen
+működés minden más eleme hibátlanul üzemelt. Az automatikus kiléptetés
+eredetileg rögzített időpontban futott, ami a nyári időszámításkor egy órával
+elcsúszott volna a beállított helyi órához képest — ez a hiba fél évig
+láthatatlan marad, majd az óraátállítás napján, magyarázat nélkül jelentkezik.
 
-A megvalósítás legsúlyosabb korlátja a beléptető alkalmazás platformfüggősége:
-a kártyaolvasást végző webes felület kizárólag Android rendszeren, Chromium
-alapú böngészőben érhető el. Mivel a beléptető eszköz falra szerelt, célra
-kijelölt készülék, ez a gyakorlatban ritkán jelent akadályt, elvi korlátként
-azonban fennáll. A kínálkozó megkerülő megoldás — hogy az iOS a kártyára írt
-webcímet magától megnyitja — nem a terminált tenné hordozhatóvá, hanem
-ellenőrizetlen készülékre helyezné át a beléptetést, ahol a 3.4.3.
-alfejezetben tárgyalt fényképes védelem éppen ott szűnne meg, ahol a
-legnagyobb szükség volna rá.
+A legsúlyosabb korlát a beléptető alkalmazás platformfüggősége: a kártyaolvasó
+felület kizárólag Android rendszeren, Chromium alapú böngészőben érhető el. A
+falra szerelt, célra kijelölt eszközön ez ritkán jelent akadályt, elvi
+korlátként azonban fennáll. A kínálkozó megkerülő megoldás — hogy az iOS a
+kártyára írt webcímet magától megnyitja — nem a terminált tenné hordozhatóvá,
+hanem ellenőrizetlen készülékre helyezné át a beléptetést, ahol a 3.4.3.
+alfejezetben tárgyalt fényképes védelem éppen megszűnne.
 
 További korlátok: a kamera használata után egyes eszközökön az NFC-olvasó
 kódbeli újraindítással nem érhető el újra, ezért fényképkötelezettség esetén
 automatikus oldalfrissítés következik; a PIN a 3.4.5. alfejezetben kifejtett
 okból tartalék mód, nem jelszóval egyenértékű védelem; a havi összesítő
-telefonon szűkített nézetben jelenik meg, mert a hét részletező oszlop
-olvashatatlanul összenyomódna; az elektronikus levelek küldése pedig egyetlen,
-előzetesen igazolt címre korlátozódik, ami a szolgáltatás próbaüzemi feltétele,
-nem a megvalósítás korlátja.
-
-Végül a fényképes ellenőrzés nem akadályozza meg a visszaélést, csupán utólag
-ellenőrizhetővé teszi. Megelőzésre biometrikus azonosítás volna alkalmas, ez
-azonban a 2.1. alfejezetben tárgyalt adatvédelmi következményekkel jár, ezért
-tudatosan nem került megvalósításra.
+telefonon szűkített nézetben jelenik meg, mert hét oszlop nem fér ki; a
+levélküldés pedig egyetlen, előzetesen igazolt címre korlátozódik — ez a
+szolgáltatás próbaüzemi feltétele, nem a megvalósítás korlátja. Végül a
+fényképes ellenőrzés nem előzi meg a visszaélést, csak utólag teszi
+ellenőrizhetővé; a megelőzésre alkalmas biometrikus azonosítás viszont a 2.1.
+alfejezetben tárgyalt adatvédelmi következményekkel jár, ezért tudatosan nem
+került megvalósításra.

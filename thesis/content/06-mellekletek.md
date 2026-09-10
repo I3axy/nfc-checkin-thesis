@@ -88,3 +88,6 @@ formátumban, a védéshez készült bemutatót, valamint a rendszer teljes
 forráskódját tartalmazza, amelyben a három alkalmazás és a szerveroldali
 függvények külön mappában szerepelnek. Az adathordozón megtalálhatók továbbá
 az adatbázis-migrációk futtatható állományai időrendi sorrendben.
+
+A forráskód nyilvánosan is elérhető a `https://github.com/I3axy/nfc-checkin-thesis`
+címen.

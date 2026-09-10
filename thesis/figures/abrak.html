@@ -205,8 +205,13 @@ function layer(x, text, y) {
 }
 
 // ── 1. ábra ────────────────────────────────────────────────────────────────
+// A rajzok MAGASSAGA a lapon elfoglalt helyet szabja meg: a build 17 cm
+// szelesre kicsinyit, tehat minel alacsonyabb a vaszon, annal alacsonyabb a
+// kep — a benne levo szoveg merete VALTOZATLAN marad. A fuggoleges hezagok
+// ezert szorosak: egy 1 cm-rel magasabb abra egesz lapokat tud szethuzni,
+// mert ha nem fer ki, a felirataval egyutt atugrik a kovetkezo lapra.
 ;(function () {
-  const W = 960, H = 630
+  const W = 960, H = 582
   const x = setup('c1', W, H)
 
   // A dobozok magassága a bennük álló szöveg mennyiségéből adódik (lásd box()),
@@ -214,27 +219,27 @@ function layer(x, text, y) {
   // szélei. Így a feliratok nagyításakor a rajz nem esik szét.
 
   // Kliens réteg
-  const kiosk  = box(x, 160, 100, 240, 76, 'Beléptető alkalmazás',
+  const kiosk  = box(x, 160, 88, 240, 76, 'Beléptető alkalmazás',
                      ['kioszk, falra szerelve', 'NFC-olvasás, fénykép'])
-  const worker = box(x, 480, 100, 240, 76, 'Dolgozói alkalmazás',
+  const worker = box(x, 480, 88, 240, 76, 'Dolgozói alkalmazás',
                      ['mobiltelefon', 'PIN-belépés, kérelmek'])
-  const admin  = box(x, 800, 100, 240, 76, 'Vezetői felület',
+  const admin  = box(x, 800, 88, 240, 76, 'Vezetői felület',
                      ['asztali böngésző', 'kimutatások, beállítások'])
 
-  const local  = box(x, 160, 200, 220, 56, 'Helyi tároló (IndexedDB)',
+  const local  = box(x, 160, 182, 220, 56, 'Helyi tároló (IndexedDB)',
                      ['névjegyzék + függő események'], { dashed: true })
 
   // Háttérrendszer
   // A „fénykép” nyílfeliratnak a két doboz KÖZÖTT kell elférnie, ezért a
   // középső két doboz keskenyebb: így a felirat fehér háttere nem takarja el
   // a szomszédos doboz keretét.
-  const fn   = box(x, 144, 382, 200, 86, 'Szerveroldali függvények',
+  const fn   = box(x, 144, 348, 200, 86, 'Szerveroldali függvények',
                    ['beléptetés, dolgozói adatok', 'felhasználókezelés', 'levélküldés, összefoglaló'])
-  const file = box(x, 398, 382, 176, 86, 'Fájltároló', ['ellenőrző fényképek'])
-  const auth = box(x, 594, 382, 176, 86, 'Hitelesítés', ['vezetői belépés'])
-  const rt   = box(x, 816, 382, 200, 86, 'Valós idejű csatorna', ['adatváltozás továbbítása'])
+  const file = box(x, 398, 348, 176, 86, 'Fájltároló', ['ellenőrző fényképek'])
+  const auth = box(x, 594, 348, 176, 86, 'Hitelesítés', ['vezetői belépés'])
+  const rt   = box(x, 816, 348, 200, 86, 'Valós idejű csatorna', ['adatváltozás továbbítása'])
 
-  const db = box(x, 480, 486, 872, 56, 'PostgreSQL adatbázis',
+  const db = box(x, 480, 448, 872, 56, 'PostgreSQL adatbázis',
       ['sorszintű biztonság (cégek elkülönítése) · pg_cron ütemezés'], { bold: true })
 
   // A háttérrendszer kerete a benne álló dobozokhoz igazodik. Csak vonal, nem
@@ -250,8 +255,8 @@ function layer(x, text, y) {
   // A felirat lejjebb kerül: a szakasz közepén a „Háttérrendszer (Supabase)”
   // rétegcímke futna rá.
   path(x, [[160, local.b], [160, fn.t]], 'esemény', { labelDy: 14 })
-  path(x, [[480, worker.b], [480, 276], [200, 276], [200, fn.t]], 'kérelem')
-  path(x, [[760, admin.b], [760, 300], [230, 300], [230, fn.t]], 'lekérdezés')
+  path(x, [[480, worker.b], [480, 252], [200, 252], [200, fn.t]], 'kérelem')
+  path(x, [[760, admin.b], [760, 274], [230, 274], [230, fn.t]], 'lekérdezés')
   path(x, [[850, rt.t], [850, admin.b]], 'értesítés', { dashed: true })
 
   // Háttérrendszeren belül
@@ -261,8 +266,8 @@ function layer(x, text, y) {
   path(x, [[rt.cx, db.t], [rt.cx, rt.b]], '', { dashed: true })
 
   // Külső szolgáltatások
-  const llm  = box(x, 220, 582, 240, 46, 'Nyelvi modell (Gemini)', [], { dashed: true })
-  const mail = box(x, 520, 582, 240, 46, 'Levélküldő szolgáltatás', [], { dashed: true })
+  const llm  = box(x, 220, 541, 240, 46, 'Nyelvi modell (Gemini)', [], { dashed: true })
+  const mail = box(x, 520, 541, 240, 46, 'Levélküldő szolgáltatás', [], { dashed: true })
   path(x, [[220, F.b], [220, llm.t]], '', { dashed: true })
   path(x, [[520, F.b], [520, mail.t]], '', { dashed: true })
 
@@ -317,58 +322,58 @@ function flushMsgs(x) {
 
 // ── 4. ábra: a kétlépéses fényképes ellenőrzés ─────────────────────────────
 ;(function () {
-  const W = 920, H = 600
+  const W = 920, H = 545
   const x = setup('c3', W, H)
   const A = 160, B = 460, C = 770        // a három szereplő életvonala
-  const TOP = 42, BOT = 500
+  const TOP = 36, BOT = 455
 
   lifeline(x, A, TOP, BOT, 'Beléptető alkalmazás', 'a falra szerelt eszközön')
   lifeline(x, B, TOP, BOT, 'Beléptető függvény', 'a szerveren')
   lifeline(x, C, TOP, BOT, 'Adatbázis és fájltároló')
 
   // A szereplőn belüli műveletek: doboz az életvonalon.
-  box(x, B, 178, 290, 58, 'a kártya ellenőrzése',
+  box(x, B, 158, 290, 58, 'a kártya ellenőrzése',
       ['az irány és a cég beállításának olvasása'], { fill: '#f7f7f7' })
-  box(x, A, 318, 250, 58, 'a kamera bekapcsolása',
+  box(x, A, 285, 250, 58, 'a kamera bekapcsolása',
       ['a felvétel elkészítése'], { fill: '#f7f7f7' })
 
-  msg(x, A, B, 120, '1. kérés — csak a kártyaazonosító')
-  msg(x, B, A, 248, '„fénykép szükséges” — esemény még nem jön létre', { dashed: true })
-  msg(x, A, B, 388, '2. kérés — az azonosító és a fénykép')
-  msg(x, B, C, 432, 'a kép mentése, az esemény rögzítése')
-  msg(x, B, A, 476, 'az eredmény: a név és a művelet iránya', { dashed: true })
+  msg(x, A, B, 105, '1. kérés — csak a kártyaazonosító')
+  msg(x, B, A, 225, '„fénykép szükséges” — esemény még nem jön létre', { dashed: true })
+  msg(x, A, B, 350, '2. kérés — az azonosító és a fénykép')
+  msg(x, B, C, 392, 'a kép mentése, az esemény rögzítése')
+  msg(x, B, A, 434, 'az eredmény: a név és a művelet iránya', { dashed: true })
 
   flush(x); flushMsgs(x)
 
   // A lényeg: a két kérés között megszakítható a folyamat.
-  box(x, W / 2, 552, 840, 46,
+  box(x, W / 2, 500, 840, 46,
       'A két kérés között megszakítva a rendszerben nem marad fénykép nélküli esemény.',
       [], { dashed: true })
 })()
 
 // ── 6. ábra: a hálózatfüggetlen működés ────────────────────────────────────
 ;(function () {
-  const W = 960, H = 650
+  const W = 960, H = 585
   const x = setup('c4', W, H)
 
-  frame(x, 30, 60, 425, 495, 'Kapcsolat nélkül')
-  frame(x, 505, 60, 425, 495, 'A kapcsolat helyreállásakor')
+  frame(x, 30, 50, 425, 440, 'Kapcsolat nélkül')
+  frame(x, 505, 50, 425, 440, 'A kapcsolat helyreállásakor')
 
   const L = 242, R = 717                 // a két oszlop középvonala
 
-  const a1 = box(x, L, 122, 330, 48, 'Kártyaérintés')
-  const a2 = box(x, L, 232, 330, 70, '① A kártya felismerése',
+  const a1 = box(x, L, 105, 330, 48, 'Kártyaérintés')
+  const a2 = box(x, L, 205, 330, 70, '① A kártya felismerése',
       ['helyi névjegyzék: azonosító → név'])
-  const a3 = box(x, L, 347, 330, 70, '② A művelet iránya',
+  const a3 = box(x, L, 310, 330, 70, '② A művelet iránya',
       ['a helyben tárolt utolsó irány,', 'a függő eseményekkel korrigálva'])
-  const a4 = box(x, L, 477, 330, 70, '③ Az esemény megőrzése',
+  const a4 = box(x, L, 425, 330, 70, '③ Az esemény megőrzése',
       ['helyi sor: client_event_id és', 'a rögzítés tényleges időpontja'])
 
-  const b1 = box(x, R, 122, 330, 54, '④ Visszajátszás', ['sorrendtartó, egyenként'])
-  const b2 = box(x, R, 232, 330, 54, 'Beléptető függvény', ['a szerveren'])
-  const b3 = box(x, R, 347, 330, 54, 'Egyedi index', ['a client_event_id mezőn'])
-  const b4 = box(x, 630, 477, 160, 56, 'Új azonosító', ['az esemény rögzül'])
-  const b5 = box(x, 804, 477, 160, 56, 'Ütközés', ['már megvan — siker'])
+  const b1 = box(x, R, 105, 330, 54, '④ Visszajátszás', ['sorrendtartó, egyenként'])
+  const b2 = box(x, R, 205, 330, 54, 'Beléptető függvény', ['a szerveren'])
+  const b3 = box(x, R, 310, 330, 54, 'Egyedi index', ['a client_event_id mezőn'])
+  const b4 = box(x, 630, 425, 160, 56, 'Új azonosító', ['az esemény rögzül'])
+  const b5 = box(x, 804, 425, 160, 56, 'Ütközés', ['már megvan — siker'])
 
   path(x, [[L, a1.b], [L, a2.t]])
   path(x, [[L, a2.b], [L, a3.t]])
@@ -379,12 +384,12 @@ function flushMsgs(x) {
 
   path(x, [[R, b1.b], [R, b2.t]])
   path(x, [[R, b2.b], [R, b3.t]])
-  path(x, [[R, b3.b], [R, 420], [630, 420], [630, b4.t]], 'új')
-  path(x, [[R, b3.b], [R, 420], [804, 420], [804, b5.t]], 'ütközés')
+  path(x, [[R, b3.b], [R, 372], [630, 372], [630, b4.t]], 'új')
+  path(x, [[R, b3.b], [R, 372], [804, 372], [804, b5.t]], 'ütközés')
 
   flush(x)
 
-  box(x, W / 2, 600, 900, 46,
+  box(x, W / 2, 540, 900, 46,
       'Végleges hibánál a tétel kikerül a sorból; átmeneti hibánál marad, és a feldolgozás megáll — így a sorrend nem borul fel.',
       [], { dashed: true })
 })()

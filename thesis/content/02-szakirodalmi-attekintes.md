@@ -314,6 +314,24 @@ rendszerint adottnak tekintik. Ipari környezetben — csarnokban, telephely
 bejáratánál — ez az előfeltevés nem tartható, a beléptetés viszont
 kapcsolathiány esetén sem szüneteltethető.
 
+Az áttekintett munkák további közös vonása, hogy a részproblémákat egymástól
+elkülönítve tárgyalják. A hálózatfüggetlen működés a webalkalmazás-architektúrák,
+a bérlők elkülönítése az adatbázis-tervezés, a visszaélés elleni védekezés pedig
+a jelenléti rendszerek irodalmában jelenik meg; olyan megoldás azonban nem került
+elő, amely a hármat egyetlen, célhardver nélküli rendszerben egyesítené. A [7]
+hivatkozásban bemutatott rendszer például a helyi rögzítés és a késleltetett
+továbbítás kérdését megoldja, a kártya átruházhatóságával viszont nem foglalkozik,
+több cég párhuzamos kiszolgálása pedig fel sem merül benne.
+
+Hasonló hiányosság mutatkozik az értékelés módjában. A jelenléti rendszereket
+bemutató közlemények jellemzően a beolvasás sebességét és a hardver
+megbízhatóságát mérik, azt viszont nem vizsgálják, hogy a rögzített adat
+mennyiben felel meg a valóságnak. Márpedig a nyilvántartás értéke éppen ezen
+múlik: egy gyors, de átruházható azonosítóval működő rendszer pontosan azt a
+hibát örökíti tovább, amelyet a papíralapú ív is hordoz. Az áttekintés alapján
+tehát nem a mérés sebessége, hanem a bejegyzés hitelessége az a pont, ahol a
+meglévő megoldások a leginkább hiányosak.
+
 Ezekből a megállapításokból három követelmény vezethető le, amelyek a
 következő fejezetben kidolgozott rendszer tervezését irányították: az
 azonosítást kiegészítő, olcsó ellenőrzési lehetőség biztosítása; a hálózati

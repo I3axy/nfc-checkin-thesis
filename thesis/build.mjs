@@ -23,6 +23,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import JSZip from 'jszip'
 import { META } from './meta.mjs'
+import { esc, paragraphs, paraText, setParaRuns, setParaText } from './docx.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.resolve(HERE, '..')
@@ -51,8 +52,6 @@ const NUM_ORDERED = 10  // a sablon számozott felsorolása
 
 // A hivatalos terjedelmi előírás: a 2. és 3. fejezet EGYÜTT 7000–10 000 szó.
 const QUOTA = { min: 7000, max: 10000, chapters: ['02', '03'] }
-
-const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
 // Az útmutató megjegyzések (<!-- ... -->) sem a dokumentumba, sem a
 // szószámlálásba nem kerülhetnek bele. Több soron is átnyúlhatnak.
@@ -396,38 +395,8 @@ const countWordsWord = md => tokens(stripComments(md)
 // bekezdés összes futama lecserélődik egyetlen újra, a bekezdés
 // tulajdonságainak (<w:pPr>, azaz a stílus) megtartásával.
 
-const paraText = p => [...p.matchAll(/<w:t[^>]*>([^<]*)<\/w:t>/g)].map(m => m[1]).join('')
-
-// A bekezdések határai. A <w:pPr> nem illeszkedik, mert utána nem szóköz
-// vagy '>' áll. Az önzáró (üres) bekezdést külön jelöljük — abban nincs mit
-// cserélni.
-function paragraphs(xml) {
-  const out = []
-  const re = /<w:p(?=[ >])[^>]*>/g
-  let m
-  while ((m = re.exec(xml)) !== null) {
-    if (m[0].endsWith('/>')) {
-      out.push({ start: m.index, end: m.index + m[0].length, empty: true })
-      continue
-    }
-    const end = xml.indexOf('</w:p>', re.lastIndex)
-    if (end === -1) continue
-    out.push({ start: m.index, end: end + '</w:p>'.length, empty: false })
-    re.lastIndex = end + '</w:p>'.length
-  }
-  return out
-}
-
-function setParaText(p, text) {
-  const open = p.match(/^<w:p[^>]*>/)[0]
-  const pPr = (p.match(/^<w:p[^>]*>(<w:pPr>[\s\S]*?<\/w:pPr>)/) ?? ['', ''])[1]
-  // A sablon futamai szerb nyelvre vannak jelölve; magyar szövegnél ez téves
-  // helyesírás-ellenőrzést eredményezne.
-  const run = text === ''
-    ? ''
-    : `<w:r><w:rPr><w:lang w:val="hu-HU"/></w:rPr><w:t xml:space="preserve">${esc(text)}</w:t></w:r>`
-  return open + pPr + run + '</w:p>'
-}
+// A bekezdéskezelés a docx.mjs modulban él, mert a borítólap generátora
+// (borito.mjs) ugyanezeket a helyőrzőket tölti ki ugyanezekkel az adatokkal.
 
 // Az első olyan bekezdés cseréje, amelynek szövege a megadott előtaggal
 // kezdődik. A null érték a bekezdés eltávolítását jelenti. Tömb esetén a
@@ -435,6 +404,8 @@ function setParaText(p, text) {
 // pontozott listájával, ugyanazzal, amelyet a fejezetek felsorolásai is
 // használnak. Üres sorral elválasztott szöveg esetén annyi bekezdés kerül a
 // helyőrző helyére, ahány szakasz van, mindegyik a helyőrző stílusával.
+// A { runs: [...] } alak egyetlen bekezdést ad, több, eltérően szedett
+// futammal — így marad a "Kulcsszavak:" álló, a kulcsszavak pedig dőltek.
 function replaceParaStartingWith(xml, prefix, value) {
   for (const q of paragraphs(xml)) {
     if (q.empty) continue
@@ -443,6 +414,7 @@ function replaceParaStartingWith(xml, prefix, value) {
     const next =
       value === null ? '' :
       Array.isArray(value) ? value.map(t => listPara(t, NUM_BULLET)).join('') :
+      value.runs ? setParaRuns(src, value.runs) :
       value.split(/\n\s*\n/).map(t => setParaText(src, t.replace(/\s+/g, ' ').trim())).join('')
     return { xml: xml.slice(0, q.start) + next + xml.slice(q.end), found: true }
   }
@@ -498,7 +470,10 @@ function fillFrontMatter(xml) {
   put('Szabadkán, kelt', META.dateLine)
 
   put('Az absztrakt a szakdolgozat', META.abstract)
-  put('Kulcsszavak:', `Kulcsszavak: ${META.keywords.join(', ')}`)
+  // A sablon helyőrzője két futamból áll: a "Kulcsszavak: " álló, a felsorolás
+  // dőlt. A mentor is ezt kérte, ezért a csere futamonként történik — egyetlen
+  // futamra összevonva a dőlt szedés elveszne.
+  put('Kulcsszavak:', { runs: ['Kulcsszavak: ', { t: META.keywords.join(', '), i: true }] })
 
   const legend = fillLegendTable(xml, META.legend)
   xml = legend.xml
